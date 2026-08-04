@@ -17,10 +17,15 @@ export default tseslint.config(
     },
   },
   {
+    // الگوها با **/ شروع می‌شوند تا هم از ریشه و هم از داخل هر پکیج کار کنند
     ignores: [
-      'apps/web/.next/**',
-      'dist/**',
-      'node_modules/**',
+      '**/.next/**',
+      '**/dist/**',
+      '**/node_modules/**',
+      // خروجی تولیدشدهٔ پریزما — دست‌نویس نیست و خودش ts-nocheck دارد
+      '**/generated/**',
+      // این فایل را خود Next در هر بیلد بازتولید می‌کند
+      '**/next-env.d.ts',
       '**/*.config.ts',
       '**/*.config.js',
       '**/*.config.mjs',

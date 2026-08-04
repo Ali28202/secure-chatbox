@@ -1,42 +1,14 @@
-import { prisma } from '@repo/database';
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
+import { app } from './app';
+import { env } from './env';
 
-const app = new Hono();
+/**
+ * Bun entrypoint. Nothing but wiring lives here — M8 will add the Socket.io
+ * engine's `websocket` handler and an `idleTimeout` to this same object.
+ */
 
-app.use('/*', logger());
-app.use('/*', cors());
-
-app.get('/', (c) =>
-  c.json({
-    message: 'Secure Chatbox API',
-    status: 'active',
-  })
-);
-
-/** Liveness — the process is up. Says nothing about the database. */
-app.get('/api/health', (c) => c.json({ status: 'ok', uptime: process.uptime() }));
-
-/** Readiness — the database is reachable and migrated. */
-app.get('/api/health/db', async (c) => {
-  try {
-    const users = await prisma.user.count();
-    return c.json({ db: 'ok', users });
-  } catch (error) {
-    console.error('[health/db] database unreachable:', error);
-    return c.json(
-      { db: 'error', message: error instanceof Error ? error.message : 'unknown error' },
-      503
-    );
-  }
-});
-
-const port = Number(process.env['API_PORT'] ?? 3001);
-
-console.info(`API listening on http://localhost:${port}`);
+console.info(`API listening on http://localhost:${env.API_PORT} (${env.NODE_ENV})`);
 
 export default {
-  port,
+  port: env.API_PORT,
   fetch: app.fetch,
 };
