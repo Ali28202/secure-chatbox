@@ -11,6 +11,16 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:generate": "bun --filter='@repo/database' db:generate",
+    "db:migrate": "bun --filter='@repo/database' db:migrate",
+    "db:deploy": "bun --filter='@repo/database' db:deploy",
+    "db:reset": "bun --filter='@repo/database' db:reset",
+    "db:studio": "bun --filter='@repo/database' db:studio",
+    "db:seed": "bun --filter='@repo/database' db:seed",
     "prepare": "husky"
   },
   "devDependencies": {

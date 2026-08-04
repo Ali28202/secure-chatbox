@@ -1,13 +1,173 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Secure Chatbox — data model
+//
+// Mirrors the submitted ERD (USER / CHAT / CHAT_MEMBER / MESSAGE / ATTACHMENT /
+// MESSAGE_RECEIPT) with two deliberate additions, documented in the plan:
+//   - Message.isPinned    the use-case diagram grants professors "پین کردن پیام",
+//                         but the ERD had no field to store it.
+//   - Chat.lastMessageAt  without it, ordering the chat list requires a
+//                         correlated max(createdAt) per chat on every request.
+//
+// Prisma 7: the datasource carries only `provider`; the connection URL lives in
+// prisma.config.ts. A driver adapter is mandatory — see src/client.ts.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  runtime      = "bun"
+  moduleFormat = "esm"
+  // Bun resolves the generated `./internal/*` imports from source, so the
+  // emitted import specifiers must keep their .ts extension.
+  importFileExtension = "ts"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// Platform-wide identity. Determines what a user may do anywhere.
+enum GlobalRole {
+  STUDENT
+  PROFESSOR
+  ADMIN
+}
+
+enum ChatType {
+  DIRECT
+  COURSE_GROUP
+  CUSTOM_GROUP
+}
+
+/// Per-chat authority, independent of GlobalRole.
+enum ChatRole {
+  ADMIN
+  MEMBER
+}
+
+enum ReceiptStatus {
+  DELIVERED
+  READ
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String     @id @default(uuid(7))
+  /// شماره دانشجویی یا کد استادی — the login identifier.
+  universityId String     @unique @map("university_id")
+  passwordHash String     @map("password_hash")
+  name         String
+  role         GlobalRole @default(STUDENT)
+  isActive     Boolean    @default(true) @map("is_active")
+  lastSeen     DateTime?  @map("last_seen")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  createdChats    Chat[]           @relation("ChatCreator")
+  memberships     ChatMember[]
+  sentMessages    Message[]        @relation("MessageSender")
+  messageReceipts MessageReceipt[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model Chat {
+  id            String    @id @default(uuid(7))
+  /// Null for DIRECT chats — the title is derived from the other member.
+  title         String?
+  type          ChatType
+  /// Read-only chats accept messages from chat admins only (announcements).
+  isReadOnly    Boolean   @default(false) @map("is_read_only")
+  creatorId     String    @map("creator_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  /// Denormalized for chat-list ordering; maintained by MessageService.
+  lastMessageAt DateTime? @map("last_message_at")
+
+  creator  User         @relation("ChatCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  members  ChatMember[]
+  messages Message[]
+
+  @@index([creatorId])
+  @@index([lastMessageAt(sort: Desc)])
+  @@map("chats")
+}
+
+model ChatMember {
+  userId   String   @map("user_id")
+  chatId   String   @map("chat_id")
+  role     ChatRole @default(MEMBER)
+  isMuted  Boolean  @default(false) @map("is_muted")
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@id([userId, chatId])
+  @@index([chatId])
+  @@map("chat_members")
+}
+
+model Message {
+  id        String   @id @default(uuid(7))
+  /// Nulled out on soft delete; the row survives so reply chains stay intact.
+  content   String?
+  senderId  String   @map("sender_id")
+  chatId    String   @map("chat_id")
+  replyToId String?  @map("reply_to_id")
+  isEdited  Boolean  @default(false) @map("is_edited")
+  isDeleted Boolean  @default(false) @map("is_deleted")
+  isPinned  Boolean  @default(false) @map("is_pinned")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  sender      User             @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  chat        Chat             @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  replyTo     Message?         @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies     Message[]        @relation("MessageReplies")
+  attachments Attachment[]
+  receipts    MessageReceipt[]
+
+  /// Drives cursor pagination of chat history.
+  @@index([chatId, createdAt(sort: Desc)])
+  @@index([senderId])
+  @@index([replyToId])
+  @@map("messages")
+}
+
+model Attachment {
+  id        String   @id @default(uuid(7))
+  messageId String   @map("message_id")
+  /// Path relative to the storage root, so the same row works in dev and
+  /// behind nginx. Never an absolute URL.
+  fileUrl   String   @map("file_url")
+  fileName  String   @map("file_name")
+  fileType  String   @map("file_type")
+  fileSize  Int      @map("file_size")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("attachments")
+}
+
+model MessageReceipt {
+  messageId String        @map("message_id")
+  userId    String        @map("user_id")
+  status    ReceiptStatus @default(DELIVERED)
+  timestamp DateTime      @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+  @@index([userId, status])
+  @@map("message_receipts")
 }
