@@ -32,16 +32,28 @@ authRoutes.post('/login', zValidator('json', loginSchema, onValidationError), as
   return c.json(user);
 });
 
+/**
+ * The last line of defence for a session, and so the place that decides when one
+ * is over. Every failure here clears all three cookies: refresh is what an
+ * expired access token falls back to, so if *this* fails there is nothing left
+ * to try, and leaving `session_hint` behind would leave the web client's proxy
+ * admitting requests to pages that can never load a user.
+ */
 authRoutes.post('/refresh', async (c) => {
   const token = getCookie(c, COOKIE_NAMES.refresh);
 
-  if (!token) {
-    throw Errors.unauthorized('نشست شما به پایان رسیده است. دوباره وارد شوید.');
-  }
+  try {
+    if (!token) {
+      throw Errors.unauthorized('نشست شما به پایان رسیده است. دوباره وارد شوید.');
+    }
 
-  const { user, tokens } = await authService.refresh(token);
-  setAuthCookies(c, tokens);
-  return c.json(user);
+    const { user, tokens } = await authService.refresh(token);
+    setAuthCookies(c, tokens);
+    return c.json(user);
+  } catch (error) {
+    clearAuthCookies(c);
+    throw error;
+  }
 });
 
 /**

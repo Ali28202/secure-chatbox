@@ -1,6 +1,9 @@
 import { LockKeyholeIcon, MessagesSquareIcon, NetworkIcon } from 'lucide-react';
+import Link from 'next/link';
 import { ConnectionStatus } from '@/components/system/connection-status';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card';
+import { ROUTES } from '@/lib/routes';
 
 const FEATURES = [
   {
@@ -33,6 +36,12 @@ export default function HomePage() {
         <p className="text-lg text-pretty text-muted-foreground">
           سامانهٔ گفت‌وگو و کنترل دسترسی درون‌شبکه‌ای برای استادان و دانشجویان.
         </p>
+        <div className="flex flex-wrap gap-3 pt-2">
+          <Button render={<Link href={ROUTES.login} />}>ورود به سامانه</Button>
+          <Button variant="outline" render={<Link href={ROUTES.register} />}>
+            ساخت حساب کاربری
+          </Button>
+        </div>
       </header>
 
       <ConnectionStatus />

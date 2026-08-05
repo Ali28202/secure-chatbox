@@ -37,6 +37,21 @@ export const LIMITS = {
 export const COOKIE_NAMES = {
   access: 'access_token',
   refresh: 'refresh_token',
+  /**
+   * Carries no token — its presence alone says "this browser may have a live
+   * session", and it is set and cleared in lockstep with the two real cookies.
+   *
+   * The web client's `proxy.ts` needs to decide whether to render the app or
+   * send the visitor to the login page, and neither real cookie can tell it:
+   * the access cookie expires after fifteen minutes while the session is still
+   * good for a week, and the refresh cookie is deliberately scoped to
+   * `REFRESH_COOKIE_PATH`, so a page request never carries it.
+   *
+   * It is a navigation hint and **never an authorization decision**. Anyone can
+   * forge it; all they win is a page that immediately asks the API for data and
+   * gets a 401. Authorization lives on the API, where the signature is checked.
+   */
+  sessionHint: 'session_hint',
 } as const;
 
 /**
