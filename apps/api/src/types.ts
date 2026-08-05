@@ -1,4 +1,4 @@
-import type { ChatMemberRow, UserRow } from './lib/mappers';
+import type { ChatMemberRow, ChatRow, UserRow } from './lib/mappers';
 
 /**
  * The Hono environment for this application.
@@ -27,6 +27,12 @@ export interface AppEnv {
 export interface ChatEnv extends AppEnv {
   Variables: AppEnv['Variables'] & {
     membership: ChatMemberRow;
+    /**
+     * The chat the membership belongs to, loaded alongside it. Handlers read
+     * `isReadOnly`, `type` and `creatorId` off this rather than re-fetching a
+     * row the guard has already been through.
+     */
+    chat: ChatRow;
     /**
      * The resolved `:chatId`.
      *

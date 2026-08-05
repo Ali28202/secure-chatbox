@@ -60,6 +60,21 @@ export interface AttachmentDto {
   fileSize: number;
 }
 
+/**
+ * The quoted line a reply renders above itself.
+ *
+ * It travels with the reply rather than being resolved client-side, because the
+ * message being answered is often far outside the loaded page — a reply to
+ * something from last week would otherwise quote a blank.
+ */
+export interface MessageReplyDto {
+  id: string;
+  senderName: string;
+  /** Null when the quoted message was deleted, by the same rule as below. */
+  content: string | null;
+  isDeleted: boolean;
+}
+
 export interface MessageDto {
   id: string;
   chatId: string;
@@ -69,6 +84,7 @@ export interface MessageDto {
   isDeleted: boolean;
   isPinned: boolean;
   replyToId: string | null;
+  replyTo: MessageReplyDto | null;
   attachments: AttachmentDto[];
   createdAt: string;
 }

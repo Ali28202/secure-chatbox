@@ -83,6 +83,19 @@ const attachmentSelect = {
   fileSize: true,
 } satisfies Prisma.AttachmentSelect;
 
+/**
+ * Just enough of the quoted message to draw the line above a reply.
+ *
+ * One level deep and no further: `replyTo.replyTo` would recurse down the whole
+ * chain and fetch a conversation's worth of rows to render one grey line.
+ */
+const replyPreviewSelect = {
+  id: true,
+  content: true,
+  isDeleted: true,
+  sender: { select: { name: true } },
+} satisfies Prisma.MessageSelect;
+
 export const messageSelect = {
   id: true,
   chatId: true,
@@ -92,6 +105,7 @@ export const messageSelect = {
   replyToId: true,
   createdAt: true,
   sender: { select: userSummarySelect },
+  replyTo: { select: replyPreviewSelect },
   attachments: { select: attachmentSelect },
 } satisfies Prisma.MessageSelect;
 
@@ -118,6 +132,16 @@ export function toMessageDto(message: MessageRow): MessageDto {
     isDeleted: message.isDeleted,
     isPinned: message.isPinned,
     replyToId: message.replyToId,
+    replyTo: message.replyTo
+      ? {
+          id: message.replyTo.id,
+          senderName: message.replyTo.sender.name,
+          // The same rule one level down: a deleted message's text stays on the
+          // server whether it is being read directly or quoted by a reply.
+          content: message.replyTo.isDeleted ? null : message.replyTo.content,
+          isDeleted: message.replyTo.isDeleted,
+        }
+      : null,
     attachments: message.isDeleted ? [] : message.attachments.map(toAttachmentDto),
     createdAt: message.createdAt.toISOString(),
   };

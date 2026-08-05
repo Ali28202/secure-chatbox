@@ -78,12 +78,10 @@ class ChatService {
    * thing, and the pair-uniqueness below depends on it never happening.
    */
   async addMember(
-    chatId: string,
+    chat: ChatRow,
     actor: ChatMemberRow,
     input: AddMemberInput
   ): Promise<ChatMemberDto> {
-    const chat = await this.requireChat(chatId);
-
     if (chat.type === 'DIRECT') {
       throw Errors.forbidden(DIRECT_IMMUTABLE);
     }
@@ -100,7 +98,7 @@ class ChatService {
     }
 
     const existing = await prisma.chatMember.findUnique({
-      where: { userId_chatId: { userId: input.userId, chatId } },
+      where: { userId_chatId: { userId: input.userId, chatId: chat.id } },
       select: { userId: true },
     });
 
@@ -109,7 +107,7 @@ class ChatService {
     }
 
     const member = await prisma.chatMember.create({
-      data: { chatId, userId: input.userId, role: input.role },
+      data: { chatId: chat.id, userId: input.userId, role: input.role },
       select: chatMemberSelect,
     });
 
@@ -123,9 +121,7 @@ class ChatService {
    * nobody should need permission to walk out of a conversation. Removing
    * *someone else* is an admin action.
    */
-  async removeMember(chatId: string, actor: ChatMemberRow, userId: string): Promise<void> {
-    const chat = await this.requireChat(chatId);
-
+  async removeMember(chat: ChatRow, actor: ChatMemberRow, userId: string): Promise<void> {
     if (chat.type === 'DIRECT') {
       throw Errors.forbidden(DIRECT_IMMUTABLE);
     }
@@ -143,7 +139,7 @@ class ChatService {
       throw Errors.forbidden('سازندهٔ گفت‌وگو نمی‌تواند آن را ترک کند.');
     }
 
-    const deleted = await prisma.chatMember.deleteMany({ where: { chatId, userId } });
+    const deleted = await prisma.chatMember.deleteMany({ where: { chatId: chat.id, userId } });
 
     if (deleted.count === 0) {
       throw Errors.notFound('این کاربر عضو گفت‌وگو نیست.');
@@ -156,12 +152,25 @@ class ChatService {
    * Returning `null` rather than throwing is what lets `requireChatMember`
    * answer 404 for a chat that exists but is none of your business — see the
    * middleware for why that distinction is worth the extra branch.
+   *
+   * The chat travels back with the membership because every caller needs both
+   * and the membership row already knows the way there: fetching them together
+   * costs one query, and the alternative is each service re-reading a chat the
+   * middleware has already proven the caller can see.
    */
-  async findMembership(chatId: string, userId: string): Promise<ChatMemberRow | null> {
-    return prisma.chatMember.findUnique({
+  async findMembership(
+    chatId: string,
+    userId: string
+  ): Promise<{ member: ChatMemberRow; chat: ChatRow } | null> {
+    const row = await prisma.chatMember.findUnique({
       where: { userId_chatId: { userId, chatId } },
-      select: chatMemberSelect,
+      select: { ...chatMemberSelect, chat: { select: chatSelect } },
     });
+
+    if (!row) return null;
+
+    const { chat, ...member } = row;
+    return { member, chat };
   }
 
   // -------------------------------------------------------------------------
@@ -266,16 +275,6 @@ class ChatService {
     });
 
     return toChatDto(chat);
-  }
-
-  private async requireChat(chatId: string): Promise<ChatRow> {
-    const chat = await prisma.chat.findUnique({ where: { id: chatId }, select: chatSelect });
-
-    if (!chat) {
-      throw Errors.notFound(CHAT_NOT_FOUND);
-    }
-
-    return chat;
   }
 
   private assertChatAdmin(member: ChatMemberRow): void {

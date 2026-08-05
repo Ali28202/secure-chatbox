@@ -36,10 +36,28 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
+  /*
+   * The shell is exactly one screen tall and never scrolls itself; the pages
+   * inside it scroll their own content. That is what a conversation needs — the
+   * composer has to stay reachable while the history moves behind it — and it
+   * has to be settled here, because a scroll region can only be as tall as an
+   * ancestor with a real height.
+   *
+   * `min-h-0` on the content row is the other half: a flex child defaults to
+   * `min-height: auto`, which refuses to shrink below its content, so without
+   * it a long conversation would push the composer off the bottom of the screen
+   * instead of scrolling.
+   *
+   * `svh` rather than `vh` because mobile browsers count their collapsing
+   * address bar in `vh`, and a composer that hides under it is worse than one
+   * that sits a little high.
+   */
   return (
-    <div className="flex min-h-full flex-1 flex-col">
+    <div className="flex h-svh flex-col">
       <AppHeader />
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-6">{children}</div>
+      <div className="mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col px-4 py-6">
+        {children}
+      </div>
     </div>
   );
 }

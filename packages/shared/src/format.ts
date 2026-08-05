@@ -21,6 +21,11 @@ const relativeTime = new Intl.RelativeTimeFormat('fa', { numeric: 'auto' });
 const timeOfDay = new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit' });
 const weekday = new Intl.DateTimeFormat('fa-IR', { weekday: 'long' });
 const shortDate = new Intl.DateTimeFormat('fa-IR', { day: 'numeric', month: 'long' });
+const fullDate = new Intl.DateTimeFormat('fa-IR', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -53,4 +58,45 @@ export function formatChatTimestamp(value: string | Date, now: Date = new Date()
   if (elapsed < 7 * DAY) return weekday.format(date);
 
   return shortDate.format(date);
+}
+
+/**
+ * The clock time under a message bubble.
+ *
+ * Always the clock, never "۵ دقیقه پیش": inside a conversation the times are
+ * read against each other — how long someone waited before answering — and a
+ * column of relative labels that all drift as you read makes that impossible.
+ */
+export function formatMessageTime(value: string | Date): string {
+  return timeOfDay.format(typeof value === 'string' ? new Date(value) : value);
+}
+
+/**
+ * The divider between days in a message list: «امروز», «دیروز», a weekday name
+ * within the week, then the full Jalali date.
+ */
+export function formatDayDivider(value: string | Date, now: Date = new Date()): string {
+  const date = typeof value === 'string' ? new Date(value) : value;
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (date >= startOfToday) return 'امروز';
+
+  const startOfYesterday = new Date(startOfToday.getTime() - DAY);
+  if (date >= startOfYesterday) return 'دیروز';
+
+  if (now.getTime() - date.getTime() < 7 * DAY) return weekday.format(date);
+
+  return fullDate.format(date);
+}
+
+/** Whether two timestamps fall on the same calendar day, for the divider above. */
+export function isSameDay(a: string | Date, b: string | Date): boolean {
+  const left = typeof a === 'string' ? new Date(a) : a;
+  const right = typeof b === 'string' ? new Date(b) : b;
+
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
 }

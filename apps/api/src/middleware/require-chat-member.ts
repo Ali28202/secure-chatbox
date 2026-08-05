@@ -34,7 +34,8 @@ export const requireChatMember = createMiddleware<ChatEnv>(async (c, next) => {
   }
 
   c.set('chatId', chatId);
-  c.set('membership', membership);
+  c.set('membership', membership.member);
+  c.set('chat', membership.chat);
 
   await next();
 });

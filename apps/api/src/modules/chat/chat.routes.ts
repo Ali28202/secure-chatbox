@@ -5,6 +5,7 @@ import { Errors } from '../../lib/errors';
 import { onValidationError } from '../../lib/validation';
 import { requireAuth } from '../../middleware/require-auth';
 import { requireChatMember } from '../../middleware/require-chat-member';
+import { messageRoutes } from '../message/message.routes';
 import type { AppEnv, ChatEnv } from '../../types';
 import { chatService } from './chat.service';
 
@@ -28,7 +29,7 @@ chatDetailRoutes.post(
   zValidator('json', addMemberSchema, onValidationError),
   async (c) => {
     const member = await chatService.addMember(
-      c.get('chatId'),
+      c.get('chat'),
       c.get('membership'),
       c.req.valid('json')
     );
@@ -38,9 +39,11 @@ chatDetailRoutes.post(
 
 /** Removing yourself is leaving; removing anyone else is an admin action. */
 chatDetailRoutes.delete('/members/:userId', async (c) => {
-  await chatService.removeMember(c.get('chatId'), c.get('membership'), c.req.param('userId'));
+  await chatService.removeMember(c.get('chat'), c.get('membership'), c.req.param('userId'));
   return c.json({ success: true });
 });
+
+chatDetailRoutes.route('/messages', messageRoutes);
 
 // ---------------------------------------------------------------------------
 
