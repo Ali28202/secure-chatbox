@@ -1,26 +1,24 @@
 'use client';
 
-import { MessagesSquareIcon } from 'lucide-react';
-import { useCurrentUser } from '@/hooks/use-auth';
-import { ROLE_LABELS } from '@/lib/labels';
+import { ChatList } from '@/components/chat/chat-list';
+import { NewChatDialog } from '@/components/chat/new-chat-dialog';
 
+/**
+ * The list is capped narrower than the shell around it: a chat row is a title,
+ * a one-line preview and a timestamp pinned to the far edge, and stretched to
+ * the full width of the page those three end up with a void between them. The
+ * cap keeps the row reading as one object.
+ */
 export default function ChatsPage() {
-  const user = useCurrentUser();
-
   return (
-    <div className="flex flex-1 flex-col">
-      <h1 className="text-2xl font-bold tracking-tight">گفت‌وگوها</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {user.name} — {ROLE_LABELS[user.role]}
-      </p>
+    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight">گفت‌وگوها</h1>
+        <NewChatDialog />
+      </div>
 
-      <div className="mt-8 flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
-        <MessagesSquareIcon className="size-8 text-muted-foreground" />
-        <p className="font-medium">هنوز گفت‌وگویی ندارید</p>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          پس از آغاز یک گفت‌وگوی خصوصی یا افزوده‌شدن به گروه درسی، فهرست گفت‌وگوهای شما اینجا نمایش
-          داده می‌شود.
-        </p>
+      <div className="mt-6 flex-1">
+        <ChatList />
       </div>
     </div>
   );

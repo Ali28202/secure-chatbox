@@ -1,4 +1,4 @@
-import type { UserRow } from './lib/mappers';
+import type { ChatMemberRow, UserRow } from './lib/mappers';
 
 /**
  * The Hono environment for this application.
@@ -14,5 +14,27 @@ import type { UserRow } from './lib/mappers';
 export interface AppEnv {
   Variables: {
     user: UserRow;
+  };
+}
+
+/**
+ * The environment for routes scoped to a single chat.
+ *
+ * `requireChatMember` has already resolved `:chatId` into a membership by the
+ * time any of them run, so `c.get('membership')` is both the proof the caller
+ * belongs there and the source of their `ChatRole` inside it.
+ */
+export interface ChatEnv extends AppEnv {
+  Variables: AppEnv['Variables'] & {
+    membership: ChatMemberRow;
+    /**
+     * The resolved `:chatId`.
+     *
+     * Carried on the context rather than re-read per handler because a sub-app
+     * mounted at `/:chatId` cannot see that segment in its own route types —
+     * `c.req.param('chatId')` there is `string | undefined`, and every handler
+     * would have to re-narrow a value the middleware has already proven.
+     */
+    chatId: string;
   };
 }

@@ -1,5 +1,13 @@
 import type { Prisma } from '@repo/database';
-import type { UserDto, UserSummaryDto } from '@repo/shared';
+import type {
+  AttachmentDto,
+  ChatDto,
+  ChatListItemDto,
+  ChatMemberDto,
+  MessageDto,
+  UserDto,
+  UserSummaryDto,
+} from '@repo/shared';
 
 /**
  * Row → DTO translation, and the `select` clauses that produce those rows.
@@ -42,5 +50,123 @@ export function toUserDto(user: UserRow): UserDto {
     isActive: user.isActive,
     lastSeen: user.lastSeen?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Chat
+// ---------------------------------------------------------------------------
+
+export const chatMemberSelect = {
+  role: true,
+  isMuted: true,
+  joinedAt: true,
+  user: { select: userSummarySelect },
+} satisfies Prisma.ChatMemberSelect;
+
+export type ChatMemberRow = Prisma.ChatMemberGetPayload<{ select: typeof chatMemberSelect }>;
+
+export function toChatMemberDto(member: ChatMemberRow): ChatMemberDto {
+  return {
+    user: toUserSummaryDto(member.user),
+    role: member.role,
+    isMuted: member.isMuted,
+    joinedAt: member.joinedAt.toISOString(),
+  };
+}
+
+const attachmentSelect = {
+  id: true,
+  fileName: true,
+  fileUrl: true,
+  fileType: true,
+  fileSize: true,
+} satisfies Prisma.AttachmentSelect;
+
+export const messageSelect = {
+  id: true,
+  chatId: true,
+  content: true,
+  isDeleted: true,
+  isPinned: true,
+  replyToId: true,
+  createdAt: true,
+  sender: { select: userSummarySelect },
+  attachments: { select: attachmentSelect },
+} satisfies Prisma.MessageSelect;
+
+export type MessageRow = Prisma.MessageGetPayload<{ select: typeof messageSelect }>;
+
+function toAttachmentDto(attachment: MessageRow['attachments'][number]): AttachmentDto {
+  return {
+    id: attachment.id,
+    fileName: attachment.fileName,
+    fileUrl: attachment.fileUrl,
+    fileType: attachment.fileType,
+    fileSize: attachment.fileSize,
+  };
+}
+
+export function toMessageDto(message: MessageRow): MessageDto {
+  return {
+    id: message.id,
+    chatId: message.chatId,
+    sender: toUserSummaryDto(message.sender),
+    // A soft-deleted row keeps its place so replies still resolve, but its text
+    // must not travel: `isDeleted` is the client's cue to render a tombstone.
+    content: message.isDeleted ? null : message.content,
+    isDeleted: message.isDeleted,
+    isPinned: message.isPinned,
+    replyToId: message.replyToId,
+    attachments: message.isDeleted ? [] : message.attachments.map(toAttachmentDto),
+    createdAt: message.createdAt.toISOString(),
+  };
+}
+
+export const chatSelect = {
+  id: true,
+  type: true,
+  title: true,
+  isReadOnly: true,
+  creatorId: true,
+  lastMessageAt: true,
+  createdAt: true,
+} satisfies Prisma.ChatSelect;
+
+export type ChatRow = Prisma.ChatGetPayload<{ select: typeof chatSelect }>;
+
+export function toChatDto(chat: ChatRow): ChatDto {
+  return {
+    id: chat.id,
+    type: chat.type,
+    title: chat.title,
+    isReadOnly: chat.isReadOnly,
+    creatorId: chat.creatorId,
+    lastMessageAt: chat.lastMessageAt?.toISOString() ?? null,
+    createdAt: chat.createdAt.toISOString(),
+  };
+}
+
+/**
+ * A chat with everything the sidebar draws: who is in it (a direct chat has no
+ * stored title, so the client titles it from the other member) and the latest
+ * message as a preview line.
+ */
+export const chatListSelect = {
+  ...chatSelect,
+  members: { select: chatMemberSelect, orderBy: { joinedAt: 'asc' } },
+  messages: { select: messageSelect, orderBy: { createdAt: 'desc' }, take: 1 },
+} satisfies Prisma.ChatSelect;
+
+export type ChatListRow = Prisma.ChatGetPayload<{ select: typeof chatListSelect }>;
+
+export function toChatListItemDto(chat: ChatListRow, unreadCount = 0): ChatListItemDto {
+  const [lastMessage] = chat.messages;
+
+  return {
+    ...toChatDto(chat),
+    members: chat.members.map(toChatMemberDto),
+    lastMessage: lastMessage ? toMessageDto(lastMessage) : null,
+    unreadCount,
   };
 }

@@ -10,6 +10,7 @@ export const ROUTES = {
   login: '/login',
   register: '/register',
   chats: '/chats',
+  chat: (chatId: string) => `/chats/${chatId}`,
 } as const;
 
 /** Pages that never require a session. */

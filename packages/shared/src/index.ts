@@ -17,6 +17,7 @@ export * from './schemas/auth';
 export * from './schemas/chat';
 export * from './schemas/common';
 export * from './schemas/message';
+export * from './schemas/user';
 
 export * from './types/api';
 export type * from './types/dto';

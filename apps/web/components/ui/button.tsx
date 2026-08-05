@@ -1,5 +1,6 @@
 import { Button as ButtonPrimitive } from '@base-ui/react/button';
 import { cva, type VariantProps } from 'class-variance-authority';
+import { isValidElement } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -44,11 +45,20 @@ function Button({
   className,
   variant = 'default',
   size = 'default',
+  render,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   return (
     <ButtonPrimitive
       data-slot="button"
+      render={render}
+      // Base UI has to know whether the element it ends up rendering really is a
+      // `<button>`: when it is not — `render={<Link/>}` produces an `<a>` — the
+      // primitive supplies the role, keyboard activation and disabled semantics
+      // the browser would otherwise give for free. Inferring it here rather than
+      // at each call site is what stops a Button-as-Link from quietly shipping
+      // without them. An explicit `nativeButton` in `props` still wins.
+      nativeButton={!render || (isValidElement(render) && render.type === 'button')}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

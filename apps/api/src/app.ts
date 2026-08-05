@@ -5,6 +5,8 @@ import { logger } from 'hono/logger';
 import { env } from './env';
 import { errorHandler, notFoundHandler } from './lib/errors';
 import { authRoutes } from './modules/auth/auth.routes';
+import { chatRoutes } from './modules/chat/chat.routes';
+import { userRoutes } from './modules/user/user.routes';
 import { healthRoutes } from './routes/health';
 import type { AppEnv } from './types';
 
@@ -43,3 +45,5 @@ app.get('/', (c) => c.json({ name: 'Secure Chatbox API', status: 'active' }));
 
 app.route('/api/health', healthRoutes);
 app.route('/api/auth', authRoutes);
+app.route('/api/chats', chatRoutes);
+app.route('/api/users', userRoutes);
