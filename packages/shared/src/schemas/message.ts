@@ -1,5 +1,6 @@
 import * as z from 'zod';
 import { LIMITS } from '../constants';
+import { toPersianDigits } from '../format';
 import { cursorPaginationSchema, idSchema } from './common';
 
 export const sendMessageSchema = z.object({
@@ -8,7 +9,7 @@ export const sendMessageSchema = z.object({
     .trim()
     .min(LIMITS.messageContent.min, { error: 'پیام نمی‌تواند خالی باشد.' })
     .max(LIMITS.messageContent.max, {
-      error: `پیام نمی‌تواند بیشتر از ${LIMITS.messageContent.max} نویسه باشد.`,
+      error: `پیام نمی‌تواند بیشتر از ${toPersianDigits(LIMITS.messageContent.max)} نویسه باشد.`,
     }),
   /** Set when this message is a reply; the target must live in the same chat. */
   replyToId: idSchema.optional(),

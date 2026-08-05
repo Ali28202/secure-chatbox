@@ -1,13 +1,16 @@
 import * as z from 'zod';
 import { CHAT_ROLES, LIMITS } from '../constants';
+import { toPersianDigits } from '../format';
 import { idSchema } from './common';
 
 const chatTitleSchema = z
   .string({ error: 'نام گفت‌وگو را وارد کنید.' })
   .trim()
-  .min(LIMITS.chatTitle.min, { error: `نام باید دست‌کم ${LIMITS.chatTitle.min} نویسه باشد.` })
+  .min(LIMITS.chatTitle.min, {
+    error: `نام باید دست‌کم ${toPersianDigits(LIMITS.chatTitle.min)} نویسه باشد.`,
+  })
   .max(LIMITS.chatTitle.max, {
-    error: `نام نمی‌تواند بیشتر از ${LIMITS.chatTitle.max} نویسه باشد.`,
+    error: `نام نمی‌تواند بیشتر از ${toPersianDigits(LIMITS.chatTitle.max)} نویسه باشد.`,
   });
 
 /**

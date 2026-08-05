@@ -10,6 +10,7 @@
 import './locale';
 
 export * from './constants';
+export * from './format';
 export * from './messages';
 
 export * from './schemas/auth';
