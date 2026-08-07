@@ -1,4 +1,4 @@
-import type { ChatRole, ChatType, GlobalRole, ReceiptStatus } from '../constants';
+import type { ChatRole, ChatType, GlobalRole } from '../constants';
 
 /**
  * The shapes the API actually returns.
@@ -32,6 +32,16 @@ export interface ChatMemberDto {
   role: ChatRole;
   isMuted: boolean;
   joinedAt: string;
+  /**
+   * How far this member has read: the `createdAt` of the newest message they
+   * have a READ receipt for, or null if they have read nothing.
+   *
+   * A watermark rather than a count, because counts don't survive the realtime
+   * path. Two overlapping read ranges arriving over the socket would each add
+   * their own total and double-count; a watermark applied twice is the same
+   * watermark. A message is read by this member iff `lastReadAt >= createdAt`.
+   */
+  lastReadAt: string | null;
 }
 
 export interface ChatDto {
@@ -95,9 +105,16 @@ export interface MessagePageDto {
   nextCursor: string | null;
 }
 
-export interface ReceiptDto {
-  messageId: string;
-  userId: string;
-  status: ReceiptStatus;
-  updatedAt: string;
+/**
+ * What `POST /chats/:chatId/messages/read` answers.
+ *
+ * `unreadCount` is recomputed rather than assumed to be zero: the client marks
+ * up to the newest message it has *seen*, and messages that arrived below the
+ * fold while it was scrolling are still unread.
+ */
+export interface MarkReadResultDto {
+  chatId: string;
+  upToMessageId: string;
+  readAt: string;
+  unreadCount: number;
 }

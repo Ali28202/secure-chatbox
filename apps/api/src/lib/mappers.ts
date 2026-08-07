@@ -8,6 +8,7 @@ import type {
   UserDto,
   UserSummaryDto,
 } from '@repo/shared';
+import type { ChatWatermarks } from './receipts';
 
 /**
  * Row → DTO translation, and the `select` clauses that produce those rows.
@@ -66,12 +67,24 @@ export const chatMemberSelect = {
 
 export type ChatMemberRow = Prisma.ChatMemberGetPayload<{ select: typeof chatMemberSelect }>;
 
-export function toChatMemberDto(member: ChatMemberRow): ChatMemberDto {
+/**
+ * `lastReadAt` is passed in rather than selected: it is an aggregate over this
+ * member's receipts, which no `select` on `ChatMember` can reach. `readWatermarks`
+ * computes them for a whole chat at once — see `lib/receipts.ts`.
+ *
+ * Defaulting to null is correct for the one caller that has no watermarks to
+ * give: a member who was just added has read nothing.
+ */
+export function toChatMemberDto(
+  member: ChatMemberRow,
+  lastReadAt: Date | null = null
+): ChatMemberDto {
   return {
     user: toUserSummaryDto(member.user),
     role: member.role,
     isMuted: member.isMuted,
     joinedAt: member.joinedAt.toISOString(),
+    lastReadAt: lastReadAt?.toISOString() ?? null,
   };
 }
 
@@ -184,13 +197,22 @@ export const chatListSelect = {
 
 export type ChatListRow = Prisma.ChatGetPayload<{ select: typeof chatListSelect }>;
 
-export function toChatListItemDto(chat: ChatListRow, unreadCount = 0): ChatListItemDto {
+/**
+ * Read state arrives as one argument because it is fetched for every chat in
+ * the response at once, not per chat — two queries for a sidebar of any size.
+ */
+export function toChatListItemDto(
+  chat: ChatListRow,
+  read: { unreadCount?: number; watermarks?: ChatWatermarks } = {}
+): ChatListItemDto {
   const [lastMessage] = chat.messages;
 
   return {
     ...toChatDto(chat),
-    members: chat.members.map(toChatMemberDto),
+    members: chat.members.map((member) =>
+      toChatMemberDto(member, read.watermarks?.get(member.user.id) ?? null)
+    ),
     lastMessage: lastMessage ? toMessageDto(lastMessage) : null,
-    unreadCount,
+    unreadCount: read.unreadCount ?? 0,
   };
 }

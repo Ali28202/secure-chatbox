@@ -17,6 +17,7 @@ import {
   type ChatMemberRow,
   type ChatRow,
 } from '../../lib/mappers';
+import { countUnread, readWatermarks } from '../../lib/receipts';
 import { socketGateway } from '../../socket/gateway';
 
 const CHAT_NOT_FOUND = 'این گفت‌وگو وجود ندارد یا به آن دسترسی ندارید.';
@@ -48,9 +49,20 @@ class ChatService {
       orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
     });
 
-    // `unreadCount` stays 0 until M9 puts read receipts behind it — there are
-    // no receipt rows to count yet, so any other number would be invented.
-    return chats.map((chat) => toChatListItemDto(chat));
+    // Two queries for the whole sidebar rather than two per chat: both take the
+    // full list of ids and come back keyed by chat.
+    const chatIds = chats.map((chat) => chat.id);
+    const [unread, watermarks] = await Promise.all([
+      countUnread(userId, chatIds),
+      readWatermarks(chatIds),
+    ]);
+
+    return chats.map((chat) =>
+      toChatListItemDto(chat, {
+        unreadCount: unread.get(chat.id) ?? 0,
+        watermarks: watermarks.get(chat.id),
+      })
+    );
   }
 
   /** One chat, in the same shape as the list, provided the user is a member. */
@@ -64,7 +76,15 @@ class ChatService {
       throw Errors.notFound(CHAT_NOT_FOUND);
     }
 
-    return toChatListItemDto(chat);
+    const [unread, watermarks] = await Promise.all([
+      countUnread(userId, [chatId]),
+      readWatermarks([chatId]),
+    ]);
+
+    return toChatListItemDto(chat, {
+      unreadCount: unread.get(chatId) ?? 0,
+      watermarks: watermarks.get(chatId),
+    });
   }
 
   async createChat(creatorId: string, input: CreateChatInput): Promise<ChatDto> {

@@ -1,7 +1,15 @@
 import { prisma, type Prisma } from '@repo/database';
-import type { ListMessagesQuery, MessageDto, MessagePageDto, SendMessageInput } from '@repo/shared';
+import type {
+  ListMessagesQuery,
+  MarkReadInput,
+  MarkReadResultDto,
+  MessageDto,
+  MessagePageDto,
+  SendMessageInput,
+} from '@repo/shared';
 import { Errors } from '../../lib/errors';
 import { messageSelect, toMessageDto, type ChatMemberRow, type ChatRow } from '../../lib/mappers';
+import { advanceReceipts, countUnread, createDeliveredReceipts } from '../../lib/receipts';
 import { socketGateway } from '../../socket/gateway';
 
 const MESSAGE_NOT_FOUND = 'این پیام وجود ندارد.';
@@ -96,6 +104,15 @@ class MessageService {
         data: { lastMessageAt: created.createdAt },
       });
 
+      // In the same transaction, for the same reason as the bump above: a
+      // message that commits without its receipts is a message no unread count
+      // will ever include, and nothing later reconciles the two.
+      await createDeliveredReceipts(tx, {
+        chatId: chat.id,
+        messageId: created.id,
+        senderId: member.user.id,
+      });
+
       return created;
     });
 
@@ -167,6 +184,53 @@ class MessageService {
     socketGateway.emitToChat(chat.id, 'message:deleted', dto);
 
     return dto;
+  }
+
+  /**
+   * Marks everything up to `upToMessageId` read for this member.
+   *
+   * Batched by design — the client reports the newest message it has actually
+   * had on screen once its scrolling settles, not one call per message. Thirty
+   * messages read in one flick of the wrist is one round trip.
+   *
+   * Notably not gated on `assertCanSend`: someone who has been muted, or who is
+   * in a read-only announcement chat, is exactly the person who reads without
+   * writing. Membership is the only requirement, and the guard above this route
+   * has already established it.
+   */
+  async markAsRead(
+    chat: ChatRow,
+    member: ChatMemberRow,
+    input: MarkReadInput
+  ): Promise<MarkReadResultDto> {
+    // Scoped to the chat: an id from another conversation must not be usable to
+    // learn a timestamp from it, nor to advance receipts across a boundary.
+    const anchor = await prisma.message.findFirst({
+      where: { id: input.upToMessageId, chatId: chat.id },
+      select: { id: true, createdAt: true },
+    });
+
+    if (!anchor) {
+      throw Errors.notFound(MESSAGE_NOT_FOUND);
+    }
+
+    const userId = member.user.id;
+    const advanced = await advanceReceipts(userId, chat.id, anchor);
+
+    // Recomputed, not assumed to be zero. The client marks up to what it has
+    // *seen*, and a message that arrived below the fold mid-scroll is still
+    // unread — answering 0 here would clear a badge that should still be lit.
+    const unreadCount = (await countUnread(userId, [chat.id])).get(chat.id) ?? 0;
+    const readAt = anchor.createdAt.toISOString();
+
+    // Only when something moved. A conversation the reader is sitting at the
+    // bottom of settles over the same last message again and again, and each
+    // one would otherwise put a frame on every socket in the chat.
+    if (advanced > 0) {
+      socketGateway.emitToChat(chat.id, 'receipt:read', { chatId: chat.id, userId, readAt });
+    }
+
+    return { chatId: chat.id, upToMessageId: anchor.id, readAt, unreadCount };
   }
 
   // -------------------------------------------------------------------------

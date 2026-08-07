@@ -115,6 +115,7 @@ export function ChatDetail({ chatId }: { chatId: string }) {
       <MessageList
         chatId={chatId}
         viewerId={user.id}
+        members={chat.data.members}
         isChatAdmin={isChatAdmin}
         onReply={setReplyTo}
       />

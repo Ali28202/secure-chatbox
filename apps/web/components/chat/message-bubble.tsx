@@ -1,7 +1,7 @@
 'use client';
 
-import { formatMessageTime, type MessageDto } from '@repo/shared';
-import { MoreVerticalIcon, ReplyIcon, Trash2Icon } from 'lucide-react';
+import { formatMessageTime, toPersianDigits, type MessageDto } from '@repo/shared';
+import { CheckCheckIcon, CheckIcon, MoreVerticalIcon, ReplyIcon, Trash2Icon } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,6 +40,47 @@ function ReplyQuote({
   );
 }
 
+/** How many of the other members have read this message, out of how many. */
+export interface ReadState {
+  read: number;
+  total: number;
+}
+
+/**
+ * The delivery ticks under your own messages.
+ *
+ * One tick for sent, two once anyone has read it, and the pair brightens when
+ * everyone has — the convention every messenger uses, so it needs no legend.
+ *
+ * Brightness rather than the familiar blue: these sit on a filled `bg-primary`
+ * bubble, and a coloured tick on a coloured background is a tick nobody can
+ * see. The count is in the label for the case a group makes ambiguous, where
+ * "someone has read this" and "the class has read this" look the same.
+ */
+function ReadTicks({ read, total }: ReadState) {
+  const allRead = total > 0 && read === total;
+
+  const label =
+    read === 0
+      ? 'ارسال شد'
+      : allRead
+        ? 'خوانده شد'
+        : `خوانده‌شده توسط ${toPersianDigits(read)} نفر از ${toPersianDigits(total)} نفر`;
+
+  const Icon = read === 0 ? CheckIcon : CheckCheckIcon;
+
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      role="img"
+      className={cn('shrink-0', allRead ? 'text-primary-foreground' : 'text-primary-foreground/60')}
+    >
+      <Icon className="size-3.5" aria-hidden />
+    </span>
+  );
+}
+
 /**
  * One message.
  *
@@ -57,6 +98,7 @@ export function MessageBubble({
   isOwn,
   showSender,
   canDelete,
+  readState,
   onReply,
   onDelete,
 }: {
@@ -65,6 +107,8 @@ export function MessageBubble({
   /** False when the message continues a run from the same sender. */
   showSender: boolean;
   canDelete: boolean;
+  /** Null where ticks would mean nothing: someone else's message, or a tombstone. */
+  readState: ReadState | null;
   onReply: (message: MessageDto) => void;
   onDelete: (message: MessageDto) => void;
 }) {
@@ -129,15 +173,19 @@ export function MessageBubble({
             <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
           )}
 
-          <time
-            dateTime={message.createdAt}
-            className={cn(
-              'mt-1 block text-[10px] tabular-nums',
-              isOwn && !message.isDeleted ? 'text-primary-foreground/70' : 'text-muted-foreground'
-            )}
-          >
-            {formatMessageTime(message.createdAt)}
-          </time>
+          <span className="mt-1 flex items-center justify-end gap-1">
+            <time
+              dateTime={message.createdAt}
+              className={cn(
+                'text-[10px] tabular-nums',
+                isOwn && !message.isDeleted ? 'text-primary-foreground/70' : 'text-muted-foreground'
+              )}
+            >
+              {formatMessageTime(message.createdAt)}
+            </time>
+
+            {readState && <ReadTicks {...readState} />}
+          </span>
         </div>
       </div>
 

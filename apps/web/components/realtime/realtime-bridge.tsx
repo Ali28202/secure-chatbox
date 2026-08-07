@@ -1,12 +1,20 @@
 'use client';
 
-import type { MessageDto, PresenceChange } from '@repo/shared';
+import type { MessageDto, PresenceChange, ReadReceipt } from '@repo/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
-import { chatsQueryKey } from '@/hooks/use-chats';
+import { usePathname } from 'next/navigation';
+import { useEffect, useRef } from 'react';
+import { useCurrentUser } from '@/hooks/use-auth';
+import { applyReadReceipt, chatsQueryKey } from '@/hooks/use-chats';
 import { applyDeletedMessage, applyIncomingMessage, messagesRootKey } from '@/hooks/use-messages';
 import { disconnectSocket, getSocket, installAuthRecovery } from '@/lib/socket';
 import { usePresenceStore } from '@/stores/presence-store';
+
+/** The chat a `/chats/<id>` path is showing, or null anywhere else. */
+function chatIdFromPath(pathname: string): string | null {
+  const match = /^\/chats\/([^/]+)/.exec(pathname);
+  return match?.[1] ?? null;
+}
 
 /**
  * The only place socket events touch application state.
@@ -24,13 +32,44 @@ import { usePresenceStore } from '@/stores/presence-store';
  */
 export function RealtimeBridge() {
   const queryClient = useQueryClient();
+  const viewer = useCurrentUser();
+  const pathname = usePathname();
+
+  /*
+   * Held in a ref rather than read from `pathname` inside the handler.
+   *
+   * The subscription effect below must not depend on the route: re-running it
+   * on every navigation would tear down and re-add four listeners each time a
+   * chat is opened, and any event that arrived in between would land on nothing.
+   * The handler reads the current value when it fires instead.
+   */
+  const openChatRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    openChatRef.current = chatIdFromPath(pathname);
+  }, [pathname]);
 
   useEffect(() => {
     const socket = getSocket();
     const presence = usePresenceStore.getState();
 
-    const onMessage = (message: MessageDto) => applyIncomingMessage(queryClient, message);
+    /*
+     * Whether this message should raise a badge.
+     *
+     * Not your own, obviously. And not one arriving in the conversation already
+     * on screen in a foreground tab — that message is about to be read, and
+     * lighting a badge the reader clears by continuing to sit still is a badge
+     * that only ever announced itself. A backgrounded tab gets no such credit:
+     * nobody is looking at it, so its count accumulates like any other.
+     */
+    const isUnread = (message: MessageDto) =>
+      message.sender.id !== viewer.id &&
+      !(message.chatId === openChatRef.current && document.visibilityState === 'visible');
+
+    const onMessage = (message: MessageDto) =>
+      applyIncomingMessage(queryClient, message, isUnread(message));
     const onDeleted = (tombstone: MessageDto) => applyDeletedMessage(queryClient, tombstone);
+    const onReceipt = (receipt: ReadReceipt) => applyReadReceipt(queryClient, receipt, viewer.id);
 
     const onSync = (userIds: string[]) => presence.merge(userIds);
     const onPresence = ({ userId, isOnline }: PresenceChange) => presence.set(userId, isOnline);
@@ -55,6 +94,7 @@ export function RealtimeBridge() {
 
     socket.on('message:new', onMessage);
     socket.on('message:deleted', onDeleted);
+    socket.on('receipt:read', onReceipt);
     socket.on('presence:sync', onSync);
     socket.on('presence:changed', onPresence);
     socket.io.on('reconnect', onReconnect);
@@ -66,6 +106,7 @@ export function RealtimeBridge() {
     return () => {
       socket.off('message:new', onMessage);
       socket.off('message:deleted', onDeleted);
+      socket.off('receipt:read', onReceipt);
       socket.off('presence:sync', onSync);
       socket.off('presence:changed', onPresence);
       socket.io.off('reconnect', onReconnect);
@@ -78,7 +119,7 @@ export function RealtimeBridge() {
       usePresenceStore.getState().clear();
       disconnectSocket();
     };
-  }, [queryClient]);
+  }, [queryClient, viewer.id]);
 
   return null;
 }

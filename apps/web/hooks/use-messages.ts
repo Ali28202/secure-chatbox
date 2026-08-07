@@ -1,6 +1,6 @@
 'use client';
 
-import type { MessageDto, MessagePageDto, SendMessageInput } from '@repo/shared';
+import type { MarkReadResultDto, MessageDto, MessagePageDto, SendMessageInput } from '@repo/shared';
 import {
   useInfiniteQuery,
   useMutation,
@@ -8,7 +8,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { applyChatActivity, applyChatTombstone } from './use-chats';
+import { applyChatActivity, applyChatTombstone, applyMarkRead } from './use-chats';
 
 /*
  * Deliberately *not* `['chats', chatId, 'messages']`. React Query matches keys
@@ -78,12 +78,19 @@ function withTombstone(
  *
  * Exported for the realtime bridge, and written here rather than there so the
  * shape of this cache stays knowledge this file owns.
+ *
+ * `unread` is passed straight through to the sidebar — see `applyChatActivity`
+ * for why the decision is the caller's.
  */
-export function applyIncomingMessage(queryClient: QueryClient, message: MessageDto): void {
+export function applyIncomingMessage(
+  queryClient: QueryClient,
+  message: MessageDto,
+  unread = false
+): void {
   queryClient.setQueryData<MessagesCache>(messagesQueryKey(message.chatId), (cache) =>
     withMessage(cache, message)
   );
-  applyChatActivity(queryClient, message);
+  applyChatActivity(queryClient, message, unread);
 }
 
 export function applyDeletedMessage(queryClient: QueryClient, tombstone: MessageDto): void {
@@ -155,5 +162,28 @@ export function useDeleteMessage(chatId: string) {
     mutationFn: async (messageId: string) =>
       (await api.delete<MessageDto>(`/chats/${chatId}/messages/${messageId}`)).data,
     onSuccess: (tombstone) => applyDeletedMessage(queryClient, tombstone),
+  });
+}
+
+/**
+ * Reports how far this reader has got, as far as `upToMessageId` inclusive.
+ *
+ * One call per settled scroll, not one per message — the endpoint takes a
+ * watermark and advances every receipt behind it. Thirty messages caught up on
+ * in one flick of the wrist cost one request.
+ *
+ * Failures are swallowed on purpose: there is no `onError`, and none of the
+ * three callers passes one. A read receipt that did not make it is worth
+ * nothing to the reader and a toast about it would be an interruption in
+ * exchange for information they cannot act on. The next settle sends a
+ * watermark at least as far along, so the state repairs itself.
+ */
+export function useMarkRead(chatId: string, viewerId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (upToMessageId: string) =>
+      (await api.post<MarkReadResultDto>(`/chats/${chatId}/messages/read`, { upToMessageId })).data,
+    onSuccess: (result) => applyMarkRead(queryClient, result, viewerId),
   });
 }

@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator';
-import { listMessagesQuerySchema, sendMessageSchema } from '@repo/shared';
+import { listMessagesQuerySchema, markReadSchema, sendMessageSchema } from '@repo/shared';
 import { Hono } from 'hono';
 import { onValidationError } from '../../lib/validation';
 import type { ChatEnv } from '../../types';
@@ -28,6 +28,16 @@ messageRoutes.post('/', zValidator('json', sendMessageSchema, onValidationError)
 
   return c.json(message, 201);
 });
+
+/**
+ * Declared before `/:messageId` would matter if they shared a method — they do
+ * not, so this is only about reading order. `read` is a verb on the collection,
+ * not a message id, and the schema is what stops one being mistaken for the
+ * other: the id travels in the body.
+ */
+messageRoutes.post('/read', zValidator('json', markReadSchema, onValidationError), async (c) =>
+  c.json(await messageService.markAsRead(c.get('chat'), c.get('membership'), c.req.valid('json')))
+);
 
 /**
  * Soft delete. Answers with the tombstoned message rather than `204`, so the

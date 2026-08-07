@@ -41,6 +41,20 @@ export interface PresenceChange {
   isOnline: boolean;
 }
 
+/**
+ * One member's read watermark moved forward.
+ *
+ * Carries no unread count on purpose. Unread is per-viewer, and this event goes
+ * to the whole chat room — a count in it would tell every member how much of
+ * the conversation one particular person has left unread.
+ */
+export interface ReadReceipt {
+  chatId: string;
+  userId: string;
+  /** ISO timestamp of the newest message this member has now read. */
+  readAt: string;
+}
+
 export interface ServerToClientEvents {
   /**
    * A message was posted in a chat this socket belongs to — including one this
@@ -60,6 +74,15 @@ export interface ServerToClientEvents {
    */
   'presence:sync': (userIds: string[]) => void;
   'presence:changed': (change: PresenceChange) => void;
+  /**
+   * A member read up to a point in this chat.
+   *
+   * Everyone in the room uses it to move that member's tick marks. The reader's
+   * *own* other tabs recognise their `userId` in it and refresh their unread
+   * badge, which is why it is broadcast to the room rather than to the room
+   * minus the sender.
+   */
+  'receipt:read': (receipt: ReadReceipt) => void;
 }
 
 export interface ClientToServerEvents {

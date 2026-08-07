@@ -22,8 +22,11 @@
       "dependsOn": ["^build", "^db:generate"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
+    // `^typecheck`, or a cached pass survives a breaking change in a workspace
+    // dependency: turbo hashes a task's own files plus the tasks it depends on,
+    // and `@repo/shared`'s sources were neither.
     "typecheck": {
-      "dependsOn": ["^db:generate"]
+      "dependsOn": ["^db:generate", "^typecheck"]
     },
     "lint": {},
     "dev": {
