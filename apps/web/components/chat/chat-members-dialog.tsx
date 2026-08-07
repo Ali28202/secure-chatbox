@@ -2,6 +2,7 @@
 
 import { toPersianDigits, type ChatMemberDto } from '@repo/shared';
 import { UsersIcon, VolumeOffIcon } from 'lucide-react';
+import { PresenceDot } from '@/components/chat/presence-indicator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -47,9 +48,14 @@ export function ChatMembersDialog({
         <ul className="max-h-80 space-y-1 overflow-y-auto">
           {members.map((member) => (
             <li key={member.user.id} className="flex items-center gap-3 rounded-lg px-1 py-1.5">
-              <Avatar className="size-8 shrink-0">
-                <AvatarFallback className="text-xs">{getInitials(member.user.name)}</AvatarFallback>
-              </Avatar>
+              <div className="relative shrink-0">
+                <Avatar className="size-8">
+                  <AvatarFallback className="text-xs">
+                    {getInitials(member.user.name)}
+                  </AvatarFallback>
+                </Avatar>
+                {member.user.id !== viewerId && <PresenceDot userId={member.user.id} />}
+              </div>
 
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">

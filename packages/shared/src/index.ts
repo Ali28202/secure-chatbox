@@ -21,3 +21,6 @@ export * from './schemas/user';
 
 export * from './types/api';
 export type * from './types/dto';
+// `export *`, not `export type *` — the socket module carries runtime values
+// (`SOCKET_PATH`, `socketRooms`) alongside its event maps.
+export * from './types/socket';

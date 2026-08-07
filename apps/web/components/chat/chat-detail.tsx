@@ -7,12 +7,13 @@ import { useState } from 'react';
 import { ChatMembersDialog } from '@/components/chat/chat-members-dialog';
 import { MessageComposer } from '@/components/chat/message-composer';
 import { MessageList } from '@/components/chat/message-list';
+import { PresenceDot, PresenceLabel } from '@/components/chat/presence-indicator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useCurrentUser } from '@/hooks/use-auth';
 import { useChat } from '@/hooks/use-chats';
-import { CHAT_TYPE_LABELS, getChatTitle } from '@/lib/chat';
+import { CHAT_TYPE_LABELS, getChatPeer, getChatTitle, getOtherMembers } from '@/lib/chat';
 import { getInitials } from '@/lib/labels';
 import { ROUTES } from '@/lib/routes';
 
@@ -57,6 +58,10 @@ export function ChatDetail({ chatId }: { chatId: string }) {
   const membership = chat.data.members.find((member) => member.user.id === user.id);
   const isChatAdmin = membership?.role === 'ADMIN';
 
+  const peer = getChatPeer(chat.data, user.id);
+  // Everyone but the viewer: counting yourself as online is true and useless.
+  const peerIds = getOtherMembers(chat.data.members, user.id).map((member) => member.user.id);
+
   /*
    * The same two rules `assertCanSend` enforces on the API, in the same order.
    * Duplicating them is a deliberate trade: the server decides, but a person
@@ -83,14 +88,20 @@ export function ChatDetail({ chatId }: { chatId: string }) {
           <ArrowRightIcon />
         </Button>
 
-        <Avatar className="size-10 shrink-0">
-          <AvatarFallback className="text-sm">{getInitials(title)}</AvatarFallback>
-        </Avatar>
+        <div className="relative shrink-0">
+          <Avatar className="size-10">
+            <AvatarFallback className="text-sm">{getInitials(title)}</AvatarFallback>
+          </Avatar>
+          {peer && <PresenceDot userId={peer.id} />}
+        </div>
 
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-semibold">{title}</h1>
+          {/* Presence when there is any, the chat's type when there is not —
+              one line, because the type never changes and is the less useful of
+              the two to anyone already looking at the conversation. */}
           <p className="truncate text-xs text-muted-foreground">
-            {CHAT_TYPE_LABELS[chat.data.type]}
+            <PresenceLabel userIds={peerIds} fallback={CHAT_TYPE_LABELS[chat.data.type]} />
           </p>
         </div>
 

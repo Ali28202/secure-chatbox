@@ -2,6 +2,7 @@ import { prisma, type Prisma } from '@repo/database';
 import type { ListMessagesQuery, MessageDto, MessagePageDto, SendMessageInput } from '@repo/shared';
 import { Errors } from '../../lib/errors';
 import { messageSelect, toMessageDto, type ChatMemberRow, type ChatRow } from '../../lib/mappers';
+import { socketGateway } from '../../socket/gateway';
 
 const MESSAGE_NOT_FOUND = 'این پیام وجود ندارد.';
 
@@ -98,7 +99,15 @@ class MessageService {
       return created;
     });
 
-    return toMessageDto(message);
+    const dto = toMessageDto(message);
+
+    // Emitted here, outside the transaction, and never inside it. An emit from
+    // within would go out before the commit — and if the commit then failed,
+    // every open client would be showing a message the database never accepted,
+    // with nothing to correct it short of a reload.
+    socketGateway.emitToChat(chat.id, 'message:new', dto);
+
+    return dto;
   }
 
   /**
@@ -136,6 +145,8 @@ class MessageService {
       // Already a tombstone. Returning it rather than erroring keeps a
       // double-click, or a retry after a dropped response, from turning into a
       // failure the user has to think about.
+      //
+      // No emit: nothing changed, and the clients were told the first time.
       return this.requireMessage(chat.id, messageId);
     }
 
@@ -148,7 +159,14 @@ class MessageService {
       select: messageSelect,
     });
 
-    return toMessageDto(updated);
+    const dto = toMessageDto(updated);
+
+    // The tombstone travels, not just the id: a client holding this message in
+    // a reply quote has to redraw that quote too, and it needs the whole row to
+    // know which one.
+    socketGateway.emitToChat(chat.id, 'message:deleted', dto);
+
+    return dto;
   }
 
   // -------------------------------------------------------------------------

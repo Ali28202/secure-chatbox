@@ -17,6 +17,7 @@ import {
   type ChatMemberRow,
   type ChatRow,
 } from '../../lib/mappers';
+import { socketGateway } from '../../socket/gateway';
 
 const CHAT_NOT_FOUND = 'این گفت‌وگو وجود ندارد یا به آن دسترسی ندارید.';
 const NOT_CHAT_ADMIN = 'فقط مدیر گفت‌وگو می‌تواند این کار را انجام دهد.';
@@ -111,6 +112,11 @@ class ChatService {
       select: chatMemberSelect,
     });
 
+    // Their already-open tabs joined their rooms when they connected, which was
+    // before this membership existed. Without this they would receive nothing
+    // from the chat until they reloaded.
+    await socketGateway.joinChat(chat.id, input.userId);
+
     return toChatMemberDto(member);
   }
 
@@ -144,6 +150,10 @@ class ChatService {
     if (deleted.count === 0) {
       throw Errors.notFound('این کاربر عضو گفت‌وگو نیست.');
     }
+
+    // Otherwise their sockets keep receiving messages from a chat the API would
+    // now answer 404 for — the room outlives the membership that justified it.
+    socketGateway.leaveChat(chat.id, userId);
   }
 
   /**
@@ -209,7 +219,7 @@ class ChatService {
 
     const pair = [creatorId, otherUserId];
 
-    return prisma.$transaction(async (tx) => {
+    const { chat, isNew } = await prisma.$transaction(async (tx) => {
       const existing = await tx.chat.findFirst({
         where: {
           type: 'DIRECT',
@@ -220,10 +230,10 @@ class ChatService {
       });
 
       if (existing) {
-        return toChatDto(existing);
+        return { chat: existing, isNew: false };
       }
 
-      const chat = await tx.chat.create({
+      const created = await tx.chat.create({
         data: {
           type: 'DIRECT',
           creatorId,
@@ -234,8 +244,15 @@ class ChatService {
         select: chatSelect,
       });
 
-      return toChatDto(chat);
+      return { chat: created, isNew: true };
     });
+
+    // Only for a chat that was actually created. Re-opening an existing
+    // conversation puts nobody in a room they are not already in, and the
+    // presence announcement `joinChat` carries would fire again for nothing.
+    if (isNew) await this.openRooms(chat.id, pair);
+
+    return toChatDto(chat);
   }
 
   private async createGroupChat(
@@ -274,7 +291,20 @@ class ChatService {
       select: chatSelect,
     });
 
+    await this.openRooms(chat.id, [creatorId, ...memberIds]);
+
     return toChatDto(chat);
+  }
+
+  /**
+   * Puts everyone who is currently connected into the new chat's room.
+   *
+   * Done here rather than left to the clients: the creator gets the chat in
+   * their HTTP response and could ask to join it themselves, but nobody else
+   * has any idea the chat now exists.
+   */
+  private async openRooms(chatId: string, userIds: string[]): Promise<void> {
+    await Promise.all(userIds.map((userId) => socketGateway.joinChat(chatId, userId)));
   }
 
   private assertChatAdmin(member: ChatMemberRow): void {

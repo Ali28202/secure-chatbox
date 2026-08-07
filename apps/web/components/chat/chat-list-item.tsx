@@ -3,9 +3,10 @@
 import { formatChatTimestamp, toPersianDigits, type ChatListItemDto } from '@repo/shared';
 import { GraduationCapIcon, UsersIcon } from 'lucide-react';
 import Link from 'next/link';
+import { PresenceDot } from '@/components/chat/presence-indicator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { getChatPreview, getChatTitle } from '@/lib/chat';
+import { getChatPeer, getChatPreview, getChatTitle } from '@/lib/chat';
 import { getInitials } from '@/lib/labels';
 import { ROUTES } from '@/lib/routes';
 import { cn } from '@/lib/utils';
@@ -30,6 +31,11 @@ export function ChatListItem({
   const preview = getChatPreview(chat, viewerId);
   const timestamp = chat.lastMessage?.createdAt ?? chat.lastMessageAt;
 
+  // Only direct chats get a dot. A group's avatar would need one dot per member
+  // to mean anything, and the count belongs in the conversation's own header,
+  // where there is room to say it in words.
+  const peer = getChatPeer(chat, viewerId);
+
   return (
     <Link
       href={ROUTES.chat(chat.id)}
@@ -39,17 +45,20 @@ export function ChatListItem({
         isActive && 'bg-accent'
       )}
     >
-      <Avatar className="size-10 shrink-0">
-        <AvatarFallback className="text-sm">
-          {chat.type === 'DIRECT' ? (
-            getInitials(title)
-          ) : chat.type === 'COURSE_GROUP' ? (
-            <GraduationCapIcon className="size-4" />
-          ) : (
-            <UsersIcon className="size-4" />
-          )}
-        </AvatarFallback>
-      </Avatar>
+      <div className="relative shrink-0">
+        <Avatar className="size-10">
+          <AvatarFallback className="text-sm">
+            {chat.type === 'DIRECT' ? (
+              getInitials(title)
+            ) : chat.type === 'COURSE_GROUP' ? (
+              <GraduationCapIcon className="size-4" />
+            ) : (
+              <UsersIcon className="size-4" />
+            )}
+          </AvatarFallback>
+        </Avatar>
+        {peer && <PresenceDot userId={peer.id} />}
+      </div>
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">

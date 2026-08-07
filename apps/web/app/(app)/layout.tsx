@@ -4,6 +4,7 @@ import { Loader2Icon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { AppHeader } from '@/components/layout/app-header';
+import { RealtimeBridge } from '@/components/realtime/realtime-bridge';
 import { useSession } from '@/hooks/use-auth';
 import { ROUTES } from '@/lib/routes';
 
@@ -54,6 +55,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
    */
   return (
     <div className="flex h-svh flex-col">
+      {/*
+       * Inside the `isSuccess` gate, deliberately. The socket handshake
+       * authenticates by cookie, and connecting before `/auth/me` has answered
+       * would race a cold load's silent token refresh — the handshake would be
+       * refused, and recovering from that costs more than waiting for a query
+       * that is already in flight.
+       */}
+      <RealtimeBridge />
       <AppHeader />
       <div className="mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col px-4 py-6">
         {children}
