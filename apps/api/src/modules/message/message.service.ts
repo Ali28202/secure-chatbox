@@ -6,10 +6,12 @@ import type {
   MessageDto,
   MessagePageDto,
   SendMessageInput,
+  UploadMessageInput,
 } from '@repo/shared';
 import { Errors } from '../../lib/errors';
 import { messageSelect, toMessageDto, type ChatMemberRow, type ChatRow } from '../../lib/mappers';
 import { advanceReceipts, countUnread, createDeliveredReceipts } from '../../lib/receipts';
+import { removeStored, storeUploads } from '../../lib/storage';
 import { socketGateway } from '../../socket/gateway';
 
 const MESSAGE_NOT_FOUND = 'این پیام وجود ندارد.';
@@ -59,13 +61,30 @@ class MessageService {
    * Posts a message, and — when `replyToId` is set — makes it a reply. The two
    * are one operation because a reply differs from a message only by that
    * column; splitting them would duplicate every permission check below.
+   *
+   * `files` arrive already parsed but not yet on disk, which is the ordering
+   * that matters: a muted member's 10 MB upload is refused before a byte of it
+   * is written.
    */
   async sendMessage(
     chat: ChatRow,
     member: ChatMemberRow,
-    input: SendMessageInput
+    input: SendMessageInput | UploadMessageInput,
+    files: File[] = []
   ): Promise<MessageDto> {
     this.assertCanSend(chat, member);
+
+    // A caption is optional when something is attached, and the only thing that
+    // is never allowed is a message that says nothing at all. Both routes above
+    // already make this unreachable; it is asserted here because this method,
+    // not either of them, is what owns the invariant.
+    const content = input.content?.trim() || null;
+    if (content === null && files.length === 0) {
+      throw Errors.validation(
+        [{ path: 'content', message: 'پیام نمی‌تواند خالی باشد.' }],
+        'پیام نمی‌تواند خالی باشد.'
+      );
+    }
 
     if (input.replyToId) {
       // Scoped to this chat, so a reply cannot point at a message in a
@@ -85,36 +104,54 @@ class MessageService {
       }
     }
 
+    // Written to disk before the transaction opens, because writing a file is
+    // slow and a transaction held open across it would hold its locks for the
+    // duration of an upload. The consequence is that a failed commit leaves
+    // files behind, which is what the `catch` below is for.
+    const stored = files.length > 0 ? await storeUploads(files) : [];
+
     // Both writes or neither: a message that exists without bumping
     // `lastMessageAt` sinks to the bottom of everyone's chat list, and a bump
     // without a message points the list at a row that was never written.
-    const message = await prisma.$transaction(async (tx) => {
-      const created = await tx.message.create({
-        data: {
+    let message;
+    try {
+      message = await prisma.$transaction(async (tx) => {
+        const created = await tx.message.create({
+          data: {
+            chatId: chat.id,
+            senderId: member.user.id,
+            content,
+            replyToId: input.replyToId ?? null,
+            // Nested, so the rows land inside the same transaction. An
+            // attachment written afterwards could be orphaned by a rollback
+            // between the two, and nothing would ever look for it.
+            ...(stored.length > 0 ? { attachments: { create: stored } } : {}),
+          },
+          select: messageSelect,
+        });
+
+        await tx.chat.update({
+          where: { id: chat.id },
+          data: { lastMessageAt: created.createdAt },
+        });
+
+        // In the same transaction, for the same reason as the bump above: a
+        // message that commits without its receipts is a message no unread count
+        // will ever include, and nothing later reconciles the two.
+        await createDeliveredReceipts(tx, {
           chatId: chat.id,
+          messageId: created.id,
           senderId: member.user.id,
-          content: input.content,
-          replyToId: input.replyToId ?? null,
-        },
-        select: messageSelect,
-      });
+        });
 
-      await tx.chat.update({
-        where: { id: chat.id },
-        data: { lastMessageAt: created.createdAt },
+        return created;
       });
-
-      // In the same transaction, for the same reason as the bump above: a
-      // message that commits without its receipts is a message no unread count
-      // will ever include, and nothing later reconciles the two.
-      await createDeliveredReceipts(tx, {
-        chatId: chat.id,
-        messageId: created.id,
-        senderId: member.user.id,
-      });
-
-      return created;
-    });
+    } catch (error) {
+      // The rows never committed, so nothing will ever reference these files
+      // again. Cleaning up here is the only chance anything gets.
+      await removeStored(stored.map((file) => file.fileUrl));
+      throw error;
+    }
 
     const dto = toMessageDto(message);
 
@@ -142,7 +179,15 @@ class MessageService {
   ): Promise<MessageDto> {
     const message = await prisma.message.findFirst({
       where: { id: messageId, chatId: chat.id },
-      select: { id: true, senderId: true, isDeleted: true },
+      select: {
+        id: true,
+        senderId: true,
+        isDeleted: true,
+        // Read here rather than after the update, because the update deletes
+        // the rows — this is the last moment anything knows which files on disk
+        // belonged to this message.
+        attachments: { select: { fileUrl: true } },
+      },
     });
 
     if (!message) {
@@ -175,6 +220,12 @@ class MessageService {
       data: { isDeleted: true, content: null, attachments: { deleteMany: {} } },
       select: messageSelect,
     });
+
+    // After the row is gone, and only then. Deleting the file first would leave
+    // a broken download link behind if the update failed; deleting it after
+    // means the worst case is an orphaned blob, which nothing can reach because
+    // the row that named it no longer exists.
+    await removeStored(message.attachments.map((attachment) => attachment.fileUrl));
 
     const dto = toMessageDto(updated);
 

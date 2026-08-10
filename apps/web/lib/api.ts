@@ -34,6 +34,24 @@ export const api = axios.create({
 });
 
 /**
+ * Where the browser loads an attachment from.
+ *
+ * Not fetched through the axios instance: this string goes into `src` and
+ * `href`, and the browser makes the request itself. That still arrives
+ * authenticated, because the session cookies are `SameSite=Lax` and ports are
+ * not part of a "site" — `localhost:3000` and `localhost:3001` are the same
+ * site, so a subresource request from one carries the other's cookies. Behind
+ * nginx it is a single origin and the question never comes up.
+ *
+ * The consequence worth knowing: this cannot be a `next/image` source. That
+ * component proxies through the optimizer on the *web* server, which has no
+ * session and would be answered with a 401.
+ */
+export function attachmentUrl(attachmentId: string): string {
+  return `${API_BASE_URL}/api/attachments/${attachmentId}`;
+}
+
+/**
  * Requests that must never trigger a refresh of their own.
  *
  * `/auth/refresh` for the obvious reason — a 401 from the refresh endpoint

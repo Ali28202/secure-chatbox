@@ -38,3 +38,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .agents
 .windsurf
 .turbo
+
+# Uploaded attachments. Whatever UPLOAD_DIR points at is user data, not source:
+# it is written at runtime, it is what a deployment's volume is for, and it is
+# the one directory here that must never end up in a commit or an image layer.
+apps/api/storage/

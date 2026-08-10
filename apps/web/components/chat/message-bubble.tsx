@@ -2,6 +2,7 @@
 
 import { formatMessageTime, toPersianDigits, type MessageDto } from '@repo/shared';
 import { CheckCheckIcon, CheckIcon, MoreVerticalIcon, ReplyIcon, Trash2Icon } from 'lucide-react';
+import { MessageAttachments } from '@/components/chat/message-attachments';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { getAttachmentSummary } from '@/lib/chat';
 import { getInitials } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
@@ -33,8 +35,12 @@ function ReplyQuote({
       )}
     >
       <p className="font-medium">{reply.senderName}</p>
-      <p className={cn('line-clamp-2', reply.isDeleted && 'italic')}>
-        {reply.isDeleted ? 'این پیام حذف شده است.' : reply.content}
+      {/* A quoted photo with no caption has nothing to quote, and an empty line
+          under a name reads as a rendering fault rather than as a picture. */}
+      <p className={cn('line-clamp-2', (reply.isDeleted || !reply.content) && 'italic')}>
+        {reply.isDeleted
+          ? 'این پیام حذف شده است.'
+          : (reply.content ?? getAttachmentSummary(reply.attachmentCount))}
       </p>
     </div>
   );
@@ -167,10 +173,20 @@ export function MessageBubble({
               این پیام حذف شده است.
             </p>
           ) : (
-            // `whitespace-pre-wrap` keeps the line breaks the sender typed;
-            // `wrap-break-word` keeps an unbroken URL from widening the bubble
-            // past the column.
-            <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
+            <>
+              {/* Above the caption, the way every messenger orders it: the
+                  picture is the message and the text is a note about it. The
+                  API returns an empty array for a tombstone, so nothing here
+                  needs to know about deletion. */}
+              <MessageAttachments attachments={message.attachments} isOwn={isOwn} />
+
+              {/* `whitespace-pre-wrap` keeps the line breaks the sender typed;
+                  `wrap-break-word` keeps an unbroken URL from widening the
+                  bubble past the column. */}
+              {message.content && (
+                <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
+              )}
+            </>
           )}
 
           <span className="mt-1 flex items-center justify-end gap-1">

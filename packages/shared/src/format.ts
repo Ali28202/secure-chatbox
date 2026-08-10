@@ -100,3 +100,31 @@ export function isSameDay(a: string | Date, b: string | Date): boolean {
     left.getDate() === right.getDate()
   );
 }
+
+const FILE_UNITS = ['بایت', 'کیلوبایت', 'مگابایت', 'گیگابایت'] as const;
+
+// Not `toPersianDigits`: a size wants one decimal place, and Persian writes the
+// decimal separator as «٫» rather than a full stop. `Intl` knows that; a
+// digit-for-digit substitution would produce «۱.۵», which reads as a thousands
+// group to the audience this app is written for.
+const sizeNumber = new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 1 });
+
+/**
+ * A byte count as something a person can read: «۱٫۴ مگابایت».
+ *
+ * Binary steps of 1024, matching what every operating system shows next to the
+ * same file — a size that disagrees with the one in the download folder looks
+ * wrong even when it is arguably more correct.
+ */
+export function formatFileSize(bytes: number): string {
+  let value = Math.max(0, bytes);
+  let unit = 0;
+
+  while (value >= 1024 && unit < FILE_UNITS.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+
+  // Bytes are whole things; a «۹۰۰٫۳ بایت» would be nonsense.
+  return `${sizeNumber.format(unit === 0 ? Math.round(value) : value)} ${FILE_UNITS[unit]}`;
+}

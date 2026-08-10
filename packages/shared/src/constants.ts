@@ -34,6 +34,74 @@ export const LIMITS = {
   page: { default: 50, max: 100 },
 } as const;
 
+/**
+ * What may be attached to a message.
+ *
+ * Here rather than in the API because the composer has to refuse a 200 MB file
+ * before it spends five minutes uploading it, and the two answers have to be
+ * the same answer. The API remains the one that decides — everything below is
+ * enforced there again, against a request that may never have been near this
+ * client.
+ */
+export const UPLOAD = {
+  maxFileBytes: 10 * 1024 * 1024,
+  maxFilesPerMessage: 5,
+  /**
+   * The whole multipart body, not one file: five files at the limit plus the
+   * part headers and the text. Slack is deliberate — a request rejected at the
+   * body limit is rejected before anything can say *which* file was too big,
+   * so the per-file check is the one that should normally fire.
+   */
+  maxRequestBytes: 5 * 10 * 1024 * 1024 + 1024 * 1024,
+} as const;
+
+/**
+ * Accepted MIME types, each mapped to the extension the file is stored under.
+ *
+ * The stored name is built from this table and never from the uploaded
+ * filename. A filename is client-supplied text; the only reliable defence
+ * against storing `report.pdf.php` is to never ask the client what the
+ * extension should be.
+ *
+ * The list is an allowlist for the same reason: a denylist of dangerous types
+ * is a promise to have thought of every one of them.
+ */
+export const ALLOWED_FILE_TYPES = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf',
+  'text/plain': '.txt',
+  'application/zip': '.zip',
+  'application/msword': '.doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.ms-excel': '.xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'application/vnd.ms-powerpoint': '.ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+} as const;
+
+export type AllowedFileType = keyof typeof ALLOWED_FILE_TYPES;
+
+export function isAllowedFileType(type: string): type is AllowedFileType {
+  return type in ALLOWED_FILE_TYPES;
+}
+
+/** Drives the `accept` attribute on the file picker. */
+export const FILE_ACCEPT = Object.keys(ALLOWED_FILE_TYPES).join(',');
+
+/**
+ * Whether a stored attachment should be drawn in the conversation rather than
+ * listed as a file to download.
+ *
+ * Reads the type recorded at upload, which is an allowlisted value the server
+ * chose — not the `Content-Type` of whatever is being served right now.
+ */
+export function isImageType(type: string): boolean {
+  return type.startsWith('image/');
+}
+
 export const COOKIE_NAMES = {
   access: 'access_token',
   refresh: 'refresh_token',

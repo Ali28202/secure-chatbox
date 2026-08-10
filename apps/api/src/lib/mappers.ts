@@ -107,6 +107,9 @@ const replyPreviewSelect = {
   content: true,
   isDeleted: true,
   sender: { select: { name: true } },
+  // A count, not the rows: the quote is one line of text that never renders a
+  // file, and it only needs to know whether — and how many — there were.
+  _count: { select: { attachments: true } },
 } satisfies Prisma.MessageSelect;
 
 export const messageSelect = {
@@ -119,7 +122,11 @@ export const messageSelect = {
   createdAt: true,
   sender: { select: userSummarySelect },
   replyTo: { select: replyPreviewSelect },
-  attachments: { select: attachmentSelect },
+  // Ordered, because unordered is whatever Postgres feels like returning: two
+  // requests for the same message could hand the client its three photos in two
+  // different orders. The id is a UUIDv7, so ascending is the order they were
+  // attached in — which is the order they were picked in.
+  attachments: { select: attachmentSelect, orderBy: { id: 'asc' } },
 } satisfies Prisma.MessageSelect;
 
 export type MessageRow = Prisma.MessageGetPayload<{ select: typeof messageSelect }>;
@@ -153,6 +160,7 @@ export function toMessageDto(message: MessageRow): MessageDto {
           // server whether it is being read directly or quoted by a reply.
           content: message.replyTo.isDeleted ? null : message.replyTo.content,
           isDeleted: message.replyTo.isDeleted,
+          attachmentCount: message.replyTo.isDeleted ? 0 : message.replyTo._count.attachments,
         }
       : null,
     attachments: message.isDeleted ? [] : message.attachments.map(toAttachmentDto),

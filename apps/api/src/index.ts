@@ -1,7 +1,7 @@
 // Aliased: the package's export is also called `Server`, and having two of
 // those in one file is a mistake waiting to be made.
 import { Server as Engine, type WebSocketData } from '@socket.io/bun-engine';
-import { SOCKET_PATH } from '@repo/shared';
+import { SOCKET_PATH, UPLOAD } from '@repo/shared';
 import { Server } from 'socket.io';
 import { app } from './app';
 import { env } from './env';
@@ -50,7 +50,19 @@ export default {
   // reproduce on demand, because it only happens in a conversation nobody is
   // typing in.
   idleTimeout,
-  maxRequestBodySize,
+  // The engine asks for its own `maxHttpBufferSize` — 1 MB, the largest single
+  // socket frame it will accept. This setting is the *server's*, though, not
+  // the engine's: handed over verbatim it caps every upload at 1 MB as well.
+  //
+  // Whatever Bun refuses here, it refuses beneath Hono — a bodiless 413 with no
+  // CORS headers, which a browser reports as a network error rather than as our
+  // message. So this is deliberately the loosest of the three limits, and the
+  // two that can actually be reached both answer in Persian: `bodyLimit` on the
+  // send route rejects an over-sized *request*, `storeUploads` an over-sized
+  // file. What is left for Bun is the case neither can see coming — a body with
+  // no `Content-Length` at all — where refusing to buffer it is the only
+  // sensible answer and there is nobody to explain it to.
+  maxRequestBodySize: Math.max(maxRequestBodySize, UPLOAD.maxRequestBytes * 2),
   fetch(request: Request, server: Bun.Server<WebSocketData>) {
     // Explicit dispatch, rather than mounting a Hono route: the engine's own
     // handler matches `SOCKET_PATH` exactly, and routing this through Hono

@@ -83,6 +83,12 @@ export interface MessageReplyDto {
   /** Null when the quoted message was deleted, by the same rule as below. */
   content: string | null;
   isDeleted: boolean;
+  /**
+   * How many files the quoted message carried — a count, not the files
+   * themselves, because the quote is one line of grey text and never renders
+   * them. Without it a reply to a caption-less photo quotes a blank.
+   */
+  attachmentCount: number;
 }
 
 export interface MessageDto {

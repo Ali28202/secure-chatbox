@@ -1,4 +1,10 @@
-import type { ChatListItemDto, ChatMemberDto, ChatType, UserSummaryDto } from '@repo/shared';
+import {
+  toPersianDigits,
+  type ChatListItemDto,
+  type ChatMemberDto,
+  type ChatType,
+  type UserSummaryDto,
+} from '@repo/shared';
 
 export const CHAT_TYPE_LABELS: Record<ChatType, string> = {
   DIRECT: 'گفت‌وگوی خصوصی',
@@ -27,6 +33,17 @@ export function getChatTitle(chat: ChatListItemDto, viewerId: string): string {
 }
 
 /**
+ * What a message with no text is called, wherever it is summarised in one line
+ * — the sidebar preview, the quote above a reply.
+ *
+ * Persian has no plural agreement here, so one form covers every count and the
+ * number simply goes in front of the noun.
+ */
+export function getAttachmentSummary(count: number): string {
+  return count === 1 ? 'یک پیوست' : `${toPersianDigits(count)} پیوست`;
+}
+
+/**
  * The preview line under a chat's name.
  *
  * A group prefixes the sender, since "who said it" is half the information;
@@ -39,7 +56,9 @@ export function getChatPreview(chat: ChatListItemDto, viewerId: string): string 
   if (!message) return 'هنوز پیامی رد و بدل نشده است.';
   if (message.isDeleted) return 'این پیام حذف شده است.';
 
-  const body = message.content ?? (message.attachments.length > 0 ? 'پیوست' : '');
+  const body =
+    message.content ??
+    (message.attachments.length > 0 ? getAttachmentSummary(message.attachments.length) : '');
 
   if (chat.type === 'DIRECT') return body;
 

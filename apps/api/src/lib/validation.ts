@@ -26,3 +26,21 @@ export function onValidationError(result: {
     throw Errors.validation(toFieldIssues(result.error.issues));
   }
 }
+
+/**
+ * The same thing, for input `zValidator` cannot reach.
+ *
+ * A multipart body has to be read before it can be validated — the text fields
+ * are only knowable once the parts have been parsed — so the validator
+ * middleware, which runs before any handler, has nothing to hand a schema. This
+ * gives the handler the identical failure shape: 422, Persian, per-field.
+ */
+export function parseOrThrow<T extends z.ZodType>(schema: T, value: unknown): z.infer<T> {
+  const result = schema.safeParse(value);
+
+  if (!result.success) {
+    throw Errors.validation(toFieldIssues(result.error.issues));
+  }
+
+  return result.data;
+}

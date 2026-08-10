@@ -25,6 +25,20 @@ export const messagesRootKey = ['messages'] as const;
 type MessagesCache = { pages: MessagePageDto[]; pageParams: (string | null)[] };
 
 /**
+ * What the composer hands `useSendMessage`.
+ *
+ * Looser than `SendMessageInput` in exactly one place: `content` is optional,
+ * because a message carrying files does not need any. Which of the two request
+ * shapes goes out is decided from `files` alone — the caller never picks an
+ * encoding.
+ */
+export interface SendMessagePayload {
+  content?: string;
+  replyToId?: string;
+  files?: File[];
+}
+
+/**
  * Puts a message at the top of the newest page — unless it is already there.
  *
  * The duplicate check is the whole point. Every message reaches the sender
@@ -64,9 +78,19 @@ function withTombstone(
         message.id === tombstone.id
           ? tombstone
           : // A reply quoting the deleted message has to lose the quoted text
-            // too, or the content survives in every answer to it.
+            // too, or the content survives in every answer to it. The count goes
+            // with it: the server drops the attachment rows on a soft delete, so
+            // a quote still claiming «۲ پیوست» would be pointing at nothing.
             message.replyTo?.id === tombstone.id
-            ? { ...message, replyTo: { ...message.replyTo, content: null, isDeleted: true } }
+            ? {
+                ...message,
+                replyTo: {
+                  ...message.replyTo,
+                  content: null,
+                  isDeleted: true,
+                  attachmentCount: 0,
+                },
+              }
             : message
       ),
     })),
@@ -143,8 +167,37 @@ export function useSendMessage(chatId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: SendMessageInput) =>
-      (await api.post<MessageDto>(`/chats/${chatId}/messages`, input)).data,
+    mutationFn: async ({ content, replyToId, files = [] }: SendMessagePayload) => {
+      const path = `/chats/${chatId}/messages`;
+
+      if (files.length === 0) {
+        const body: SendMessageInput = {
+          content: content ?? '',
+          ...(replyToId ? { replyToId } : {}),
+        };
+        return (await api.post<MessageDto>(path, body)).data;
+      }
+
+      const form = new FormData();
+      // Omitted rather than sent empty — a photo with no caption is a message
+      // whose `content` is null, not one whose content is the empty string.
+      if (content) form.append('content', content);
+      if (replyToId) form.append('replyToId', replyToId);
+      // Repeated under one name; the API reads them with `getAll`.
+      for (const file of files) form.append('files', file);
+
+      return (
+        await api.post<MessageDto>(path, form, {
+          // Cleared, not replaced. The instance sets `application/json` on every
+          // request, and axios reads that header back before it sends: seeing
+          // JSON, it would serialise the FormData *into* JSON and the files
+          // would arrive as `{}`. With no type set, the browser writes its own
+          // `multipart/form-data` header — which it must, because only it knows
+          // the part boundary it generated.
+          headers: { 'Content-Type': null },
+        })
+      ).data;
+    },
     onSuccess: (message) => applyIncomingMessage(queryClient, message),
   });
 }

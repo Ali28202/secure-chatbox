@@ -42,6 +42,17 @@ const envSchema = z
      */
     COOKIE_SECURE: z.stringbool().default(false),
 
+    /**
+     * Where message attachments are written.
+     *
+     * Resolved against the API's working directory, so the default lands in
+     * `apps/api/storage/uploads` and needs no configuration to work. In
+     * production it is an absolute path onto a mounted volume — uploads must
+     * outlive the container, and a default that quietly stores a semester of
+     * coursework inside an image layer would not tell anyone it had.
+     */
+    UPLOAD_DIR: z.string().min(1).default('storage/uploads'),
+
     /** Comma-separated. Empty in production, where nginx makes it one origin. */
     CORS_ORIGINS: z
       .string()
