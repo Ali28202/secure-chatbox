@@ -22,7 +22,14 @@ export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 let socket: AppSocket | null = null;
 
 export function getSocket(): AppSocket {
-  socket ??= io(API_BASE_URL, {
+  // `|| undefined`, where `lib/api.ts` deliberately uses `??`, and the
+  // difference is not a slip. Behind nginx the deployment sets
+  // `NEXT_PUBLIC_API_URL=""` so every path becomes same-origin — which axios
+  // handles, because `"" + "/api"` is a relative URL. socket.io does not: it
+  // treats the empty string as a URL it should parse, and `url("")` resolves to
+  // `http://:80` with no host at all. Passing `undefined` is what makes it fall
+  // back to `location`, which is exactly the origin nginx is serving.
+  socket ??= io(API_BASE_URL || undefined, {
     path: SOCKET_PATH,
     // Same reason as axios: the handshake authenticates by cookie, and the
     // cookie is httpOnly so nothing here can attach it by hand.

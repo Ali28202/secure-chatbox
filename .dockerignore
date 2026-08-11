@@ -1,0 +1,71 @@
+# What `docker build` is NOT allowed to see.
+#
+# The build context is the repo root for both images — they are workspace
+# builds and need `bun.lock` plus every workspace manifest, which no
+# subdirectory context could give them. That makes this file the only thing
+# standing between a `docker build` and the whole working tree, so it is
+# written as a denylist of things that are either secret, huge, or wrong.
+
+# --- Secret ---
+# The one entry that is not an optimisation. The root .env holds the real JWT
+# secrets and the database password; compose passes what a container needs as
+# environment variables at *run* time, and anything copied in at build time is
+# readable forever by anyone who can pull the image.
+.env
+.env.*
+!.env.example
+
+# --- Wrong, not just large ---
+# Bun's isolated linker fills node_modules with relative symlinks into
+# node_modules/.bun. Copying a host tree in would shadow the install the
+# Dockerfile does, and on a different libc would ship native builds that cannot
+# load. Every image runs its own `bun install`.
+node_modules
+**/node_modules
+
+# Prisma's client is generated for a target runtime. The image regenerates it
+# from the schema rather than inheriting whatever the host last produced.
+packages/database/generated
+
+# Build output, likewise rebuilt inside the image.
+apps/web/.next
+apps/web/out
+dist
+build
+*.tsbuildinfo
+
+# Uploaded attachments — user data on a volume, never an image layer.
+apps/api/storage
+
+# --- Noise ---
+.git
+.gitignore
+.github
+.husky
+.turbo
+**/.turbo
+.claude
+**/.claude
+.agents
+**/.agents
+.windsurf
+**/.windsurf
+.idea
+.vscode
+.DS_Store
+*.log
+coverage
+*.lcov
+README.md
+**/README.md
+**/AGENTS.md
+**/CLAUDE.md
+
+# Compose and deployment files. Nothing inside an image reads them, and listing
+# them here means editing nginx.conf does not invalidate the build cache.
+compose.yml
+compose.prod.yml
+infra
+.dockerignore
+Dockerfile
+**/Dockerfile

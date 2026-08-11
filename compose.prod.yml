@@ -1,0 +1,170 @@
+# The whole platform, as it runs on the university server.
+#
+#   docker compose -f compose.prod.yml up -d --build
+#
+# A different project name from compose.yml on purpose. That file is the
+# development database and nothing else; this one owns its own volumes, so
+# bringing production up on a machine that has been used for development does
+# not adopt — or destroy — the developer's data.
+#
+# Only nginx publishes a port. `api`, `web` and `db` are reachable by service
+# name on the internal network and by nothing else, which is what makes the
+# allow list in infra/nginx/conf.d/app.conf the single front door rather than
+# one of several.
+name: secure-chatbox-prod
+
+# Composed here rather than taken from the root .env: that file's DATABASE_URL
+# points at localhost:5432 for the developer's own tooling, and inside this
+# network the database answers to `db`. Two names for one setting is how a
+# deployment ends up migrating the wrong database.
+x-database-url: &database-url
+  DATABASE_URL: postgresql://${POSTGRES_USER:-chatbox}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-chatbox}?schema=public
+
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: chatbox-prod-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-chatbox}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-chatbox}
+    volumes:
+      # Postgres 18 keeps PGDATA at /var/lib/postgresql/18/docker and declares
+      # its VOLUME one level up. Mounting the pre-18 .../data path here would
+      # persist nothing, silently.
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks: [internal]
+
+  # Runs to completion, then exits. `api` waits for that exit to be a success,
+  # so there is no window in which the application is serving requests against a
+  # schema it was not built for.
+  #
+  # `migrate deploy`, never `migrate dev`: deploy applies the migrations in the
+  # repository and nothing else. `dev` would compare the schema to the database
+  # and offer to invent a new migration, which on a production database is a
+  # prompt nobody is there to answer.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: secure-chatbox-api:latest
+    working_dir: /app/packages/database
+    # `--bun` because Prisma's CLI has a `#!/usr/bin/env node` shebang and this
+    # image has no Node.
+    command: ['bunx', '--bun', 'prisma', 'migrate', 'deploy', '--config', './prisma.config.ts']
+    environment: *database-url
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: 'no'
+    networks: [internal]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: secure-chatbox-api:latest
+    container_name: chatbox-prod-api
+    restart: unless-stopped
+    environment:
+      <<: *database-url
+      NODE_ENV: production
+      API_PORT: 3001
+
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-900}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-604800}
+
+      # False unless the deployment actually terminates TLS. A Secure cookie on
+      # a plain-HTTP intranet is a cookie the browser accepts and then never
+      # sends back, which presents as "login succeeds and then I am logged out".
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+
+      # Empty, because nginx makes the app and the API one origin and a
+      # same-origin request is not a CORS request. The CSRF guard still holds:
+      # it passes a request on `Sec-Fetch-Site: same-origin` alone, which is
+      # exactly what the browser sends here, and refuses every cross-site form
+      # or multipart post because this list matches nothing.
+      #
+      # Set PUBLIC_ORIGIN in .env (e.g. http://chat.university.local) if you
+      # need to also admit browsers too old to send Sec-Fetch-Site.
+      CORS_ORIGINS: ${PUBLIC_ORIGIN:-}
+
+      # The internal network's subnet, fixed below so these two cannot drift.
+      # nginx reaches the API from an address on that subnet; anything else —
+      # another container, or a client that found a published port — is refused
+      # by the API itself, one layer behind nginx's own allow list.
+      #
+      # Loopback is here for the image's HEALTHCHECK, which dials 127.0.0.1 and
+      # would otherwise be turned away by the very rule it is checking.
+      ALLOWED_IP_RANGES: 172.28.0.0/16,127.0.0.1,::1
+
+      # Absolute, onto the volume below. The default is relative to the API's
+      # working directory, which inside a container means a directory that is
+      # discarded on the next deploy along with a semester of coursework.
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks: [internal]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Empty on purpose, and it has to be decided here: NEXT_PUBLIC_* is
+        # inlined into the client bundle at build time, so this is a rebuild to
+        # change, not a restart. Empty means every request the browser makes is
+        # same-origin — which is true, because nginx is serving both halves.
+        NEXT_PUBLIC_API_URL: ''
+    image: secure-chatbox-web:latest
+    container_name: chatbox-prod-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    networks: [internal]
+
+  nginx:
+    image: nginx:1.29-alpine
+    container_name: chatbox-prod-nginx
+    restart: unless-stopped
+    ports:
+      - '${HTTP_PORT:-80}:80'
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_started
+    networks: [internal]
+
+volumes:
+  db-data:
+  # Message attachments. The one piece of state that is neither in the database
+  # nor rebuildable from the repository.
+  uploads:
+
+networks:
+  internal:
+    ipam:
+      config:
+        # Pinned rather than left to Docker, because the API's ALLOWED_IP_RANGES
+        # above names this subnet. Letting Docker choose would mean the API
+        # refusing nginx on any machine where the default pool happened to hand
+        # out something else.
+        - subnet: 172.28.0.0/16

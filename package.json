@@ -20,6 +20,10 @@
     "db:reset": "bun --filter='@repo/database' db:reset",
     "db:studio": "bun --filter='@repo/database' db:studio",
     "db:seed": "bun --filter='@repo/database' db:seed",
+    "prod:up": "docker compose -f compose.prod.yml up -d --build",
+    "prod:down": "docker compose -f compose.prod.yml down",
+    "prod:logs": "docker compose -f compose.prod.yml logs -f",
+    "prod:ps": "docker compose -f compose.prod.yml ps",
     "prepare": "husky"
   },
   "devDependencies": {
