@@ -63,6 +63,30 @@ const envSchema = z
           .map((origin) => origin.trim())
           .filter(Boolean)
       ),
+
+    /**
+     * Who may reach the API at all, as comma-separated CIDR blocks or single
+     * addresses. Empty disables the check entirely.
+     *
+     * The default is the campus LAN plus loopback — the whole premise of this
+     * platform is that academic conversations never leave the university
+     * network. nginx (M12) is the primary gate; this is what keeps `:3001` from
+     * being an open door for anyone who reaches the host directly, whether by
+     * a published port, a misconfigured firewall, or another container.
+     *
+     * Left settable rather than hardcoded because a deployment on a different
+     * subnet is an ordinary thing, and someone editing a source file to make
+     * the server start is not.
+     */
+    ALLOWED_IP_RANGES: z
+      .string()
+      .default('192.168.0.0/16,127.0.0.1,::1')
+      .transform((value) =>
+        value
+          .split(',')
+          .map((range) => range.trim())
+          .filter(Boolean)
+      ),
   })
   .refine((value) => value.JWT_ACCESS_SECRET !== value.JWT_REFRESH_SECRET, {
     error:

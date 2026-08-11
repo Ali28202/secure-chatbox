@@ -3,10 +3,13 @@
 import type {
   ChatListItemDto,
   ChatDto,
+  ChatMemberDto,
   CreateChatPayload,
   MarkReadResultDto,
   MessageDto,
   ReadReceipt,
+  UpdateChatInput,
+  UpdateMemberInput,
 } from '@repo/shared';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -76,13 +79,34 @@ export function applyChatActivity(
   if (!known) void queryClient.invalidateQueries({ queryKey: chatsQueryKey });
 }
 
-/** Keeps the sidebar preview honest when the message it was showing is deleted. */
-export function applyChatTombstone(queryClient: QueryClient, tombstone: MessageDto): void {
+/**
+ * Keeps the sidebar preview honest when the message it was showing changed
+ * under it — deleted, pinned, whatever comes later.
+ *
+ * Matched by id and nothing else: if the preview is some other message, this
+ * one changing is none of the sidebar's business, and the ordering is left
+ * alone because none of these are new activity.
+ */
+export function refreshChatPreview(queryClient: QueryClient, message: MessageDto): void {
   queryClient.setQueryData<ChatListItemDto[]>(chatsQueryKey, (chats) =>
     chats?.map((chat) =>
-      chat.lastMessage?.id === tombstone.id ? { ...chat, lastMessage: tombstone } : chat
+      chat.lastMessage?.id === message.id ? { ...chat, lastMessage: message } : chat
     )
   );
+}
+
+/**
+ * Refetches one chat after a `chat:updated`.
+ *
+ * An invalidate rather than a patch, and that is what the event was designed
+ * for: what changed may be the title, the read-only flag, or one member's role
+ * or mute state, and the payload is only the id. Each client re-reads its own
+ * copy — which it must, because `ChatListItemDto` carries a per-viewer unread
+ * count that no broadcast could have got right for everyone.
+ */
+export function applyChatUpdate(queryClient: QueryClient, chatId: string): void {
+  void queryClient.invalidateQueries({ queryKey: chatQueryKey(chatId) });
+  void queryClient.invalidateQueries({ queryKey: chatsQueryKey });
 }
 
 /**
@@ -216,5 +240,36 @@ export function useCreateChat() {
       getSocket().emit('chat:join', chat.id);
       void queryClient.invalidateQueries({ queryKey: chatsQueryKey });
     },
+  });
+}
+
+/**
+ * Renames a chat, or turns read-only on and off.
+ *
+ * Refetched rather than patched in, even though the response holds the new
+ * `ChatDto`: the cache stores `ChatListItemDto`, which is that plus a member
+ * list, a preview and an unread count — merging a narrower object over a wider
+ * one is the kind of thing that works until someone adds a field. The server
+ * also emits `chat:updated` to the room, so every other member arrives at the
+ * same state by the same path.
+ */
+export function useUpdateChat(chatId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: UpdateChatInput) =>
+      (await api.patch<ChatDto>(`/chats/${chatId}`, input)).data,
+    onSuccess: () => applyChatUpdate(queryClient, chatId),
+  });
+}
+
+/** Promotes, demotes, mutes or unmutes one member. Admin-only, server-checked. */
+export function useUpdateMember(chatId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ userId, ...input }: UpdateMemberInput & { userId: string }) =>
+      (await api.patch<ChatMemberDto>(`/chats/${chatId}/members/${userId}`, input)).data,
+    onSuccess: () => applyChatUpdate(queryClient, chatId),
   });
 }

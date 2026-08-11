@@ -5,8 +5,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { useCurrentUser } from '@/hooks/use-auth';
-import { applyReadReceipt, chatsQueryKey } from '@/hooks/use-chats';
-import { applyDeletedMessage, applyIncomingMessage, messagesRootKey } from '@/hooks/use-messages';
+import { applyChatUpdate, applyReadReceipt, chatsQueryKey } from '@/hooks/use-chats';
+import {
+  applyDeletedMessage,
+  applyIncomingMessage,
+  applyUpdatedMessage,
+  messagesRootKey,
+} from '@/hooks/use-messages';
 import { disconnectSocket, getSocket, installAuthRecovery } from '@/lib/socket';
 import { usePresenceStore } from '@/stores/presence-store';
 
@@ -69,7 +74,13 @@ export function RealtimeBridge() {
     const onMessage = (message: MessageDto) =>
       applyIncomingMessage(queryClient, message, isUnread(message));
     const onDeleted = (tombstone: MessageDto) => applyDeletedMessage(queryClient, tombstone);
+    const onUpdated = (message: MessageDto) => applyUpdatedMessage(queryClient, message);
     const onReceipt = (receipt: ReadReceipt) => applyReadReceipt(queryClient, receipt, viewer.id);
+
+    // Only an id, so the only thing to do with it is re-read. See the event's
+    // definition for why nothing richer could be broadcast: the row it
+    // invalidates carries an unread count that differs per member.
+    const onChatUpdated = (chatId: string) => applyChatUpdate(queryClient, chatId);
 
     const onSync = (userIds: string[]) => presence.merge(userIds);
     const onPresence = ({ userId, isOnline }: PresenceChange) => presence.set(userId, isOnline);
@@ -94,6 +105,8 @@ export function RealtimeBridge() {
 
     socket.on('message:new', onMessage);
     socket.on('message:deleted', onDeleted);
+    socket.on('message:updated', onUpdated);
+    socket.on('chat:updated', onChatUpdated);
     socket.on('receipt:read', onReceipt);
     socket.on('presence:sync', onSync);
     socket.on('presence:changed', onPresence);
@@ -106,6 +119,8 @@ export function RealtimeBridge() {
     return () => {
       socket.off('message:new', onMessage);
       socket.off('message:deleted', onDeleted);
+      socket.off('message:updated', onUpdated);
+      socket.off('chat:updated', onChatUpdated);
       socket.off('receipt:read', onReceipt);
       socket.off('presence:sync', onSync);
       socket.off('presence:changed', onPresence);

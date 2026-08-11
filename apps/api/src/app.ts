@@ -4,6 +4,7 @@ import { csrf } from 'hono/csrf';
 import { logger } from 'hono/logger';
 import { env } from './env';
 import { errorHandler, notFoundHandler } from './lib/errors';
+import { ipRestrictionMiddleware } from './middleware/ip-restriction';
 import { attachmentRoutes } from './modules/attachment/attachment.routes';
 import { authRoutes } from './modules/auth/auth.routes';
 import { chatRoutes } from './modules/chat/chat.routes';
@@ -21,6 +22,17 @@ import type { AppEnv } from './types';
 export const app = new Hono<AppEnv>();
 
 app.use('*', logger());
+
+/**
+ * Before everything except the log line, on purpose.
+ *
+ * A caller from outside the university network should be refused without the
+ * API having spent anything on them — no CORS negotiation, no cookie parsing,
+ * no database round trip. Keeping it after `logger()` is the one concession:
+ * an attempt that was turned away is exactly the kind that is worth seeing in
+ * the log.
+ */
+app.use('*', ipRestrictionMiddleware);
 
 app.use('*', cors({ origin: env.CORS_ORIGINS, credentials: true }));
 

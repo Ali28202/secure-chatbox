@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator';
 import {
   listMessagesQuerySchema,
   markReadSchema,
+  pinMessageSchema,
   sendMessageSchema,
   UPLOAD,
   uploadMessageSchema,
@@ -77,6 +78,35 @@ messageRoutes.post('/', sendBodyLimit, async (c) => {
  */
 messageRoutes.post('/read', zValidator('json', markReadSchema, onValidationError), async (c) =>
   c.json(await messageService.markAsRead(c.get('chat'), c.get('membership'), c.req.valid('json')))
+);
+
+/**
+ * The pinned messages of this chat, as their own collection.
+ *
+ * Declared before `/:messageId` so `pinned` is read as the literal it is.
+ * Hono's router would in fact prefer the static segment either way, but the
+ * next person to add a route here should not have to know that.
+ */
+messageRoutes.get('/pinned', async (c) =>
+  c.json({ messages: await messageService.getPinnedMessages(c.get('chatId')) })
+);
+
+/**
+ * Pin or unpin. `PATCH` with the desired state rather than `POST /pin` and
+ * `DELETE /pin`, so retrying is harmless and two admins acting at once agree.
+ */
+messageRoutes.patch(
+  '/:messageId/pin',
+  zValidator('json', pinMessageSchema, onValidationError),
+  async (c) =>
+    c.json(
+      await messageService.setPinned(
+        c.get('chat'),
+        c.get('membership'),
+        c.req.param('messageId'),
+        c.req.valid('json').isPinned
+      )
+    )
 );
 
 /**

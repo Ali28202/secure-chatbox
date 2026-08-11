@@ -12,6 +12,7 @@ import './locale';
 export * from './constants';
 export * from './format';
 export * from './messages';
+export * from './policy';
 
 export * from './schemas/auth';
 export * from './schemas/chat';

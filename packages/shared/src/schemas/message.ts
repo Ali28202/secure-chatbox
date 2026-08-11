@@ -46,7 +46,21 @@ export const markReadSchema = z.object({
   upToMessageId: idSchema,
 });
 
+/**
+ * Pin and unpin as one endpoint carrying the state it wants, rather than two
+ * verbs.
+ *
+ * A toggle would have to read the current value and flip it, which makes the
+ * result depend on how many times the request arrived — two clients pinning the
+ * same message at once would leave it unpinned. Stating the target state makes
+ * the call idempotent: sending `true` twice pins it once.
+ */
+export const pinMessageSchema = z.object({
+  isPinned: z.boolean({ error: 'مقدار سنجاق باید درست یا نادرست باشد.' }),
+});
+
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 export type UploadMessageInput = z.infer<typeof uploadMessageSchema>;
 export type ListMessagesQuery = z.infer<typeof listMessagesQuerySchema>;
 export type MarkReadInput = z.infer<typeof markReadSchema>;
+export type PinMessageInput = z.infer<typeof pinMessageSchema>;

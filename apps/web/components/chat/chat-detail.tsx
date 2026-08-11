@@ -1,9 +1,17 @@
 'use client';
 
-import type { MessageDto } from '@repo/shared';
-import { ArrowRightIcon, Loader2Icon, SearchXIcon } from 'lucide-react';
+import { toPersianDigits, type MessageDto } from '@repo/shared';
+import {
+  ArrowRightIcon,
+  LockIcon,
+  Loader2Icon,
+  PinIcon,
+  SearchXIcon,
+  UnlockIcon,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { ChatMembersDialog } from '@/components/chat/chat-members-dialog';
 import { MessageComposer } from '@/components/chat/message-composer';
 import { MessageList } from '@/components/chat/message-list';
@@ -12,10 +20,90 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useCurrentUser } from '@/hooks/use-auth';
-import { useChat } from '@/hooks/use-chats';
-import { CHAT_TYPE_LABELS, getChatPeer, getChatTitle, getOtherMembers } from '@/lib/chat';
+import { useChat, useUpdateChat } from '@/hooks/use-chats';
+import { usePinnedMessages } from '@/hooks/use-messages';
+import { useChatPermissions } from '@/hooks/use-permissions';
+import { getApiErrorMessage } from '@/lib/api';
+import {
+  CHAT_TYPE_LABELS,
+  getAttachmentSummary,
+  getChatPeer,
+  getChatTitle,
+  getOtherMembers,
+} from '@/lib/chat';
 import { getInitials } from '@/lib/labels';
 import { ROUTES } from '@/lib/routes';
+
+/**
+ * Turns read-only on and off, for an admin.
+ *
+ * A `Button` rather than a switch because there is no switch primitive in this
+ * project, and adding one for a single control would be the tail wagging the
+ * dog. It states the current mode and toggles on click — `aria-pressed` is what
+ * makes that legible to a screen reader as a two-state control rather than as a
+ * command whose effect is a guess.
+ */
+function ReadOnlyToggle({ chatId, isReadOnly }: { chatId: string; isReadOnly: boolean }) {
+  const updateChat = useUpdateChat(chatId);
+
+  return (
+    <Button
+      variant={isReadOnly ? 'default' : 'outline'}
+      size="sm"
+      className="gap-1.5"
+      aria-pressed={isReadOnly}
+      disabled={updateChat.isPending}
+      title={
+        isReadOnly
+          ? 'اکنون تنها مدیران می‌توانند پیام بفرستند. برای باز کردن کلیک کنید.'
+          : 'همه می‌توانند پیام بفرستند. برای فقط‌خواندنی کردن کلیک کنید.'
+      }
+      onClick={() =>
+        updateChat.mutate(
+          { isReadOnly: !isReadOnly },
+          { onError: (error) => toast.error(getApiErrorMessage(error)) }
+        )
+      }
+    >
+      {isReadOnly ? <LockIcon /> : <UnlockIcon />}
+      {isReadOnly ? 'فقط‌خواندنی' : 'باز'}
+    </Button>
+  );
+}
+
+/**
+ * The pinned messages, above the conversation.
+ *
+ * The newest one is shown in full width and the rest are counted, because a
+ * banner that grows with the number of pins is a banner that eventually leaves
+ * no room for the chat. Anyone who wants the older ones can scroll to them —
+ * they are marked in place.
+ */
+function PinnedBanner({ messages }: { messages: MessageDto[] }) {
+  const [newest, ...rest] = messages;
+  if (!newest) return null;
+
+  return (
+    <div className="mb-2 flex items-start gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+      <PinIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-muted-foreground">
+          پیام سنجاق‌شده از {newest.sender.name}
+        </p>
+        <p className="truncate">
+          {newest.content ?? getAttachmentSummary(newest.attachments.length)}
+        </p>
+      </div>
+
+      {rest.length > 0 && (
+        <Badge variant="secondary" className="shrink-0">
+          +{toPersianDigits(rest.length)}
+        </Badge>
+      )}
+    </div>
+  );
+}
 
 /**
  * One conversation: who is in it, what was said in it, and the box to add to
@@ -29,6 +117,12 @@ export function ChatDetail({ chatId }: { chatId: string }) {
   const user = useCurrentUser();
   const chat = useChat(chatId);
   const [replyTo, setReplyTo] = useState<MessageDto | null>(null);
+
+  // Above the early returns, because hooks are. Both tolerate a chat that has
+  // not loaded: permissions deny everything until the member list arrives, and
+  // the pinned query is keyed on the id, which is known from the route.
+  const permissions = useChatPermissions(chat.data);
+  const pinned = usePinnedMessages(chatId);
 
   if (chat.isPending) {
     return (
@@ -55,25 +149,10 @@ export function ChatDetail({ chatId }: { chatId: string }) {
   }
 
   const title = getChatTitle(chat.data, user.id);
-  const membership = chat.data.members.find((member) => member.user.id === user.id);
-  const isChatAdmin = membership?.role === 'ADMIN';
 
   const peer = getChatPeer(chat.data, user.id);
   // Everyone but the viewer: counting yourself as online is true and useless.
   const peerIds = getOtherMembers(chat.data.members, user.id).map((member) => member.user.id);
-
-  /*
-   * The same two rules `assertCanSend` enforces on the API, in the same order.
-   * Duplicating them is a deliberate trade: the server decides, but a person
-   * who cannot send should be told why before they type a message and lose it
-   * to a refusal. M11 moves both into `policy.ts`, where the API and this
-   * screen can read one copy.
-   */
-  const disabledReason = membership?.isMuted
-    ? 'شما در این گفت‌وگو بی‌صدا شده‌اید و نمی‌توانید پیام بفرستید.'
-    : chat.data.isReadOnly && !isChatAdmin
-      ? 'این گفت‌وگو فقط‌خواندنی است.'
-      : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -105,18 +184,31 @@ export function ChatDetail({ chatId }: { chatId: string }) {
           </p>
         </div>
 
-        {chat.data.isReadOnly && <Badge variant="outline">فقط‌خواندنی</Badge>}
+        {/* Shown to everyone, but only an admin's is a button — for everyone
+            else it is a badge stating the fact, which is what it was before. */}
+        {permissions.canUpdateChat ? (
+          <ReadOnlyToggle chatId={chatId} isReadOnly={chat.data.isReadOnly} />
+        ) : (
+          chat.data.isReadOnly && <Badge variant="outline">فقط‌خواندنی</Badge>
+        )}
 
         {chat.data.type !== 'DIRECT' && (
-          <ChatMembersDialog members={chat.data.members} viewerId={user.id} />
+          <ChatMembersDialog
+            chatId={chatId}
+            members={chat.data.members}
+            viewerId={user.id}
+            permissions={permissions}
+          />
         )}
       </header>
+
+      {pinned.data && pinned.data.length > 0 && <PinnedBanner messages={pinned.data} />}
 
       <MessageList
         chatId={chatId}
         viewerId={user.id}
         members={chat.data.members}
-        isChatAdmin={isChatAdmin}
+        permissions={permissions}
         onReply={setReplyTo}
       />
 
@@ -124,7 +216,7 @@ export function ChatDetail({ chatId }: { chatId: string }) {
         chatId={chatId}
         replyTo={replyTo}
         onCancelReply={() => setReplyTo(null)}
-        disabledReason={disabledReason}
+        disabledReason={permissions.sendBlockedReason}
       />
     </div>
   );

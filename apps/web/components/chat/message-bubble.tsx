@@ -1,7 +1,15 @@
 'use client';
 
 import { formatMessageTime, toPersianDigits, type MessageDto } from '@repo/shared';
-import { CheckCheckIcon, CheckIcon, MoreVerticalIcon, ReplyIcon, Trash2Icon } from 'lucide-react';
+import {
+  CheckCheckIcon,
+  CheckIcon,
+  MoreVerticalIcon,
+  PinIcon,
+  PinOffIcon,
+  ReplyIcon,
+  Trash2Icon,
+} from 'lucide-react';
 import { MessageAttachments } from '@/components/chat/message-attachments';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -104,19 +112,24 @@ export function MessageBubble({
   isOwn,
   showSender,
   canDelete,
+  canPin,
   readState,
   onReply,
   onDelete,
+  onSetPinned,
 }: {
   message: MessageDto;
   isOwn: boolean;
   /** False when the message continues a run from the same sender. */
   showSender: boolean;
   canDelete: boolean;
+  /** Pinning is moderation, so it is the chat's admins and nobody else. */
+  canPin: boolean;
   /** Null where ticks would mean nothing: someone else's message, or a tombstone. */
   readState: ReadState | null;
   onReply: (message: MessageDto) => void;
   onDelete: (message: MessageDto) => void;
+  onSetPinned: (message: MessageDto, isPinned: boolean) => void;
 }) {
   const canAct = !message.isDeleted;
 
@@ -190,6 +203,21 @@ export function MessageBubble({
           )}
 
           <span className="mt-1 flex items-center justify-end gap-1">
+            {/* Marks the bubble itself, so scrolling back to a message found
+                through the banner shows why it was there. The banner is the
+                other half of this and the one people actually use; without a
+                mark here, arriving at the message would say nothing. */}
+            {message.isPinned && !message.isDeleted && (
+              <PinIcon
+                aria-label="سنجاق‌شده"
+                role="img"
+                className={cn(
+                  'size-3 shrink-0',
+                  isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                )}
+              />
+            )}
+
             <time
               dateTime={message.createdAt}
               className={cn(
@@ -228,6 +256,13 @@ export function MessageBubble({
               <ReplyIcon />
               پاسخ
             </DropdownMenuItem>
+
+            {canPin && (
+              <DropdownMenuItem onClick={() => onSetPinned(message, !message.isPinned)}>
+                {message.isPinned ? <PinOffIcon /> : <PinIcon />}
+                {message.isPinned ? 'برداشتن سنجاق' : 'سنجاق کردن'}
+              </DropdownMenuItem>
+            )}
 
             {canDelete && (
               <DropdownMenuItem variant="destructive" onClick={() => onDelete(message)}>

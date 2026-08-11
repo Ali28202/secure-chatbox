@@ -6,7 +6,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { Button } from '@/components/ui/button';
-import { useDeleteMessage, useMarkRead, useMessages } from '@/hooks/use-messages';
+import { useDeleteMessage, useMarkRead, useMessages, useSetPinned } from '@/hooks/use-messages';
+import type { ChatPermissions } from '@/hooks/use-permissions';
 import { getApiErrorMessage } from '@/lib/api';
 
 /**
@@ -51,19 +52,20 @@ export function MessageList({
   chatId,
   viewerId,
   members,
-  isChatAdmin,
+  permissions,
   onReply,
 }: {
   chatId: string;
   viewerId: string;
   /** Everyone in the chat — the read watermarks on them draw the tick marks. */
   members: ChatMemberDto[];
-  /** Chat admins may delete anyone's message; everyone else only their own. */
-  isChatAdmin: boolean;
+  /** Who may delete what, and who may pin — resolved once, from `policy.ts`. */
+  permissions: ChatPermissions;
   onReply: (message: MessageDto) => void;
 }) {
   const query = useMessages(chatId);
   const deleteMessage = useDeleteMessage(chatId);
+  const setPinned = useSetPinned(chatId);
   // Destructured for the same reason `fetchNextPage` is below: the mutation
   // object is a fresh one every render, the function on it is stable, and only
   // the function belongs in an effect's dependencies.
@@ -248,6 +250,13 @@ export function MessageList({
     });
   }
 
+  function handleSetPinned(message: MessageDto, isPinned: boolean) {
+    setPinned.mutate(
+      { messageId: message.id, isPinned },
+      { onError: (error) => toast.error(getApiErrorMessage(error)) }
+    );
+  }
+
   return (
     <div
       ref={containerRef}
@@ -268,7 +277,8 @@ export function MessageList({
               message={message}
               isOwn={isOwn}
               showSender={!older || older.sender.id !== message.sender.id || startsDay}
-              canDelete={isChatAdmin || isOwn}
+              canDelete={permissions.canDelete(message.sender.id)}
+              canPin={permissions.canPin}
               // Only your own messages carry ticks. Whether the person across
               // from you has read *their* own message is not a question, and a
               // tombstone has nothing left to read.
@@ -282,6 +292,7 @@ export function MessageList({
               }
               onReply={onReply}
               onDelete={handleDelete}
+              onSetPinned={handleSetPinned}
             />
             {startsDay && <DayDivider date={message.createdAt} />}
           </div>

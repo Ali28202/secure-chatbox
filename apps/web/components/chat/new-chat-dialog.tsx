@@ -24,10 +24,16 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useCurrentUser } from '@/hooks/use-auth';
 import { useCreateChat } from '@/hooks/use-chats';
+import { useCreatableChatTypes } from '@/hooks/use-permissions';
 import { getApiErrorMessage } from '@/lib/api';
 import { ROUTES } from '@/lib/routes';
+
+/**
+ * Ordered most-privileged first, which is what makes the default below the
+ * best type the user is allowed rather than a hardcoded one per role.
+ */
+const GROUP_TYPES = ['COURSE_GROUP', 'CUSTOM_GROUP'] as const;
 
 /**
  * Starting a conversation: pick one person for a direct chat, or name a group
@@ -38,19 +44,28 @@ import { ROUTES } from '@/lib/routes';
  * second attempt lands the user back in the same thread rather than a duplicate.
  */
 export function NewChatDialog() {
-  const user = useCurrentUser();
   const router = useRouter();
   const createChat = useCreateChat();
 
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [members, setMembers] = useState<UserSummaryDto[]>([]);
-  // Only professors and admins may create a course group, so only they are
-  // offered the choice; for everyone else the type is fixed.
-  const [groupType, setGroupType] = useState<Exclude<ChatType, 'DIRECT'>>(
-    user.role === 'STUDENT' ? 'CUSTOM_GROUP' : 'COURSE_GROUP'
-  );
   const [error, setError] = useState<string | null>(null);
+
+  /*
+   * Which kinds of group this user may start, straight from `policy.ts` — the
+   * same predicate the API applies to the request. A student is offered only
+   * «گروه عادی» because that is genuinely all they can create, not because
+   * this screen has its own opinion about students.
+   */
+  const groupTypes = useCreatableChatTypes(GROUP_TYPES);
+  // The first they are allowed: a course group for a professor, a plain one for
+  // a student, and neither case stated here. `CUSTOM_GROUP` is the fallback
+  // only because a `[0]` on an array TypeScript cannot prove is non-empty needs
+  // one — the policy allows it to everybody.
+  const [groupType, setGroupType] = useState<Exclude<ChatType, 'DIRECT'>>(
+    groupTypes[0] ?? 'CUSTOM_GROUP'
+  );
 
   function reset() {
     setTitle('');
@@ -132,9 +147,11 @@ export function NewChatDialog() {
               />
             </Field>
 
-            {user.role !== 'STUDENT' && (
+            {/* Hidden when there is nothing to choose between — a student sees
+                the one kind they can make rather than a row of one button. */}
+            {groupTypes.length > 1 && (
               <div className="flex gap-2" role="group" aria-label="نوع گروه">
-                {(['COURSE_GROUP', 'CUSTOM_GROUP'] as const).map((type) => (
+                {groupTypes.map((type) => (
                   <Button
                     key={type}
                     type="button"

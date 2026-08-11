@@ -1,5 +1,11 @@
 import { zValidator } from '@hono/zod-validator';
-import { addMemberSchema, createChatSchema } from '@repo/shared';
+import {
+  addMemberSchema,
+  canCreateChat,
+  createChatSchema,
+  updateChatSchema,
+  updateMemberSchema,
+} from '@repo/shared';
 import { Hono } from 'hono';
 import { Errors } from '../../lib/errors';
 import { onValidationError } from '../../lib/validation';
@@ -24,6 +30,11 @@ chatDetailRoutes.get('/', async (c) =>
   c.json(await chatService.getChat(c.get('chatId'), c.get('user').id))
 );
 
+/** Rename, or flip read-only. Admin-only, and never for a direct chat. */
+chatDetailRoutes.patch('/', zValidator('json', updateChatSchema, onValidationError), async (c) =>
+  c.json(await chatService.updateChat(c.get('chat'), c.get('membership'), c.req.valid('json')))
+);
+
 chatDetailRoutes.post(
   '/members',
   zValidator('json', addMemberSchema, onValidationError),
@@ -35,6 +46,27 @@ chatDetailRoutes.post(
     );
     return c.json(member, 201);
   }
+);
+
+/**
+ * Promote, demote, mute, unmute — one endpoint, because from the caller's side
+ * they are the same thing: editing one row of the member list.
+ *
+ * Handing over ADMIN through here is also the way an admin becomes able to
+ * leave, which the removal route below refuses while they are the last one.
+ */
+chatDetailRoutes.patch(
+  '/members/:userId',
+  zValidator('json', updateMemberSchema, onValidationError),
+  async (c) =>
+    c.json(
+      await chatService.updateMember(
+        c.get('chat'),
+        c.get('membership'),
+        c.req.param('userId'),
+        c.req.valid('json')
+      )
+    )
 );
 
 /** Removing yourself is leaving; removing anyone else is an admin action. */
@@ -62,10 +94,9 @@ chatRoutes.post('/', zValidator('json', createChatSchema, onValidationError), as
   // professors, and a student who could create one could also add classmates to
   // it and administer it. Custom groups and direct chats stay open to everyone.
   //
-  // This predicate moves into M11's `policy.ts` alongside the rest of the role
-  // rules — it lives here now because shipping the endpoint without it would
-  // mean shipping the hole and remembering to close it later.
-  if (input.type === 'COURSE_GROUP' && user.role === 'STUDENT') {
+  // The same predicate decides whether the web app offers «گروه درسی» in its
+  // type picker, so a student never reaches a form whose submit is refused.
+  if (!canCreateChat(user, input.type)) {
     throw Errors.forbidden('ساخت گروه درسی تنها از عهدهٔ استادان برمی‌آید.');
   }
 

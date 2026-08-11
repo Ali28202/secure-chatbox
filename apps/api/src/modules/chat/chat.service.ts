@@ -1,10 +1,17 @@
 import { prisma } from '@repo/database';
-import type {
-  AddMemberInput,
-  ChatDto,
-  ChatListItemDto,
-  ChatMemberDto,
-  CreateChatInput,
+import {
+  canLeaveChat,
+  canManageMembers,
+  canMuteMember,
+  canUpdateChat,
+  canUpdateMember,
+  type AddMemberInput,
+  type ChatDto,
+  type ChatListItemDto,
+  type ChatMemberDto,
+  type CreateChatInput,
+  type UpdateChatInput,
+  type UpdateMemberInput,
 } from '@repo/shared';
 import { Errors } from '../../lib/errors';
 import {
@@ -103,11 +110,9 @@ class ChatService {
     actor: ChatMemberRow,
     input: AddMemberInput
   ): Promise<ChatMemberDto> {
-    if (chat.type === 'DIRECT') {
-      throw Errors.forbidden(DIRECT_IMMUTABLE);
+    if (!canManageMembers(chat, actor)) {
+      throw Errors.forbidden(chat.type === 'DIRECT' ? DIRECT_IMMUTABLE : NOT_CHAT_ADMIN);
     }
-
-    this.assertChatAdmin(actor);
 
     const user = await prisma.user.findUnique({
       where: { id: input.userId },
@@ -148,21 +153,33 @@ class ChatService {
    * *someone else* is an admin action.
    */
   async removeMember(chat: ChatRow, actor: ChatMemberRow, userId: string): Promise<void> {
-    if (chat.type === 'DIRECT') {
-      throw Errors.forbidden(DIRECT_IMMUTABLE);
-    }
-
     const isSelf = actor.user.id === userId;
-    if (!isSelf) {
-      this.assertChatAdmin(actor);
-    }
 
-    // The creator leaving would orphan the group — `Chat.creatorId` is
-    // `onDelete: Restrict`, and a group with no admin can never be repaired
-    // from inside the app. M11 will add ownership transfer; until then the
-    // honest answer is to refuse.
-    if (isSelf && actor.role === 'ADMIN' && chat.creatorId === userId) {
-      throw Errors.forbidden('سازندهٔ گفت‌وگو نمی‌تواند آن را ترک کند.');
+    if (isSelf) {
+      // Counted only for an admin, and only their peers: this is the one rule
+      // that needs to know about the rest of the member list, and for a member
+      // walking out the answer is already yes.
+      const otherAdmins =
+        actor.role === 'ADMIN'
+          ? await prisma.chatMember.count({
+              where: { chatId: chat.id, role: 'ADMIN', userId: { not: userId } },
+            })
+          : 0;
+
+      // The last admin leaving would orphan the group — a chat with no admin
+      // can never be repaired from inside the app. This replaces the narrower
+      // "the creator may not leave" rule: handing ADMIN to someone else through
+      // `updateMember` is now the way out, and it is a better one, because the
+      // creator was never the only person who could be left holding the chat.
+      if (!canLeaveChat(chat, actor, otherAdmins)) {
+        throw Errors.forbidden(
+          chat.type === 'DIRECT'
+            ? DIRECT_IMMUTABLE
+            : 'پیش از ترک گفت‌وگو باید مدیریت آن را به عضو دیگری بسپارید.'
+        );
+      }
+    } else if (!canManageMembers(chat, actor)) {
+      throw Errors.forbidden(chat.type === 'DIRECT' ? DIRECT_IMMUTABLE : NOT_CHAT_ADMIN);
     }
 
     const deleted = await prisma.chatMember.deleteMany({ where: { chatId: chat.id, userId } });
@@ -174,6 +191,96 @@ class ChatService {
     // Otherwise their sockets keep receiving messages from a chat the API would
     // now answer 404 for — the room outlives the membership that justified it.
     socketGateway.leaveChat(chat.id, userId);
+  }
+
+  /**
+   * Renames a chat, or turns its read-only setting on and off.
+   *
+   * Read-only is the announcement mode a course group is really for: the
+   * professor posts, the class reads, and the rule is enforced at send time
+   * rather than by removing anyone. Direct chats are excluded — there is no
+   * admin in a conversation between two people who are both admins.
+   */
+  async updateChat(chat: ChatRow, actor: ChatMemberRow, input: UpdateChatInput): Promise<ChatDto> {
+    if (!canUpdateChat(chat, actor)) {
+      throw Errors.forbidden(chat.type === 'DIRECT' ? DIRECT_IMMUTABLE : NOT_CHAT_ADMIN);
+    }
+
+    const updated = await prisma.chat.update({
+      where: { id: chat.id },
+      // Spread conditionally rather than passed through: `title: undefined`
+      // means "leave it" to Prisma, but the same object reaching a future
+      // caller that spreads it into a create would mean "null".
+      data: {
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.isReadOnly !== undefined ? { isReadOnly: input.isReadOnly } : {}),
+      },
+      select: chatSelect,
+    });
+
+    // The id alone — see `chat:updated` in the socket contract. The list row
+    // this changes carries a per-viewer unread count, so there is no one
+    // payload that is correct for everyone in the room.
+    socketGateway.emitToChat(chat.id, 'chat:updated', chat.id);
+
+    return toChatDto(updated);
+  }
+
+  /**
+   * Changes what one member is in this chat: their role, whether they are
+   * muted, or both.
+   *
+   * Acting on yourself is refused by the policy, and that is what keeps the
+   * chat governable — an admin cannot demote or mute themselves, so no sequence
+   * of legal calls leaves a group without an admin. Muting an admin is refused
+   * for the same reason: it would be moderation aimed at the moderator.
+   */
+  async updateMember(
+    chat: ChatRow,
+    actor: ChatMemberRow,
+    userId: string,
+    input: UpdateMemberInput
+  ): Promise<ChatMemberDto> {
+    const target = await prisma.chatMember.findUnique({
+      where: { userId_chatId: { userId, chatId: chat.id } },
+      select: chatMemberSelect,
+    });
+
+    if (!target) {
+      throw Errors.notFound('این کاربر عضو گفت‌وگو نیست.');
+    }
+
+    if (!canUpdateMember(chat, actor, target)) {
+      throw Errors.forbidden(
+        chat.type === 'DIRECT'
+          ? DIRECT_IMMUTABLE
+          : actor.user.id === userId
+            ? 'نمی‌توانید عضویت خودتان را تغییر دهید.'
+            : NOT_CHAT_ADMIN
+      );
+    }
+
+    if (input.isMuted === true && !canMuteMember(chat, actor, target)) {
+      throw Errors.forbidden('مدیر گفت‌وگو را نمی‌توان بی‌صدا کرد.');
+    }
+
+    const updated = await prisma.chatMember.update({
+      where: { userId_chatId: { userId, chatId: chat.id } },
+      data: {
+        ...(input.role !== undefined ? { role: input.role } : {}),
+        ...(input.isMuted !== undefined ? { isMuted: input.isMuted } : {}),
+      },
+      select: chatMemberSelect,
+    });
+
+    socketGateway.emitToChat(chat.id, 'chat:updated', chat.id);
+
+    // Re-read rather than defaulted to null: `ChatMemberDto.lastReadAt` is what
+    // draws this member's tick marks, and answering null would rewind them for
+    // whoever applied this response to their cache.
+    const watermarks = await readWatermarks([chat.id]);
+
+    return toChatMemberDto(updated, watermarks.get(chat.id)?.get(userId) ?? null);
   }
 
   /**
@@ -325,12 +432,6 @@ class ChatService {
    */
   private async openRooms(chatId: string, userIds: string[]): Promise<void> {
     await Promise.all(userIds.map((userId) => socketGateway.joinChat(chatId, userId)));
-  }
-
-  private assertChatAdmin(member: ChatMemberRow): void {
-    if (member.role !== 'ADMIN') {
-      throw Errors.forbidden(NOT_CHAT_ADMIN);
-    }
   }
 }
 

@@ -1,12 +1,16 @@
 import { prisma, type Prisma } from '@repo/database';
-import type {
-  ListMessagesQuery,
-  MarkReadInput,
-  MarkReadResultDto,
-  MessageDto,
-  MessagePageDto,
-  SendMessageInput,
-  UploadMessageInput,
+import {
+  canDeleteMessage,
+  canPinMessage,
+  sendBlock,
+  SEND_BLOCK_MESSAGES,
+  type ListMessagesQuery,
+  type MarkReadInput,
+  type MarkReadResultDto,
+  type MessageDto,
+  type MessagePageDto,
+  type SendMessageInput,
+  type UploadMessageInput,
 } from '@repo/shared';
 import { Errors } from '../../lib/errors';
 import { messageSelect, toMessageDto, type ChatMemberRow, type ChatRow } from '../../lib/mappers';
@@ -15,6 +19,9 @@ import { removeStored, storeUploads } from '../../lib/storage';
 import { socketGateway } from '../../socket/gateway';
 
 const MESSAGE_NOT_FOUND = 'این پیام وجود ندارد.';
+
+/** Ceiling on the pinned list, which has no pagination of its own. */
+const PINNED_LIMIT = 50;
 
 /**
  * Messages, as the class diagram describes them: `sendMessage`,
@@ -196,10 +203,8 @@ class MessageService {
 
     // Your own message is always yours to withdraw. Anyone else's is a
     // moderation action, which in a course group is the professor's — they hold
-    // `ChatRole.ADMIN`. M11 moves this predicate into `policy.ts`; it is
-    // written out here so the endpoint does not ship without it.
-    const isOwn = message.senderId === member.user.id;
-    if (!isOwn && member.role !== 'ADMIN') {
+    // `ChatRole.ADMIN`.
+    if (!canDeleteMessage(member, message.senderId)) {
       throw Errors.forbidden('تنها فرستندهٔ پیام یا مدیر گفت‌وگو می‌تواند آن را حذف کند.');
     }
 
@@ -217,7 +222,11 @@ class MessageService {
       // `content` is nulled in the database, not just hidden by the mapper.
       // Hiding it would leave the text one forgotten `select` away from being
       // served again.
-      data: { isDeleted: true, content: null, attachments: { deleteMany: {} } },
+      //
+      // Unpinned in the same write: a pin is a pointer to something worth
+      // re-reading, and a tombstone is not that. Leaving the flag set would put
+      // «این پیام حذف شده است» at the top of the chat until someone noticed.
+      data: { isDeleted: true, content: null, isPinned: false, attachments: { deleteMany: {} } },
       select: messageSelect,
     });
 
@@ -284,6 +293,82 @@ class MessageService {
     return { chatId: chat.id, upToMessageId: anchor.id, readAt, unreadCount };
   }
 
+  /**
+   * Pins or unpins a message. Admin-only, and one endpoint for both directions
+   * — the caller states the state it wants rather than toggling.
+   *
+   * Idempotent on purpose: asking for a state the message is already in is a
+   * success with no write and no emit, so two admins pinning at the same moment
+   * end up with it pinned rather than with one of them undoing the other.
+   */
+  async setPinned(
+    chat: ChatRow,
+    member: ChatMemberRow,
+    messageId: string,
+    isPinned: boolean
+  ): Promise<MessageDto> {
+    if (!canPinMessage(member)) {
+      throw Errors.forbidden('فقط مدیر گفت‌وگو می‌تواند پیام‌ها را سنجاق کند.');
+    }
+
+    const message = await prisma.message.findFirst({
+      where: { id: messageId, chatId: chat.id },
+      select: { id: true, isDeleted: true, isPinned: true },
+    });
+
+    if (!message) {
+      throw Errors.notFound(MESSAGE_NOT_FOUND);
+    }
+
+    // A tombstone has no content worth returning to. Refused rather than
+    // quietly ignored: a client offering the action at all is holding a row
+    // that no longer matches the server's, and it should find that out.
+    if (message.isDeleted) {
+      throw Errors.validation(
+        [{ path: 'isPinned', message: 'پیام حذف‌شده را نمی‌توان سنجاق کرد.' }],
+        'پیام حذف‌شده را نمی‌توان سنجاق کرد.'
+      );
+    }
+
+    if (message.isPinned === isPinned) {
+      return this.requireMessage(chat.id, messageId);
+    }
+
+    const updated = await prisma.message.update({
+      where: { id: messageId },
+      data: { isPinned },
+      select: messageSelect,
+    });
+
+    const dto = toMessageDto(updated);
+
+    socketGateway.emitToChat(chat.id, 'message:updated', dto);
+
+    return dto;
+  }
+
+  /**
+   * The pinned messages of a chat, newest first.
+   *
+   * Its own query rather than a filter over the loaded page: the point of a pin
+   * is to stay reachable after the conversation has scrolled well past it, so
+   * the banner has to be able to show a message the client has never fetched.
+   *
+   * Capped, because it renders as a list with no pagination of its own. The
+   * ceiling is high enough that reaching it means the chat is using pins for
+   * something other than pinning.
+   */
+  async getPinnedMessages(chatId: string): Promise<MessageDto[]> {
+    const rows = await prisma.message.findMany({
+      where: { chatId, isPinned: true, isDeleted: false },
+      select: messageSelect,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: PINNED_LIMIT,
+    });
+
+    return rows.map(toMessageDto);
+  }
+
   // -------------------------------------------------------------------------
 
   /**
@@ -334,17 +419,18 @@ class MessageService {
   }
 
   /**
-   * The two ways a member of a chat can still be unable to write in it. Both
-   * move into M11's `policy.ts`; both are enforced now, because an endpoint
-   * that ignores `isReadOnly` makes the column a decoration.
+   * The two ways a member of a chat can still be unable to write in it.
+   *
+   * The rule itself lives in `policy.ts`, which the composer also reads to
+   * decide whether to disable itself — so the reason the box is greyed out and
+   * the reason the request is refused are the same value, and the message shown
+   * next to the box is the one the server would have sent back.
    */
   private assertCanSend(chat: ChatRow, member: ChatMemberRow): void {
-    if (member.isMuted) {
-      throw Errors.forbidden('شما در این گفت‌وگو بی‌صدا شده‌اید و نمی‌توانید پیام بفرستید.');
-    }
+    const blocked = sendBlock(chat, member);
 
-    if (chat.isReadOnly && member.role !== 'ADMIN') {
-      throw Errors.forbidden('این گفت‌وگو فقط‌خواندنی است.');
+    if (blocked) {
+      throw Errors.forbidden(SEND_BLOCK_MESSAGES[blocked]);
     }
   }
 }

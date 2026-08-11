@@ -65,6 +65,16 @@ export interface ServerToClientEvents {
   /** A message was soft-deleted; the payload is the tombstone, not the id. */
   'message:deleted': (message: MessageDto) => void;
   /**
+   * An existing message changed without being deleted — today that means it was
+   * pinned or unpinned.
+   *
+   * Named for the shape of the change rather than for pinning, because clients
+   * apply it the same way whatever moved: replace the row with this id. A
+   * `message:pinned` event would need a sibling for every future edit, each with
+   * an identical handler.
+   */
+  'message:updated': (message: MessageDto) => void;
+  /**
    * Everyone already online that this socket shares a chat with.
    *
    * Sent on connect, and again when the user joins a new chat — so clients
@@ -83,6 +93,18 @@ export interface ServerToClientEvents {
    * minus the sender.
    */
   'receipt:read': (receipt: ReadReceipt) => void;
+  /**
+   * Something about the chat itself changed: its title, its read-only setting,
+   * or one member's role or mute state.
+   *
+   * Carries the id and nothing else, and that is the whole design. Every richer
+   * payload would be per-viewer — `ChatListItemDto` holds an unread count and a
+   * set of read watermarks that mean different things to each member — so one
+   * broadcast object cannot be correct for the room it is sent to. This is an
+   * invalidation signal: it says *what* went stale, and each client re-reads it
+   * for itself.
+   */
+  'chat:updated': (chatId: string) => void;
 }
 
 export interface ClientToServerEvents {

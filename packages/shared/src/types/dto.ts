@@ -112,6 +112,17 @@ export interface MessagePageDto {
 }
 
 /**
+ * The pinned messages of a chat.
+ *
+ * An object rather than a bare array, matching every other list the API
+ * answers with: a top-level JSON array cannot grow a field later without
+ * breaking every client that indexed into it.
+ */
+export interface PinnedMessagesDto {
+  messages: MessageDto[];
+}
+
+/**
  * What `POST /chats/:chatId/messages/read` answers.
  *
  * `unreadCount` is recomputed rather than assumed to be zero: the client marks

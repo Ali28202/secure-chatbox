@@ -1,14 +1,21 @@
 'use client';
 
-import type { MarkReadResultDto, MessageDto, MessagePageDto, SendMessageInput } from '@repo/shared';
+import type {
+  MarkReadResultDto,
+  MessageDto,
+  MessagePageDto,
+  PinnedMessagesDto,
+  SendMessageInput,
+} from '@repo/shared';
 import {
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { applyChatActivity, applyChatTombstone, applyMarkRead } from './use-chats';
+import { applyChatActivity, applyMarkRead, refreshChatPreview } from './use-chats';
 
 /*
  * Deliberately *not* `['chats', chatId, 'messages']`. React Query matches keys
@@ -21,6 +28,13 @@ export const messagesQueryKey = (chatId: string) => ['messages', chatId] as cons
 
 /** Every chat's history at once — for the resync after a socket reconnect. */
 export const messagesRootKey = ['messages'] as const;
+
+/**
+ * The pinned list, keyed outside `messagesQueryKey` for the same prefix-matching
+ * reason that key is written the way it is: nesting it under the history would
+ * make every pin refetch collapse the infinite query back to one page.
+ */
+export const pinnedQueryKey = (chatId: string) => ['pinned', chatId] as const;
 
 type MessagesCache = { pages: MessagePageDto[]; pageParams: (string | null)[] };
 
@@ -121,7 +135,39 @@ export function applyDeletedMessage(queryClient: QueryClient, tombstone: Message
   queryClient.setQueryData<MessagesCache>(messagesQueryKey(tombstone.chatId), (cache) =>
     withTombstone(cache, tombstone)
   );
-  applyChatTombstone(queryClient, tombstone);
+  refreshChatPreview(queryClient, tombstone);
+
+  // A soft delete also unpins, server-side — so a message that was in the
+  // banner has to leave it. Invalidating rather than filtering: the pinned list
+  // is capped, and dropping a row from a full one should reveal the next.
+  void queryClient.invalidateQueries({ queryKey: pinnedQueryKey(tombstone.chatId) });
+}
+
+/**
+ * Applies a message that changed without being deleted — today, one that was
+ * pinned or unpinned.
+ *
+ * A replace by id wherever it is held, which is why the event is named for the
+ * shape of the change rather than for pinning: a future edit would arrive here
+ * and need no new handler. Unlike an incoming message this never inserts, so a
+ * chat whose history is not in this tab's cache is left alone.
+ */
+export function applyUpdatedMessage(queryClient: QueryClient, message: MessageDto): void {
+  queryClient.setQueryData<MessagesCache>(messagesQueryKey(message.chatId), (cache) =>
+    cache
+      ? {
+          ...cache,
+          pages: cache.pages.map((page) => ({
+            ...page,
+            messages: page.messages.map((existing) =>
+              existing.id === message.id ? message : existing
+            ),
+          })),
+        }
+      : cache
+  );
+  refreshChatPreview(queryClient, message);
+  void queryClient.invalidateQueries({ queryKey: pinnedQueryKey(message.chatId) });
 }
 
 /**
@@ -215,6 +261,39 @@ export function useDeleteMessage(chatId: string) {
     mutationFn: async (messageId: string) =>
       (await api.delete<MessageDto>(`/chats/${chatId}/messages/${messageId}`)).data,
     onSuccess: (tombstone) => applyDeletedMessage(queryClient, tombstone),
+  });
+}
+
+/**
+ * The chat's pinned messages, for the banner above the conversation.
+ *
+ * Fetched rather than filtered out of the loaded history: a pin's whole purpose
+ * is to stay reachable after the conversation has scrolled well past it, so
+ * more often than not the pinned message is not in the cache at all.
+ */
+export function usePinnedMessages(chatId: string) {
+  return useQuery({
+    queryKey: pinnedQueryKey(chatId),
+    queryFn: async () =>
+      (await api.get<PinnedMessagesDto>(`/chats/${chatId}/messages/pinned`)).data.messages,
+    retry: false,
+  });
+}
+
+/**
+ * Pins or unpins a message.
+ *
+ * Sends the state it wants rather than a toggle, matching the endpoint: two
+ * admins acting at the same moment agree, and a retried request pins once.
+ */
+export function useSetPinned(chatId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ messageId, isPinned }: { messageId: string; isPinned: boolean }) =>
+      (await api.patch<MessageDto>(`/chats/${chatId}/messages/${messageId}/pin`, { isPinned }))
+        .data,
+    onSuccess: (message) => applyUpdatedMessage(queryClient, message),
   });
 }
 
