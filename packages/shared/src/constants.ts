@@ -84,8 +84,17 @@ export const ALLOWED_FILE_TYPES = {
 
 export type AllowedFileType = keyof typeof ALLOWED_FILE_TYPES;
 
+/**
+ * `Object.hasOwn`, not `type in ALLOWED_FILE_TYPES`.
+ *
+ * `in` walks the prototype chain, so `'constructor'` and `'toString'` would pass
+ * an allowlist that never listed them. The declared type is `file.type` — a
+ * string a client typed into a multipart part header — and the caller in
+ * `storage.ts` immediately looks the "allowed" type up in its signature table,
+ * where an inherited key yields a function instead of a byte array.
+ */
 export function isAllowedFileType(type: string): type is AllowedFileType {
-  return type in ALLOWED_FILE_TYPES;
+  return Object.hasOwn(ALLOWED_FILE_TYPES, type);
 }
 
 /** Drives the `accept` attribute on the file picker. */

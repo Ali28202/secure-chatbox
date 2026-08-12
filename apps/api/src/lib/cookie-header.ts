@@ -21,7 +21,10 @@ export function parseCookieHeader(header: string | undefined): Record<string, st
 
     const name = pair.slice(0, eq).trim();
     const value = pair.slice(eq + 1).trim();
-    if (!name || name in cookies) continue;
+    // `Object.hasOwn` rather than `name in cookies`: `in` walks the prototype
+    // chain, so a cookie named `constructor` or `toString` would look like a
+    // duplicate of something never seen and be dropped.
+    if (!name || Object.hasOwn(cookies, name)) continue;
 
     try {
       cookies[name] = decodeURIComponent(value);

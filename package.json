@@ -12,6 +12,11 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
+    "test": "bun --bun vitest run",
+    "test:watch": "bun --bun vitest",
+    "test:api": "bun --bun vitest run --project=api",
+    "test:shared": "bun --bun vitest run --project=shared",
+    "test:web": "bun --bun vitest run --project=web",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "db:generate": "bun --filter='@repo/database' db:generate",
@@ -39,6 +44,7 @@
     "prettier": "^3.9.6",
     "turbo": "^2.10.8",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.66.0"
+    "typescript-eslint": "^8.66.0",
+    "vitest": "^4.1.10"
   }
 }
