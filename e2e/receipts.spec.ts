@@ -20,7 +20,7 @@ test.describe('unread counts', () => {
   }) => {
     const peer = await newSession('PROFESSOR');
     const chat = await student.api.createDirectChat(peer.account.id);
-    await peer.api.sendMessage(chat.id, 'پیام خوانده‌نشده');
+    const unread = await peer.api.sendMessage(chat.id, 'پیام خوانده‌نشده');
 
     await student.page.goto('/chats');
 
@@ -29,6 +29,24 @@ test.describe('unread counts', () => {
 
     await row.click();
     await expect(student.page.getByText('پیام خوانده‌نشده')).toBeVisible();
+
+    /*
+     * Wait for the receipt before leaving, because the report is not sent the
+     * instant a row appears: the observer batches, and only after the list has
+     * been still for `SETTLE_MS` does the newest visible message go to the
+     * server. Clicking straight back beats that timer and its cleanup clears it,
+     * so nothing is ever reported — which made this test a race that happened to
+     * win on a fast machine and lost the first time CI ran it with two workers.
+     *
+     * Waiting keeps the assertion pointed at the badge rather than at the timer.
+     * (That a reader who leaves within 400ms keeps their unread badge until they
+     * open the chat again is the app's behaviour, not a flaw in this test.)
+     */
+    await expect
+      .poll(() => getReceiptStatus(unread.id, student.account.id), {
+        message: 'expected the read to be reported before leaving the conversation',
+      })
+      .toBe('READ');
 
     // A `button`, not a `link`: it is a `Link` underneath, but the Button it is
     // rendered through keeps `role="button"`.
