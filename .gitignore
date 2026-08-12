@@ -39,6 +39,11 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .windsurf
 .turbo
 
+# Everything the Playwright suite writes: its own uploads, the HTML report,
+# traces and screenshots of failures, and the argon2 hash it caches between the
+# global setup and the workers. All of it is reproducible by re-running.
+e2e/.artifacts/
+
 # Uploaded attachments. Whatever UPLOAD_DIR points at is user data, not source:
 # it is written at runtime, it is what a deployment's volume is for, and it is
 # the one directory here that must never end up in a commit or an image layer.

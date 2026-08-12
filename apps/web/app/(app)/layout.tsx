@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { AppHeader } from '@/components/layout/app-header';
 import { RealtimeBridge } from '@/components/realtime/realtime-bridge';
-import { useSession } from '@/hooks/use-auth';
+import { SessionContext, useSession } from '@/hooks/use-auth';
 import { ROUTES } from '@/lib/routes';
 
 /**
@@ -53,20 +53,29 @@ export default function AppLayout({ children }: { children: ReactNode }) {
    * address bar in `vh`, and a composer that hides under it is worse than one
    * that sits a little high.
    */
+  /*
+   * Everything below is inside the gate, so `session.data` is the session this
+   * component just proved. Handing it down means a child re-rendering on its
+   * own state — a mutation settling, a menu opening — reads the value this
+   * render published, not whatever the query cache happens to hold at that
+   * instant. `AppHeader` does exactly that on logout, and used to throw for it.
+   */
   return (
-    <div className="flex h-svh flex-col">
-      {/*
-       * Inside the `isSuccess` gate, deliberately. The socket handshake
-       * authenticates by cookie, and connecting before `/auth/me` has answered
-       * would race a cold load's silent token refresh — the handshake would be
-       * refused, and recovering from that costs more than waiting for a query
-       * that is already in flight.
-       */}
-      <RealtimeBridge />
-      <AppHeader />
-      <div className="mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col px-4 py-6">
-        {children}
+    <SessionContext value={session.data}>
+      <div className="flex h-svh flex-col">
+        {/*
+         * Inside the `isSuccess` gate, deliberately. The socket handshake
+         * authenticates by cookie, and connecting before `/auth/me` has answered
+         * would race a cold load's silent token refresh — the handshake would be
+         * refused, and recovering from that costs more than waiting for a query
+         * that is already in flight.
+         */}
+        <RealtimeBridge />
+        <AppHeader />
+        <div className="mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col px-4 py-6">
+          {children}
+        </div>
       </div>
-    </div>
+    </SessionContext>
   );
 }

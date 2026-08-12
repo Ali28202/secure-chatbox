@@ -3,7 +3,7 @@
 import type { LoginInput, RegisterInput, UserDto } from '@repo/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { createContext, useContext, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { ROUTES } from '@/lib/routes';
 import { useAuthStore } from '@/stores/auth-store';
@@ -52,30 +52,48 @@ export function useSession() {
 }
 
 /**
- * The current user for components that are only ever rendered inside the
- * authenticated layout, where the session is guaranteed to be loaded.
+ * The session the authenticated layout has already verified, handed down.
  *
- * Reads the query cache rather than the auth store, and that distinction
- * matters: the store is filled by an effect, which React runs *after* the
- * render it belongs to. On a hard page load the layout would see `isSuccess`
- * and render this component's parent in the same pass that the store was still
- * empty, and every consumer would throw. The cache is already populated at that
- * point, so reading it is the only version that is correct on the first render.
+ * Provided by `AppLayout` and by nothing else. That is the whole design: the
+ * layout is the component that waits for `/auth/me` to answer, so it is the one
+ * that can honestly say a session exists, and passing its own proof downwards
+ * is what makes `useCurrentUser` safe to write without a null check.
  *
- * The shared query key means this costs no extra request — it subscribes to the
- * entry `useSession` created. The store stays as the mirror for code that lives
- * outside React and cannot call a hook at all (the socket client in M8).
+ * Deliberately not the auth store, which is filled by an effect and is
+ * therefore still empty during the first render the layout admits. And
+ * deliberately not a second `useQuery` on the session key, which is what this
+ * used to be — see `useCurrentUser` for what that cost.
+ */
+export const SessionContext = createContext<UserDto | null>(null);
+
+/**
+ * The current user, for components that only ever render inside the
+ * authenticated layout.
+ *
+ * Reads the context rather than the session query, and the difference is not
+ * cosmetic. Both give the same value in the steady state, but a `useQuery` here
+ * creates a *second observer* on that key, and React makes no promise that a
+ * parent re-renders before a child that has its own pending update. `AppHeader`
+ * owns the logout mutation and also calls this hook: when logout cleared the
+ * cache, the mutation notified the header, the header re-rendered alone, and
+ * this threw — while the layout, whose gate would have unmounted it, had not
+ * re-rendered yet. Reading the context cannot fail that way, because the value
+ * only changes when the layout itself renders, which *is* the gate.
+ *
+ * The store stays as the mirror for code that lives outside React and cannot
+ * call a hook at all (the socket client).
  *
  * Throwing rather than returning `null` keeps every consumer from writing a
- * `user?.` chain for a case that cannot happen — and turns a mistake in the
- * routing into one loud error instead of a screen full of blanks.
+ * `user?.` chain for a case that cannot happen — and now the message is
+ * accurate: with the context in place, the only way to reach it really is to
+ * call this from outside the layout.
  */
 export function useCurrentUser(): UserDto {
-  const { data } = useQuery(sessionQueryOptions);
-  if (!data) {
+  const user = useContext(SessionContext);
+  if (!user) {
     throw new Error('useCurrentUser was called outside the authenticated layout.');
   }
-  return data;
+  return user;
 }
 
 export function useLogin() {

@@ -1,0 +1,22 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    // The suite itself runs under Node, but the callbacks handed to
+    // `page.evaluate` are compiled here and executed in the browser, so they
+    // reach for `document` and `getComputedStyle`. Playwright's own types
+    // expect the DOM lib to be present for exactly that reason.
+    "lib": ["ESNext", "DOM"],
+
+    // Bun's isolated linker does not hoist, so there is no `node_modules/@repo`
+    // at the repo root for this directory to resolve through — the e2e suite is
+    // not a workspace and cannot declare a dependency on one. Pointed at the
+    // source rather than at a build output because `@repo/shared` has none.
+    //
+    // No `baseUrl`: it is deprecated in TypeScript 6, and unnecessary since
+    // `paths` are resolved relative to this file when it is absent.
+    "paths": {
+      "@repo/shared": ["../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["**/*.ts", "../playwright.config.ts"]
+}
