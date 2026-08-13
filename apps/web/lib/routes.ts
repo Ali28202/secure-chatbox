@@ -23,6 +23,16 @@ export const AUTH_ROUTES: string[] = [ROUTES.login, ROUTES.register];
 export const NEXT_PARAM = 'next';
 
 /**
+ * Marks a login page reached because the account moved to another device.
+ *
+ * A flag in the URL rather than a message in a store, because getting here
+ * means reloading the page — the whole point of a forced re-login is that no
+ * client state survives it, and anything held in memory would be part of what
+ * is thrown away.
+ */
+export const DEVICE_MISMATCH_PARAM = 'device';
+
+/**
  * Sanitises a `?next=` value before it is used as a redirect target.
  *
  * Anything that is not a plain in-app path is discarded. Without this check,

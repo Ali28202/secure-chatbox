@@ -9,7 +9,11 @@ import { signAuthTokens, signToken, verifyToken } from './jwt';
  * cannot pick up a developer's real ones and the hand-forged tokens below have
  * known keys to be forged with.
  */
-const subject = { id: '0199a0c1-6d3f-7000-8000-000000000001', role: 'STUDENT' } as const;
+const subject = {
+  id: '0199a0c1-6d3f-7000-8000-000000000001',
+  role: 'STUDENT',
+  deviceId: '1a2b3c4d-0011223344556677889900aabbccddee',
+} as const;
 const now = () => Math.floor(Date.now() / 1000);
 
 /** Asserts the single 401 every rejection path is supposed to collapse into. */
@@ -30,6 +34,9 @@ describe('signToken / verifyToken', () => {
     expect(payload.sub).toBe(subject.id);
     expect(payload.role).toBe('STUDENT');
     expect(payload.typ).toBe('access');
+    // Signed, not sent alongside: a stolen cookie carries the device it was
+    // issued to, and there is nothing in it the thief can edit.
+    expect(payload.did).toBe(subject.deviceId);
   });
 
   it('round-trips a refresh token', async () => {
@@ -121,6 +128,20 @@ describe('verifyToken rejects', () => {
     // context is built from, and `undefined` there would be a user with no id.
     const empty = await sign({ typ: 'access', exp: now() + 900 }, env.JWT_ACCESS_SECRET, 'HS256');
     await expectRejected(verifyToken('access', empty));
+  });
+
+  it('a valid token that predates device binding', async () => {
+    // Every token issued before the `did` claim existed. Rejected here, as an
+    // ordinary expired session, rather than further down as a device mismatch —
+    // it is not a mismatch, there is simply no device to compare, and telling
+    // the user their account moved elsewhere would be a lie.
+    const legacy = await sign(
+      { sub: subject.id, role: subject.role, typ: 'access', iat: now(), exp: now() + 900 },
+      env.JWT_ACCESS_SECRET,
+      'HS256'
+    );
+
+    await expectRejected(verifyToken('access', legacy));
   });
 
   it('a tampered payload', async () => {

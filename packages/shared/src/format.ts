@@ -17,6 +17,48 @@ export function toPersianDigits(value: string | number): string {
   return String(value).replace(/\d/g, (digit) => PERSIAN_DIGITS.charAt(Number(digit)));
 }
 
+/**
+ * Rewrites Persian and Arabic-Indic digits as ASCII ones.
+ *
+ * The inverse of the above, and the one that has to run on *input*. A Persian
+ * keyboard produces «۰۹۱۲…» for a phone number, which is the same number and a
+ * completely different string — without this, a user who typed their number the
+ * way their keyboard offers it could never log in with it.
+ *
+ * Both ranges are folded because Arabic-Indic digits (٠١٢…) arrive from some
+ * Android keyboards and are visually near-identical to the Persian ones.
+ */
+export function toLatinDigits(value: string): string {
+  return value.replace(/[۰-۹٠-٩]/g, (digit) => {
+    const code = digit.codePointAt(0) ?? 0;
+    return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
+  });
+}
+
+/**
+ * An Iranian mobile number reduced to the one form that gets stored: `09` and
+ * nine digits.
+ *
+ * People write the same number half a dozen ways — `+98 912 …`, `0098912…`,
+ * `912…`, with spaces or dashes — and every one of them has to resolve to the
+ * same row, because the column is unique and it is a login identifier. Anything
+ * that does not reduce to a plausible mobile number is returned trimmed and
+ * unchanged, so the schema is what rejects it and the message says why.
+ */
+export function normalizePhoneNumber(value: string): string {
+  // The `00` is the international-access prefix people dial instead of `+`; it
+  // is dropped first so both spellings reach the country-code branch below.
+  const digits = toLatinDigits(value).replace(/\D/g, '').replace(/^00/, '');
+
+  // `98…` is only a country code when what follows is a full mobile number, so
+  // the branches are ordered longest-prefix-first and each one checks the total
+  // length rather than the prefix alone.
+  if (digits.length === 12 && digits.startsWith('989')) return `0${digits.slice(2)}`;
+  if (digits.length === 10 && digits.startsWith('9')) return `0${digits}`;
+
+  return digits.length > 0 ? digits : value.trim();
+}
+
 const relativeTime = new Intl.RelativeTimeFormat('fa', { numeric: 'auto' });
 const timeOfDay = new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit' });
 const weekday = new Intl.DateTimeFormat('fa-IR', { weekday: 'long' });

@@ -56,6 +56,13 @@ export const Errors = {
   validation: (details: FieldIssue[], message?: string) =>
     new AppError(422, ERROR_CODES.VALIDATION_ERROR, message, details),
   unauthorized: (message?: string) => new AppError(401, ERROR_CODES.UNAUTHORIZED, message),
+  /**
+   * Also a 401 — the session is over either way and the status is what every
+   * HTTP client keys off. Only the code differs, so the browser can tell "your
+   * token aged out, refresh it" from "you are signed in somewhere else, and
+   * refreshing will fail for the same reason".
+   */
+  deviceMismatch: (message?: string) => new AppError(401, ERROR_CODES.DEVICE_MISMATCH, message),
   forbidden: (message?: string) => new AppError(403, ERROR_CODES.FORBIDDEN, message),
   notFound: (message?: string) => new AppError(404, ERROR_CODES.NOT_FOUND, message),
   conflict: (message?: string) => new AppError(409, ERROR_CODES.CONFLICT, message),
@@ -72,6 +79,9 @@ export function toFieldIssues(issues: readonly z.core.$ZodIssue[]): FieldIssue[]
   }));
 }
 
+// Only for errors raised outside our own type, which never carry a device
+// verdict — `DEVICE_MISMATCH` is deliberately absent, since 401 maps to the
+// generic code and the specific one is only ever chosen explicitly.
 const STATUS_TO_CODE: Partial<Record<number, ErrorCode>> = {
   400: ERROR_CODES.VALIDATION_ERROR,
   401: ERROR_CODES.UNAUTHORIZED,

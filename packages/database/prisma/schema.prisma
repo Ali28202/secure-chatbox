@@ -1,11 +1,12 @@
 // Secure Chatbox — data model
 //
-// Mirrors the submitted ERD (USER / CHAT / CHAT_MEMBER / MESSAGE / ATTACHMENT /
+// Mirrors the revised ERD (USER / CHAT / CHAT_MEMBER / MESSAGE / ATTACHMENT /
 // MESSAGE_RECEIPT) with two deliberate additions, documented in the plan:
 //   - Message.isPinned    the use-case diagram grants professors "پین کردن پیام",
 //                         but the ERD had no field to store it.
 //   - Chat.lastMessageAt  without it, ordering the chat list requires a
 //                         correlated max(createdAt) per chat on every request.
+// Both are still missing from the submitted ERD and still need adding to it.
 //
 // Prisma 7: the datasource carries only `provider`; the connection URL lives in
 // prisma.config.ts. A driver adapter is mandatory — see src/client.ts.
@@ -58,12 +59,31 @@ enum ReceiptStatus {
 
 model User {
   id           String     @id @default(uuid(7))
-  /// شماره دانشجویی یا کد استادی — the login identifier.
+  /// شماره دانشجویی یا کد استادی — a login identifier.
   universityId String     @unique @map("university_id")
+  /// شمارهٔ تلفن همراه — the other login identifier, stored canonically as
+  /// `09` plus nine digits (see `normalizePhoneNumber` in @repo/shared).
+  ///
+  /// Nullable because it was added to accounts that already existed, and
+  /// because a unique column cannot be backfilled with a placeholder without
+  /// inventing phone numbers. Registration requires one, so in practice only
+  /// pre-existing rows lack it — and those still log in by university id.
+  phoneNumber  String?    @unique @map("phone_number")
   passwordHash String     @map("password_hash")
   name         String
   role         GlobalRole @default(STUDENT)
   isActive     Boolean    @default(true) @map("is_active")
+  /// The one device this account currently holds a session on.
+  ///
+  /// Sessions are stateless JWTs, so this column *is* the revocation list: every
+  /// token carries the device it was issued to, and a login from somewhere else
+  /// overwrites this value, which makes every token bound to the old device fail
+  /// its next check. One row per user, so one device per user — signing in on a
+  /// phone signs the laptop out, which is the point.
+  ///
+  /// Null until the first login. Not unique: two people sharing a lab machine
+  /// legitimately present the same fingerprint.
+  deviceId     String?    @map("device_id")
   lastSeen     DateTime?  @map("last_seen")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")

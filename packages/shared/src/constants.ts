@@ -26,8 +26,16 @@ export type ReceiptStatus = (typeof RECEIPT_STATUSES)[number];
  */
 export const LIMITS = {
   universityId: { min: 3, max: 32 },
+  /** Canonical form is `09` plus nine digits — see `normalizePhoneNumber`. */
+  phoneNumber: { min: 11, max: 11 },
   password: { min: 8, max: 128 },
   name: { min: 3, max: 64 },
+  /**
+   * The browser-generated device fingerprint. Bounded on both sides because it
+   * arrives from the client and is written to a column: long enough that a
+   * guessed value is not a device, short enough that nobody can post a novel.
+   */
+  deviceId: { min: 16, max: 128 },
   chatTitle: { min: 2, max: 100 },
   messageContent: { min: 1, max: 4000 },
   /** Cursor page size for message history and chat lists. */
@@ -140,6 +148,16 @@ export const REFRESH_COOKIE_PATH = '/api/auth';
 export const ERROR_CODES = {
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   UNAUTHORIZED: 'UNAUTHORIZED',
+  /**
+   * The session is valid but belongs to a device this account has since left.
+   *
+   * Its own code rather than a plain 401 because the two need opposite
+   * handling: an ordinary 401 means "refresh and carry on", while this one
+   * means the account is signed in somewhere else and refreshing will fail for
+   * the same reason. The client checks for it to skip the refresh, drop the
+   * session and say what actually happened.
+   */
+  DEVICE_MISMATCH: 'DEVICE_MISMATCH',
   FORBIDDEN: 'FORBIDDEN',
   NOT_FOUND: 'NOT_FOUND',
   CONFLICT: 'CONFLICT',

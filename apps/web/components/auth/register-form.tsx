@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { LIMITS, registerSchema, toPersianDigits, type RegisterInput } from '@repo/shared';
+import { LIMITS, registerSchema, toPersianDigits, type RegisterFormValues } from '@repo/shared';
 import { Loader2Icon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -15,15 +15,18 @@ import { applyApiFieldIssues } from '@/lib/form-errors';
 import { ROUTES } from '@/lib/routes';
 import { useRegister } from '@/hooks/use-auth';
 
-const FIELDS = ['name', 'universityId', 'password'] as const;
+const FIELDS = ['name', 'universityId', 'phoneNumber', 'password'] as const;
 
 export function RegisterForm() {
   const router = useRouter();
   const register = useRegister();
 
-  const form = useForm<RegisterInput>({
+  // Typed on the schema's *input*, which is what the fields are bound to: the
+  // phone number a user types is normalised on its way through, so what the
+  // form holds and what the API receives are not the same value.
+  const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { name: '', universityId: '', password: '' },
+    defaultValues: { name: '', universityId: '', phoneNumber: '', password: '' },
   });
 
   const { errors } = form.formState;
@@ -68,6 +71,27 @@ export function RegisterForm() {
           />
           <FieldDescription>شمارهٔ دانشجویی یا شمارهٔ کارمندی خود را وارد کنید.</FieldDescription>
           <FieldError errors={[errors.universityId]} />
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="phoneNumber">شمارهٔ تلفن همراه</FieldLabel>
+          <Input
+            id="phoneNumber"
+            type="tel"
+            inputMode="numeric"
+            dir="ltr"
+            className="text-end"
+            autoComplete="tel"
+            aria-invalid={Boolean(errors.phoneNumber)}
+            {...form.register('phoneNumber')}
+          />
+          {/*
+           * Persian digits in the hint, Latin digits accepted in the field —
+           * `normalizePhoneNumber` folds ۰۹, ٠٩, +98 and 0098 into one canonical
+           * form before it is stored, so nobody has to be told which to type.
+           */}
+          <FieldDescription>مانند {toPersianDigits('09123456789')}.</FieldDescription>
+          <FieldError errors={[errors.phoneNumber]} />
         </Field>
 
         <Field>

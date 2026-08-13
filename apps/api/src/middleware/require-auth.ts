@@ -22,7 +22,8 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   }
 
   try {
-    c.set('user', await authService.verifyToken(token));
+    const { user } = await authService.verifyToken(token);
+    c.set('user', user);
   } catch (error) {
     // A 401 means only that *this access token* is stale — the session itself
     // may be perfectly alive, and the client's refresh flow is about to prove

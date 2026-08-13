@@ -1,10 +1,11 @@
 'use client';
 
-import type { LoginInput, RegisterInput, UserDto } from '@repo/shared';
+import type { LoginFormValues, RegisterInput, UserDto } from '@repo/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { createContext, useContext, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { getDeviceId } from '@/lib/device-id';
 import { ROUTES } from '@/lib/routes';
 import { useAuthStore } from '@/stores/auth-store';
 
@@ -101,7 +102,14 @@ export function useLogin() {
   const setUser = useAuthStore((state) => state.setUser);
 
   return useMutation({
-    mutationFn: async (input: LoginInput) => (await api.post<UserDto>('/auth/login', input)).data,
+    // The device is attached here rather than being a form field, because it is
+    // not something anybody types — the form collects credentials, and this is
+    // the one place that knows a login is what carries a device with it.
+    // Reading it inside `mutationFn` also keeps `localStorage` off the server:
+    // this file is a client module, but the hook itself still renders during
+    // SSR, and a call at that level would be evaluated there.
+    mutationFn: async (input: LoginFormValues) =>
+      (await api.post<UserDto>('/auth/login', { ...input, deviceId: getDeviceId() })).data,
     onSuccess: (user) => {
       // Seed the cache so the authenticated layout does not fire `/auth/me` for
       // a user the login response already gave us.
@@ -125,8 +133,11 @@ export function useRegister() {
   return useMutation({
     mutationFn: async (input: RegisterInput) => {
       await api.post<UserDto>('/auth/register', input);
+      // Signs in by university id, though the account now has two identifiers.
+      // Either would work; this one is the field the person just filled in and
+      // is not reformatted on its way to the server.
       return login.mutateAsync({
-        universityId: input.universityId,
+        identifier: input.universityId,
         password: input.password,
       });
     },

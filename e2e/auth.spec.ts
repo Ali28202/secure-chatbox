@@ -34,7 +34,7 @@ test.describe('signing in', () => {
     const account = await createAccount('STUDENT');
 
     await page.goto('/login');
-    await page.getByLabel('شناسهٔ دانشگاهی').fill(account.universityId);
+    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(account.universityId);
     await page.getByLabel('گذرواژه').fill(account.password);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
@@ -49,7 +49,7 @@ test.describe('signing in', () => {
     const account = await createAccount('STUDENT');
 
     await page.goto('/login');
-    await page.getByLabel('شناسهٔ دانشگاهی').fill(account.universityId);
+    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(account.universityId);
     await page.getByLabel('گذرواژه').fill(account.password);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
     await expect(page).toHaveURL('/chats');
@@ -72,6 +72,36 @@ test.describe('signing in', () => {
     expect(byName.get(COOKIE_NAMES.access)?.secure).toBe(false);
   });
 
+  test('accepts a phone number in the same field as a student number', async ({ page }) => {
+    // One field, two identifiers. The server decides which column matched, so
+    // this is the only place that proves the second one is reachable at all.
+    const account = await createAccount('STUDENT');
+
+    await page.goto('/login');
+    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(account.phoneNumber);
+    await page.getByLabel('گذرواژه').fill(account.password);
+    await page.getByRole('button', { name: 'ورود به سامانه' }).click();
+
+    await expect(page).toHaveURL('/chats');
+  });
+
+  test('accepts a phone number typed in Persian digits', async ({ page }) => {
+    // What a Persian keyboard produces. «۰۹۱۲…» and «0912…» are different
+    // strings and only one of them is in the column, so the folding has to
+    // happen before the lookup or this is a login that mysteriously fails.
+    const account = await createAccount('STUDENT');
+    const persian = account.phoneNumber.replace(/\d/g, (digit) =>
+      String.fromCharCode(0x06f0 + Number(digit))
+    );
+
+    await page.goto('/login');
+    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(persian);
+    await page.getByLabel('گذرواژه').fill(account.password);
+    await page.getByRole('button', { name: 'ورود به سامانه' }).click();
+
+    await expect(page).toHaveURL('/chats');
+  });
+
   test('survives a hard reload', async ({ student }) => {
     await student.page.goto('/chats');
     await expect(student.page.getByRole('heading', { name: 'گفت‌وگوها' })).toBeVisible();
@@ -85,11 +115,11 @@ test.describe('signing in', () => {
     const account = await createAccount('STUDENT');
 
     await page.goto('/login');
-    await page.getByLabel('شناسهٔ دانشگاهی').fill(account.universityId);
+    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(account.universityId);
     await page.getByLabel('گذرواژه').fill('WrongPassword@1404');
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
-    await expect(formAlert(page)).toContainText('شناسهٔ دانشگاهی یا گذرواژه نادرست است.');
+    await expect(formAlert(page)).toContainText('شناسه یا گذرواژه نادرست است.');
     await expect(page).toHaveURL('/login');
   });
 
@@ -97,11 +127,11 @@ test.describe('signing in', () => {
     // Same message, deliberately: a different one would turn the login form
     // into a way of asking which university IDs are registered.
     await page.goto('/login');
-    await page.getByLabel('شناسهٔ دانشگاهی').fill('400000000');
+    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill('400000000');
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
-    await expect(formAlert(page)).toContainText('شناسهٔ دانشگاهی یا گذرواژه نادرست است.');
+    await expect(formAlert(page)).toContainText('شناسه یا گذرواژه نادرست است.');
   });
 });
 
@@ -112,7 +142,7 @@ test.describe('route protection', () => {
     await page.goto('/chats');
     await expect(page).toHaveURL('/login?next=%2Fchats');
 
-    await page.getByLabel('شناسهٔ دانشگاهی').fill(account.universityId);
+    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(account.universityId);
     await page.getByLabel('گذرواژه').fill(account.password);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
@@ -126,7 +156,7 @@ test.describe('route protection', () => {
     // without it the login page would be an open redirect with a real login
     // form on it, which is the most convincing kind.
     await page.goto('/login?next=https%3A%2F%2Fevil.example%2Fsteal');
-    await page.getByLabel('شناسهٔ دانشگاهی').fill(account.universityId);
+    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(account.universityId);
     await page.getByLabel('گذرواژه').fill(account.password);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
@@ -162,12 +192,16 @@ test.describe('route protection', () => {
 });
 
 test.describe('registering', () => {
+  /** `09` and nine digits, unique enough for one run of one spec. */
+  const freshPhoneNumber = () => `09${Date.now().toString().slice(-9)}`;
+
   test('creates a student account and signs them straight in', async ({ page }) => {
     const universityId = `40${Date.now().toString(36)}`;
 
     await page.goto('/register');
     await page.getByLabel('نام و نام خانوادگی').fill('دانشجوی تازه‌وارد');
     await page.getByLabel('شناسهٔ دانشگاهی').fill(universityId);
+    await page.getByLabel('شمارهٔ تلفن همراه').fill(freshPhoneNumber());
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'ساخت حساب کاربری' }).click();
 
@@ -192,10 +226,28 @@ test.describe('registering', () => {
     await page.goto('/register');
     await page.getByLabel('نام و نام خانوادگی').fill('همنام تکراری');
     await page.getByLabel('شناسهٔ دانشگاهی').fill(existing.universityId);
+    await page.getByLabel('شمارهٔ تلفن همراه').fill(freshPhoneNumber());
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'ساخت حساب کاربری' }).click();
 
     await expect(page.getByText('این شناسهٔ دانشگاهی قبلاً ثبت شده است.')).toBeVisible();
+    await expect(page).toHaveURL('/register');
+  });
+
+  test('names the phone number when that is the half that collided', async ({ page }) => {
+    // Both columns are unique and one query checks both, so the message has to
+    // come from the row that came back. Telling someone their student number is
+    // taken when it is their phone number sends them to fix the wrong field.
+    const existing = await createAccount('STUDENT');
+
+    await page.goto('/register');
+    await page.getByLabel('نام و نام خانوادگی').fill('شمارهٔ تکراری');
+    await page.getByLabel('شناسهٔ دانشگاهی').fill(`40${Date.now().toString(36)}`);
+    await page.getByLabel('شمارهٔ تلفن همراه').fill(existing.phoneNumber);
+    await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
+    await page.getByRole('button', { name: 'ساخت حساب کاربری' }).click();
+
+    await expect(page.getByText('این شمارهٔ تلفن قبلاً ثبت شده است.')).toBeVisible();
     await expect(page).toHaveURL('/register');
   });
 });

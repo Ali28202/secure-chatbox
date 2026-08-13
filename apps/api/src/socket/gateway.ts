@@ -114,6 +114,31 @@ class SocketGateway {
     return this.connections.has(userId);
   }
 
+  /**
+   * Closes every connection this user still has open on a device they have just
+   * signed out of by signing in somewhere else.
+   *
+   * The HTTP side needs nothing like this — each request re-reads the account
+   * and the displaced token fails its device check. A socket is the exception:
+   * it authenticated once at handshake and is never re-checked, so without this
+   * the old laptop would keep receiving messages until someone closed the tab.
+   *
+   * `disconnect(true)` closes the underlying transport rather than just the
+   * namespace, so the client cannot silently re-attach with the same handshake.
+   * It will reconnect, be refused, and land on the login page — which is the
+   * intended outcome.
+   */
+  async disconnectDevice(userId: string, deviceId: string): Promise<void> {
+    const io = this.io;
+    if (!io) return;
+
+    const sockets = await io.in(socketRooms.user(userId)).fetchSockets();
+
+    for (const socket of sockets) {
+      if (socket.data.deviceId === deviceId) socket.disconnect(true);
+    }
+  }
+
   // -------------------------------------------------------------------------
 
   /**
@@ -135,8 +160,9 @@ class SocketGateway {
       throw new Error(SOCKET_UNAUTHORIZED);
     }
 
-    const user = await authService.verifyToken(token);
+    const { user, deviceId } = await authService.verifyToken(token);
     socket.data.userId = user.id;
+    socket.data.deviceId = deviceId;
   }
 
   private async onConnection(socket: AppSocket): Promise<void> {

@@ -26,9 +26,19 @@ export const userSummarySelect = {
   role: true,
 } satisfies Prisma.UserSelect;
 
+/**
+ * The full row, for the account looking at its own session.
+ *
+ * `deviceId` is read but never mapped into the DTO below. It is here because
+ * `AuthService` needs it on every verified request — it is the value a token's
+ * `did` claim is checked against — and reading it in the same query that loads
+ * the user is what keeps that check free.
+ */
 export const userSelect = {
   ...userSummarySelect,
+  phoneNumber: true,
   isActive: true,
+  deviceId: true,
   lastSeen: true,
   createdAt: true,
 } satisfies Prisma.UserSelect;
@@ -48,6 +58,10 @@ export function toUserSummaryDto(user: UserSummaryRow): UserSummaryDto {
 export function toUserDto(user: UserRow): UserDto {
   return {
     ...toUserSummaryDto(user),
+    // Only ever produced for the account making the request — the people
+    // directory answers with `UserSummaryDto`, which has no phone number in it.
+    // Browsing a university's user list should not be a way to collect them.
+    phoneNumber: user.phoneNumber,
     isActive: user.isActive,
     lastSeen: user.lastSeen?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),

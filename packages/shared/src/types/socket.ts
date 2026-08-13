@@ -120,4 +120,13 @@ export interface ClientToServerEvents {
 /** Per-socket state the server hangs off `socket.data`. */
 export interface SocketData {
   userId: string;
+  /**
+   * The device whose token opened this connection.
+   *
+   * Recorded because the handshake is the *only* time a socket is
+   * authenticated: once it is open, nothing re-reads the account. When a login
+   * from a new device displaces this one, the server has to find these sockets
+   * and close them, and this is what it matches on.
+   */
+  deviceId: string;
 }

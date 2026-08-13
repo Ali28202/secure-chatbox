@@ -38,6 +38,15 @@ export interface AuthTokenPayload extends JWTPayload {
   /** The user id. */
   sub: string;
   role: GlobalRole;
+  /**
+   * The device this token was issued to.
+   *
+   * Signed rather than sent alongside, which is the whole strength of the
+   * scheme: a stolen cookie carries its own device id with it, and the server
+   * compares that against the one device the account currently holds. There is
+   * nothing the holder of the cookie can edit to make the comparison pass.
+   */
+  did: string;
   /** Which of the two token types this is. */
   typ: TokenType;
   iat: number;
@@ -48,6 +57,8 @@ export interface AuthTokenPayload extends JWTPayload {
 export interface TokenSubject {
   id: string;
   role: GlobalRole;
+  /** The fingerprint the browser presented when this session was created. */
+  deviceId: string;
 }
 
 export function signToken(type: TokenType, subject: TokenSubject): Promise<string> {
@@ -56,6 +67,7 @@ export function signToken(type: TokenType, subject: TokenSubject): Promise<strin
   const payload: AuthTokenPayload = {
     sub: subject.id,
     role: subject.role,
+    did: subject.deviceId,
     typ: type,
     iat: issuedAt,
     exp: issuedAt + TTLS[type],
@@ -95,7 +107,16 @@ export async function verifyToken(type: TokenType, token: string): Promise<AuthT
     throw Errors.unauthorized('نشست شما معتبر نیست یا منقضی شده است. دوباره وارد شوید.');
   }
 
-  if (payload.typ !== type || typeof payload.sub !== 'string' || typeof payload.role !== 'string') {
+  if (
+    payload.typ !== type ||
+    typeof payload.sub !== 'string' ||
+    typeof payload.role !== 'string' ||
+    // A token minted before device binding existed carries no `did` and can
+    // never satisfy the check in `AuthService.verifyToken`. Rejecting it here
+    // makes that a plain expired-session 401 instead of a device mismatch,
+    // which is what it actually is.
+    typeof payload.did !== 'string'
+  ) {
     throw Errors.unauthorized('نشست شما معتبر نیست یا منقضی شده است. دوباره وارد شوید.');
   }
 

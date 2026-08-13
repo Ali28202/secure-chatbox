@@ -1,10 +1,12 @@
 import {
+  ERROR_CODES,
   FA_ERROR_MESSAGES,
   isApiErrorBody,
   type ApiErrorBody,
   type FieldIssue,
 } from '@repo/shared';
 import axios, { isAxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { DEVICE_MISMATCH_PARAM, ROUTES } from '@/lib/routes';
 
 /**
  * Where the API lives *as seen from the browser*.
@@ -89,6 +91,36 @@ function refreshSession(): Promise<void> {
   return refreshInFlight;
 }
 
+/**
+ * Guards the forced re-login below, which several failing requests would
+ * otherwise start at once — a chat screen has three or four queries in flight
+ * and they all fail together.
+ */
+let signingOut = false;
+
+/**
+ * Ends the session and sends the browser back to the login page, saying why.
+ *
+ * A full page load rather than a router push, and that is the point: the
+ * account is now on another device, so everything this tab holds — cached
+ * chats, the auth store, an open socket — describes a session that no longer
+ * exists. Reloading is the only way to be sure none of it survives.
+ *
+ * The logout first is what makes it stick. `/auth/logout` only clears cookies,
+ * needs no valid session, and without it `session_hint` would still be set and
+ * the proxy would wave the next navigation straight back into the app.
+ */
+async function forceReLogin(): Promise<void> {
+  if (signingOut || typeof window === 'undefined') return;
+  signingOut = true;
+
+  // Failure here is not worth handling: the redirect below has to happen either
+  // way, and a user staring at a dead session is not helped by an error toast.
+  await api.post('/auth/logout', {}).catch(() => undefined);
+
+  window.location.replace(`${ROUTES.login}?${DEVICE_MISMATCH_PARAM}=1`);
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error: unknown) => {
@@ -99,6 +131,15 @@ api.interceptors.response.use(
     const request = error.config as RetriableRequest | undefined;
     const url = request?.url ?? '';
     if (!request || request._retried || NEVER_REFRESH.some((path) => url.startsWith(path))) {
+      throw error;
+    }
+
+    // A session displaced by a login from another device. Refreshing cannot fix
+    // it — the refresh token is bound to the same dead device and would fail
+    // the identical check — so the round trip is skipped and the user is told
+    // what actually happened instead of "your session expired".
+    if (getApiError(error)?.code === ERROR_CODES.DEVICE_MISMATCH) {
+      await forceReLogin();
       throw error;
     }
 

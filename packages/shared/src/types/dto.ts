@@ -21,7 +21,16 @@ export interface UserSummaryDto {
   role: GlobalRole;
 }
 
+/**
+ * The full account, returned only to the person it belongs to.
+ *
+ * The extra fields over `UserSummaryDto` are the reason it stays separate:
+ * `phoneNumber` is a login identifier and a way to reach someone off-platform,
+ * and neither belongs in the member list of every chat you happen to share.
+ */
 export interface UserDto extends UserSummaryDto {
+  /** Null for accounts that predate the phone-number identifier. */
+  phoneNumber: string | null;
   isActive: boolean;
   lastSeen: string | null;
   createdAt: string;

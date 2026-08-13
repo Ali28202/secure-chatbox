@@ -5,6 +5,8 @@ import {
   formatFileSize,
   formatMessageTime,
   isSameDay,
+  normalizePhoneNumber,
+  toLatinDigits,
   toPersianDigits,
 } from './format';
 
@@ -59,6 +61,64 @@ describe('toPersianDigits', () => {
     // Documented in `format.ts`; asserted here so nobody is tempted to run a
     // validated numeric field through it on the way into the API.
     expect(Number(toPersianDigits(8))).toBeNaN();
+  });
+});
+
+describe('toLatinDigits', () => {
+  it('folds Persian digits back to ASCII', () => {
+    expect(toLatinDigits('۰۹۱۲۱۱۱۰۰۰۱')).toBe('09121110001');
+  });
+
+  it('folds Arabic-Indic digits too', () => {
+    // A different Unicode block from the Persian one (U+0660 vs U+06F0), and
+    // the set an Arabic keyboard layout produces. Both reach Iranian users.
+    expect(toLatinDigits('٠٩١٢')).toBe('0912');
+  });
+
+  it('is the exact inverse of toPersianDigits', () => {
+    expect(toLatinDigits(toPersianDigits('0123456789'))).toBe('0123456789');
+  });
+
+  it('leaves everything that is not a digit alone', () => {
+    expect(toLatinDigits('شمارهٔ ۰۹۱۲ است')).toBe('شمارهٔ 0912 است');
+  });
+});
+
+describe('normalizePhoneNumber', () => {
+  it.each([
+    '09121110001',
+    '0912 111 0001',
+    '0912-111-0001',
+    '+989121110001',
+    '00989121110001',
+    '989121110001',
+    '9121110001',
+    '۰۹۱۲۱۱۱۰۰۰۱',
+    '٠٩١٢١١١٠٠٠١',
+  ])('reduces %s to one canonical form', (input) => {
+    // Every spelling one number has in the wild has to land on the same string,
+    // because the column is unique and a second spelling would be a second row.
+    expect(normalizePhoneNumber(input)).toBe('09121110001');
+  });
+
+  it('does not invent a country code for numbers that only start like one', () => {
+    // `98…` is a country code when a whole mobile number follows it and nothing
+    // else. A short id beginning 98 is an id, and must survive intact for the
+    // login lookup to still match it against `universityId`.
+    expect(normalizePhoneNumber('98123')).toBe('98123');
+    expect(normalizePhoneNumber('9812345')).toBe('9812345');
+  });
+
+  it('passes a university id straight through', () => {
+    // The login field takes either identifier, so this runs on student numbers
+    // as often as on phone numbers.
+    expect(normalizePhoneNumber('40012301')).toBe('40012301');
+  });
+
+  it('returns the trimmed input when there are no digits at all', () => {
+    // Nothing sensible to normalise. Returning `''` would turn a typo into a
+    // lookup for the empty string, which is a value a column could hold.
+    expect(normalizePhoneNumber('  hello  ')).toBe('hello');
   });
 });
 

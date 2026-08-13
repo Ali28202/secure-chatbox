@@ -32,8 +32,10 @@ const userRow = (overrides: Partial<UserRow> = {}): UserRow => ({
   id: 'user-1',
   name: 'علی محلاتی',
   universityId: '40012301',
+  phoneNumber: '09121110001',
   role: 'STUDENT',
   isActive: true,
+  deviceId: '1a2b3c4d-0011223344556677889900aabbccddee',
   lastSeen: LAST_SEEN,
   createdAt: CREATED,
   ...overrides,
@@ -92,6 +94,13 @@ describe('toUserSummaryDto', () => {
     const leaky = { ...userRow(), passwordHash: '$argon2id$v=19$secret' } as UserRow;
     expect(JSON.stringify(toUserSummaryDto(leaky))).not.toContain('argon2id');
   });
+
+  it('leaves the phone number behind', () => {
+    // This is the shape embedded in every message and every member list, so a
+    // phone number in it would make browsing a group chat a way to collect the
+    // numbers of everyone in it.
+    expect(toUserSummaryDto(userRow())).not.toHaveProperty('phoneNumber');
+  });
 });
 
 describe('toUserDto', () => {
@@ -112,6 +121,23 @@ describe('toUserDto', () => {
   it('still excludes the password hash', () => {
     const leaky = { ...userRow(), passwordHash: '$argon2id$v=19$secret' } as UserRow;
     expect(toUserDto(leaky)).not.toHaveProperty('passwordHash');
+  });
+
+  it('gives an account its own phone number back', () => {
+    // Only ever produced for the person making the request — the difference
+    // between this DTO and the summary above is the whole reason both exist.
+    expect(toUserDto(userRow()).phoneNumber).toBe('09121110001');
+  });
+
+  it('reports an account that predates the phone column as null', () => {
+    expect(toUserDto(userRow({ phoneNumber: null })).phoneNumber).toBeNull();
+  });
+
+  it('does not echo the device id', () => {
+    // Selected on every request, because it is what a token's `did` claim is
+    // checked against — but it is session bookkeeping the client already knows
+    // and has no use for, so it stops at the mapper.
+    expect(toUserDto(userRow())).not.toHaveProperty('deviceId');
   });
 });
 

@@ -86,6 +86,7 @@ export async function resetDatabase(): Promise<void> {
 export interface Account {
   id: string;
   universityId: string;
+  phoneNumber: string;
   name: string;
   password: string;
   role: GlobalRole;
@@ -104,6 +105,20 @@ let sequence = 0;
 function uniqueTag(): string {
   sequence += 1;
   return `${process.pid.toString(36)}${Date.now().toString(36).slice(-5)}${sequence.toString(36)}`;
+}
+
+/**
+ * A mobile number that passes `phoneNumberSchema` and belongs to nobody else.
+ *
+ * `09` then nine digits, because the column is unique and the schema will not
+ * accept any other shape — so the tag above cannot be reused here, base36 being
+ * mostly letters. Four digits of pid and five of counter give every worker its
+ * own block, which is all the isolation a single run needs.
+ */
+function uniquePhoneNumber(): string {
+  sequence += 1;
+  const worker = (process.pid % 10_000).toString().padStart(4, '0');
+  return `09${worker}${(sequence % 100_000).toString().padStart(5, '0')}`;
 }
 
 /**
@@ -137,23 +152,26 @@ function passwordHash(): string {
  */
 export async function createAccount(
   role: GlobalRole,
-  overrides: { name?: string; universityId?: string; isActive?: boolean } = {}
+  overrides: { name?: string; universityId?: string; phoneNumber?: string; isActive?: boolean } = {}
 ): Promise<Account> {
   const tag = uniqueTag();
   const prefix = role === 'STUDENT' ? '4' : '9';
   const universityId = overrides.universityId ?? `${prefix}${tag}`;
+  const phoneNumber = overrides.phoneNumber ?? uniquePhoneNumber();
   const name = overrides.name ?? `${role === 'PROFESSOR' ? 'دکتر' : 'کاربر'} آزمون ${tag}`;
   const id = randomUUID();
 
   await withDb(async (client) => {
     await client.query(
-      `INSERT INTO users (id, university_id, password_hash, name, role, is_active, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5::"GlobalRole", $6, NOW(), NOW())`,
-      [id, universityId, passwordHash(), name, role, overrides.isActive ?? true]
+      `INSERT INTO users (id, university_id, phone_number, password_hash, name, role, is_active, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6::"GlobalRole", $7, NOW(), NOW())`,
+      [id, universityId, phoneNumber, passwordHash(), name, role, overrides.isActive ?? true]
     );
   });
 
-  return { id, universityId, name, password: E2E_PASSWORD, role };
+  // `device_id` is deliberately left null: an account holds no device until
+  // somebody signs in from one, and half these accounts never do.
+  return { id, universityId, phoneNumber, name, password: E2E_PASSWORD, role };
 }
 
 // --- Reading back what the application did ------------------------------------
@@ -203,5 +221,22 @@ export async function getReceiptStatus(messageId: string, userId: string): Promi
       [messageId, userId]
     );
     return rows[0]?.status ?? null;
+  });
+}
+
+/**
+ * The one device an account currently holds, or null before its first login.
+ *
+ * With stateless tokens this column *is* the session list: overwriting it is
+ * what ends every session issued to the device it replaced. Reading it lets a
+ * test assert the cause rather than only the symptom.
+ */
+export async function getBoundDevice(userId: string): Promise<string | null> {
+  return withDb(async (client) => {
+    const { rows } = await client.query<{ device_id: string | null }>(
+      'SELECT device_id FROM users WHERE id = $1',
+      [userId]
+    );
+    return rows[0]?.device_id ?? null;
   });
 }

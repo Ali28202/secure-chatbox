@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { loginSchema, type LoginInput } from '@repo/shared';
+import { loginFormSchema, type LoginFormValues } from '@repo/shared';
 import { Loader2Icon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -15,17 +15,19 @@ import { applyApiFieldIssues } from '@/lib/form-errors';
 import { ROUTES } from '@/lib/routes';
 import { useLogin } from '@/hooks/use-auth';
 
-const FIELDS = ['universityId', 'password'] as const;
+const FIELDS = ['identifier', 'password'] as const;
 
 export function LoginForm({ redirectTo }: { redirectTo: string }) {
   const router = useRouter();
   const login = useLogin();
 
-  const form = useForm<LoginInput>({
-    // The same schema the API validates with, so the messages a user sees for a
+  const form = useForm<LoginFormValues>({
+    // `loginFormSchema`, not `loginSchema` — the request carries a device id
+    // that no one types and the form therefore has no field for. Otherwise the
+    // same schema the API validates with, so the messages a user sees for a
     // too-short password are identical on both sides — and already in Persian.
-    resolver: zodResolver(loginSchema),
-    defaultValues: { universityId: '', password: '' },
+    resolver: zodResolver(loginFormSchema),
+    defaultValues: { identifier: '', password: '' },
   });
 
   const { errors } = form.formState;
@@ -47,22 +49,23 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
         <FormError message={errors.root?.message} />
 
         <Field>
-          <FieldLabel htmlFor="universityId">شناسهٔ دانشگاهی</FieldLabel>
+          <FieldLabel htmlFor="identifier">شناسهٔ دانشگاهی یا شمارهٔ تلفن</FieldLabel>
           {/*
-           * `dir="ltr"` because a student number is a Latin-digit string and
-           * would otherwise be reordered by the surrounding RTL context;
-           * `text-end` keeps it visually aligned with the rest of the form.
+           * `dir="ltr"` because both a student number and a phone number are
+           * digit strings and would otherwise be reordered by the surrounding
+           * RTL context; `text-end` keeps them visually aligned with the rest of
+           * the form.
            */}
           <Input
-            id="universityId"
+            id="identifier"
             dir="ltr"
             className="text-end"
             autoComplete="username"
             autoFocus
-            aria-invalid={Boolean(errors.universityId)}
-            {...form.register('universityId')}
+            aria-invalid={Boolean(errors.identifier)}
+            {...form.register('identifier')}
           />
-          <FieldError errors={[errors.universityId]} />
+          <FieldError errors={[errors.identifier]} />
         </Field>
 
         <Field>

@@ -7,6 +7,7 @@ import { Errors } from '../../lib/errors';
 import { toUserDto } from '../../lib/mappers';
 import { onValidationError } from '../../lib/validation';
 import { requireAuth } from '../../middleware/require-auth';
+import { socketGateway } from '../../socket/gateway';
 import type { AppEnv } from '../../types';
 import { authService } from './auth.service';
 
@@ -27,8 +28,27 @@ authRoutes.post('/register', zValidator('json', registerSchema, onValidationErro
 });
 
 authRoutes.post('/login', zValidator('json', loginSchema, onValidationError), async (c) => {
-  const { user, tokens } = await authService.login(c.req.valid('json'));
+  const { user, tokens, revokedDeviceId } = await authService.login(c.req.valid('json'));
   setAuthCookies(c, tokens);
+
+  // An account holds one device at a time, so signing in here signs the
+  // previous device out. Its tokens are already dead — `AuthService` overwrote
+  // the device the account is bound to — but a socket it opened earlier was
+  // authenticated once at handshake and would otherwise keep streaming this
+  // conversation to a machine the owner has walked away from.
+  //
+  // Driven from the route rather than the service: closing sockets belongs to
+  // the gateway, and a service reaching up into the transport it is called from
+  // is the import cycle that makes both of them untestable.
+  if (revokedDeviceId) {
+    await socketGateway
+      .disconnectDevice(user.id, revokedDeviceId)
+      // Best effort. The login itself succeeded and the cookies are already
+      // set; failing it now would strand the user for something the old
+      // device's next request will fix anyway.
+      .catch((error: unknown) => console.error('failed to evict displaced device', error));
+  }
+
   return c.json(user);
 });
 

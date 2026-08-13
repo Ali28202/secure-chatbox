@@ -26,16 +26,35 @@ import { API_URL } from './env';
  * by hand would be reproducing `ChatService`. Where the shape is not the point
  * of the test, letting the server build it is both shorter and more honest.
  */
+/**
+ * The device the suite pretends each account signs in from.
+ *
+ * Padded because `deviceIdSchema` has a sixteen-character floor, and prefixed
+ * so a value that turns up in a database dump is obviously the test suite's.
+ */
+export function deviceIdFor(account: Account, label = 'default'): string {
+  return `e2e-${label}-${account.universityId}`.padEnd(20, '0');
+}
+
 export class Api {
   constructor(private readonly request: APIRequestContext) {}
 
   // --- Auth ------------------------------------------------------------------
 
-  /** Signs in, leaving all three cookies in the shared jar. */
-  async login(account: Account): Promise<UserDto> {
+  /**
+   * Signs in, leaving all three cookies in the shared jar.
+   *
+   * `deviceId` defaults to one derived from the account rather than a fresh
+   * random value, because a session is bound to its device and a second login
+   * from a different one ends the first. Two contexts signed into the same
+   * account — which several tests want — must therefore agree on their device,
+   * and deriving it is how they agree without passing anything around.
+   * `device.spec.ts` passes an explicit one, which is the whole point of it.
+   */
+  async login(account: Account, deviceId = deviceIdFor(account)): Promise<UserDto> {
     return this.json(
       await this.request.post(`${API_URL}/api/auth/login`, {
-        data: { universityId: account.universityId, password: account.password },
+        data: { identifier: account.universityId, password: account.password, deviceId },
       }),
       'login'
     );

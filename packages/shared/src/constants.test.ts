@@ -88,10 +88,13 @@ describe('UPLOAD', () => {
 });
 
 describe('LIMITS', () => {
-  it('keeps every floor below its ceiling', () => {
+  it('never puts a floor above its ceiling', () => {
+    // Equal ends are allowed and mean a fixed-width field — an Iranian mobile
+    // number is eleven digits, no more and no fewer. Inverted ends would be a
+    // field nothing can satisfy, which is what this is looking for.
     for (const [field, bounds] of Object.entries(LIMITS)) {
       if ('min' in bounds) {
-        expect(bounds.min, field).toBeLessThan(bounds.max);
+        expect(bounds.min, field).toBeLessThanOrEqual(bounds.max);
       }
     }
   });
