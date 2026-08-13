@@ -191,24 +191,39 @@ export async function getMembership(
   });
 }
 
-/** Attachment rows for a message, to prove the upload reached the database. */
-export async function getAttachments(
-  messageId: string
-): Promise<{ fileName: string; fileType: string; fileUrl: string; fileSize: number }[]> {
+/**
+ * Attachment rows for a message.
+ *
+ * Read straight from the table rather than from the API, because the columns
+ * the API deliberately does not serve — the bucket and the object key — are
+ * exactly the ones that prove the upload went where it was supposed to.
+ */
+export async function getAttachments(messageId: string): Promise<
+  {
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+    s3Bucket: string;
+    s3ObjectKey: string;
+  }[]
+> {
   return withDb(async (client) => {
     const { rows } = await client.query<{
       file_name: string;
       file_type: string;
-      file_url: string;
       file_size: number;
-    }>('SELECT file_name, file_type, file_url, file_size FROM attachments WHERE message_id = $1', [
-      messageId,
-    ]);
+      s3_bucket: string;
+      s3_object_key: string;
+    }>(
+      'SELECT file_name, file_type, file_size, s3_bucket, s3_object_key FROM attachments WHERE message_id = $1',
+      [messageId]
+    );
     return rows.map((row) => ({
       fileName: row.file_name,
       fileType: row.file_type,
-      fileUrl: row.file_url,
       fileSize: Number(row.file_size),
+      s3Bucket: row.s3_bucket,
+      s3ObjectKey: row.s3_object_key,
     }));
   });
 }

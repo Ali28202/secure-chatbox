@@ -45,6 +45,11 @@ export const api = axios.create({
  * site, so a subresource request from one carries the other's cookies. Behind
  * nginx it is a single origin and the question never comes up.
  *
+ * What comes back is not the file but a 302 into the S3 bucket, signed and
+ * good for a few minutes. The browser follows it without being asked and the
+ * distinction is invisible here — but it is why nothing in this app ever holds
+ * an attachment's real URL, and why a stale one stops working on its own.
+ *
  * The consequence worth knowing: this cannot be a `next/image` source. That
  * component proxies through the optimizer on the *web* server, which has no
  * session and would be answered with a 401.

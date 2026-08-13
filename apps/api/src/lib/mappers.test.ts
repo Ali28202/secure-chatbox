@@ -64,7 +64,8 @@ const messageRow = (overrides: Partial<MessageRow> = {}): MessageRow =>
 const attachment = {
   id: 'attachment-1',
   fileName: 'گزارش.pdf',
-  fileUrl: '2026-08/0199a0c1.pdf',
+  s3Bucket: 'chatbox-attachments',
+  s3ObjectKey: '2026-08/0199a0c1/گزارش.pdf',
   fileType: 'application/pdf',
   fileSize: 2048,
 };

@@ -1,4 +1,3 @@
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { configDefaults, defineConfig } from 'vitest/config';
@@ -77,10 +76,16 @@ export default defineConfig({
             COOKIE_SECURE: 'false',
             CORS_ORIGINS: 'http://localhost:3000',
             ALLOWED_IP_RANGES: '192.168.0.0/16,127.0.0.1,::1',
-            // `lib/storage.ts` resolves its root once at import, so this has to
-            // be set before the module loads — which is exactly what this does.
-            // The storage tests clean up after themselves inside it.
-            UPLOAD_DIR: join(tmpdir(), 'secure-chatbox-vitest-uploads'),
+            // `lib/s3.ts` builds its client at import, so these have to exist
+            // before the module loads. Nothing here reaches a bucket — the
+            // storage suite mocks that file out — but the values still have to
+            // parse, or `env.ts` exits the worker.
+            S3_BUCKET: 'vitest-bucket',
+            S3_REGION: 'us-east-1',
+            S3_ACCESS_KEY_ID: 'vitest',
+            S3_SECRET_ACCESS_KEY: 'vitest',
+            S3_ENDPOINT: '',
+            S3_URL_TTL: '300',
           },
         },
       },

@@ -112,6 +112,30 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
 
+      # A bucket for the attachment specs, which really upload files.
+      #
+      # A step rather than a `services:` entry, because this image needs a
+      # command — `minio server /data` — and a service container can only set
+      # `options`, never the command. The directory made first *is* the bucket:
+      # MinIO reads the top level of its data directory as the bucket list, so
+      # pre-creating it saves pulling a second image just to run `mc mb`.
+      #
+      # Deliberately not part of the platform. Nothing in compose.yml or
+      # compose.prod.yml starts an object store — production points at a real
+      # bucket through S3_* environment variables and so does this, which is why
+      # the suite can be pointed at one instead by setting E2E_S3_*.
+      - name: Start a bucket
+        run: |
+          docker run -d --name chatbox-ci-s3 -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+            --entrypoint sh minio/minio:RELEASE.2025-09-07T16-13-09Z \
+            -c 'mkdir -p /data/chatbox-e2e && exec minio server /data'
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:9000/minio/health/live && exit 0
+            sleep 1
+          done
+          echo 'MinIO never became healthy'; docker logs chatbox-ci-s3; exit 1
+
       # Chromium only: playwright.config.ts defines one project. `--with-deps`
       # installs the system libraries a headless browser needs, which a bare
       # runner does not have.
@@ -119,8 +143,8 @@ jobs:
         run: ./node_modules/.bin/playwright install --with-deps chromium
 
       # Migrations, the test database, both servers and the browser — the suite
-      # brings all of it up itself. The only thing it cannot provide is the
-      # Postgres above.
+      # brings all of it up itself. The only things it cannot provide are the
+      # Postgres above and the bucket.
       - name: Run the end-to-end suite
         run: bun run test:e2e
 

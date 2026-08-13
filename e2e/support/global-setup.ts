@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ensureDatabase, resetDatabase } from './db';
 import {
@@ -7,9 +7,11 @@ import {
   E2E_DATABASE_URL,
   E2E_DB_NAME,
   E2E_PASSWORD,
+  E2E_S3_BUCKET,
+  E2E_S3_ENDPOINT,
   PASSWORD_HASH_FILE,
   ROOT_DIR,
-  UPLOAD_DIR,
+  s3ClientConfig,
 } from './env';
 
 /**
@@ -24,14 +26,10 @@ import {
 export default async function globalSetup(): Promise<void> {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
 
-  // Uploads from the previous run are stale the moment the tables are
-  // truncated: the rows that pointed at them are gone.
-  rmSync(UPLOAD_DIR, { recursive: true, force: true });
-  mkdirSync(UPLOAD_DIR, { recursive: true });
-
   await createDatabase();
   migrate();
   await resetDatabase();
+  emptyBucket();
   writePasswordHash();
 }
 
@@ -66,6 +64,53 @@ function migrate(): void {
     env: { ...process.env, DATABASE_URL: E2E_DATABASE_URL },
     stdio: 'inherit',
   });
+}
+
+/**
+ * Proves the bucket is there, and leaves it empty.
+ *
+ * Objects from the previous run are stale the moment the tables are truncated:
+ * the rows that named them are gone. Clearing them keeps a failure that leaves
+ * a file behind from being invisible in the next run.
+ *
+ * Run through Bun for the same reason `writePasswordHash` is: `Bun.S3Client` is
+ * a runtime built-in and Playwright is on Node. It also means the suite signs
+ * with exactly the client the API signs with, rather than a second
+ * implementation that might disagree about something subtle.
+ *
+ * The failure message matters more than the code here. Nothing in this
+ * repository starts an object store — that is a deliberate property of the
+ * platform — so a developer who has never needed one has no reason to guess
+ * that the attachment specs want a bucket.
+ */
+function emptyBucket(): void {
+  const script = `
+    const client = new Bun.S3Client(${JSON.stringify(s3ClientConfig())});
+    const { contents } = await client.list({ maxKeys: 1000 });
+    for (const object of contents ?? []) await client.delete(object.key);
+    // A write, not just a list: read-only credentials would pass everything
+    // above and then fail on the first attachment, halfway through a spec.
+    await client.write('.e2e-preflight', 'ok', { type: 'text/plain' });
+    await client.delete('.e2e-preflight');
+  `;
+
+  try {
+    execFileSync('bun', ['-e', script], { stdio: 'pipe' });
+  } catch (error) {
+    const detail = (error as { stderr?: Buffer }).stderr?.toString().trim() ?? String(error);
+
+    throw new Error(
+      `Could not use the "${E2E_S3_BUCKET}" bucket at ${E2E_S3_ENDPOINT}.\n\n` +
+        'The attachment specs really upload files, so the suite needs a real\n' +
+        'S3-compatible bucket. Nothing in this repository runs one — the platform\n' +
+        'takes a bucket as configuration and so does this suite.\n\n' +
+        'Start a throwaway one:  bun run test:s3:up\n' +
+        '(and afterwards:        bun run test:s3:down)\n\n' +
+        'Or point the suite at a bucket of your own, which must be empty:\n' +
+        '  E2E_S3_ENDPOINT, E2E_S3_BUCKET, E2E_S3_ACCESS_KEY_ID, E2E_S3_SECRET_ACCESS_KEY\n\n' +
+        detail
+    );
+  }
 }
 
 /**

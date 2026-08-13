@@ -1,35 +1,36 @@
-import { mkdir, unlink } from 'node:fs/promises';
-import { isAbsolute, join, resolve, sep } from 'node:path';
 import { ALLOWED_FILE_TYPES, isAllowedFileType, UPLOAD, type AllowedFileType } from '@repo/shared';
-import { env } from '../env';
 import { Errors } from './errors';
+import { s3Storage } from './s3';
 
 /**
- * Attachments on disk.
+ * What may become an attachment.
  *
- * Every rule about what may be stored lives here, on the near side of the only
- * function that writes anything. The service above decides *whether* a message
- * may be sent; this decides what is allowed to become a file, and it assumes
- * the request is hostile — a filename, a content type and a size are all just
- * strings a client chose to send.
+ * Every rule about what is allowed to be stored lives here, on the near side of
+ * the only function that uploads anything. The service above decides *whether* a
+ * message may be sent; this decides what is allowed to become an object, and it
+ * assumes the request is hostile — a filename, a content type and a size are all
+ * just strings a client chose to send.
+ *
+ * `s3.ts` does the storing. The split is deliberate: swapping AWS for a bucket
+ * on the university's own network changes that file and none of this one, and
+ * the rules below are the part that would be dangerous to lose in such a move.
  *
  * Three rules do most of the work:
  *
- *   1. The stored name is generated here. Nothing the client sent appears in
- *      any path, so there is no traversal to sanitize and no extension to be
- *      tricked about.
- *   2. The extension comes from the allowlist, keyed by the declared type —
- *      never from the uploaded filename.
+ *   1. The object key is generated, never assembled from anything the client
+ *      sent, so no upload can choose where it lands or replace another.
+ *   2. The stored name always ends in the allowlist's extension for the type
+ *      that was verified — appended if the uploaded name did not already have
+ *      it. A client cannot decide what a downloaded file is called.
  *   3. Where a type has a reliable signature, the bytes must agree with the
- *      declaration before anything is written.
+ *      declaration before anything is uploaded.
  */
 
-/** The upload root, absolute, so nothing below has to care about the cwd. */
-const ROOT = isAbsolute(env.UPLOAD_DIR) ? env.UPLOAD_DIR : resolve(process.cwd(), env.UPLOAD_DIR);
-
 export interface StoredFile {
-  /** Path relative to the upload root — exactly what goes in `Attachment.fileUrl`. */
-  fileUrl: string;
+  /** Which bucket the object went to — stored per row, so a later move is readable. */
+  s3Bucket: string;
+  /** The object's key within that bucket. Generated here; never client input. */
+  s3ObjectKey: string;
   fileName: string;
   fileType: AllowedFileType;
   fileSize: number;
@@ -40,13 +41,12 @@ export interface StoredFile {
  *
  * A declared `Content-Type` is worth nothing on its own: a multipart part
  * carries whatever the client typed there. This does not make the upload safe
- * on its own either — the serving route's `Content-Disposition` and `nosniff`
- * are what stop a file being interpreted — but it is what stops the *stored*
- * record from lying about its own contents, and it is three lines.
+ * on its own either — the store's `Content-Type` on the way back out is what
+ * decides how a browser treats it — but it is what stops the *stored* record
+ * from lying about its own contents, and it is three lines.
  *
  * `null` marks a type with no signature worth checking. `text/plain` is any
- * bytes at all by definition, so the allowlist and the download headers carry
- * it alone.
+ * bytes at all by definition, so the allowlist carries it alone.
  */
 const SIGNATURES: Record<AllowedFileType, (number[] | null)[]> = {
   'image/png': [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
@@ -78,12 +78,26 @@ const SIGNATURES: Record<AllowedFileType, (number[] | null)[]> = {
 };
 
 /**
- * The uploaded name, reduced to something safe to store and echo back.
+ * The uploaded name, reduced to something safe to store, to echo back, and to
+ * use as the last segment of an object key.
  *
- * Never used to build a path — see the header — so this is about display and
- * about the `Content-Disposition` header the download route writes. Directory
- * separators and control characters go because a name is rendered in a browser
- * and written into an HTTP header, and both have opinions about those.
+ * That last use is new and is why the rules here matter more than they did when
+ * attachments were files on a disk. The key is what the browser saves the file
+ * as — a signed URL cannot carry a `Content-Disposition` — so the name has to
+ * survive into it, and a name is a string a client chose.
+ *
+ * Separators go because a key is a path-shaped string and a name containing one
+ * would silently add a directory level. Control characters go because the name
+ * is rendered in a browser and percent-encoded into a URL. A name that reduces
+ * to nothing, or to a relative-path token, is replaced outright.
+ *
+ * And the extension is *made* to match the type the bytes were checked against.
+ * This is the part that has teeth. `text/plain` has no signature to verify — any
+ * bytes at all are a valid text file — so without this rule someone could upload
+ * a Windows executable, declare it `text/plain`, call it `setup.exe`, and the
+ * platform would hand every member of the chat a file that runs when they
+ * double-click it. Appending `.txt` is the whole fix: what lands in a
+ * classmate's Downloads folder is named for what it was allowed to be.
  */
 function safeDisplayName(name: string, extension: string): string {
   const cleaned = [...name]
@@ -99,7 +113,16 @@ function safeDisplayName(name: string, extension: string): string {
     .trim()
     .slice(0, 120);
 
-  return cleaned.length > 0 ? cleaned : `پیوست${extension}`;
+  // `.` and `..` are legal S3 keys, but implementations differ on whether they
+  // normalize them, and a key that means something different to the store than
+  // to the row that records it is not worth the saving.
+  if (cleaned.length === 0 || cleaned === '.' || cleaned === '..') {
+    return `پیوست${extension}`;
+  }
+
+  // Case-insensitively, because `REPORT.PDF` is already a PDF and appending to
+  // it would be pedantry rather than safety.
+  return cleaned.toLowerCase().endsWith(extension) ? cleaned : `${cleaned}${extension}`;
 }
 
 /** Whether the first bytes agree with what the client said the file is. */
@@ -112,13 +135,14 @@ function signatureMatches(type: AllowedFileType, head: Uint8Array): boolean {
 }
 
 /**
- * Validates a batch and writes it, or writes nothing at all.
+ * Validates a batch and uploads it, or uploads nothing at all.
  *
- * Every file is checked before the first one is written, so a rejected fifth
- * attachment does not leave four behind — the caller would have no way to know
- * they existed. Bytes are read here rather than streamed because the per-file
- * cap is 10 MB and the signature check needs the head anyway; a streaming
- * writer would have to buffer the same bytes to make the same decision.
+ * Every file is checked before the first one leaves the process, so a rejected
+ * fifth attachment does not leave four objects in the bucket — the caller would
+ * have no way to know they existed. Bytes are read here rather than streamed
+ * because the per-file cap is 10 MB and the signature check needs the head
+ * anyway; a streaming upload would have to buffer the same bytes to make the
+ * same decision.
  */
 export async function storeUploads(files: File[]): Promise<StoredFile[]> {
   if (files.length === 0) {
@@ -135,7 +159,7 @@ export async function storeUploads(files: File[]): Promise<StoredFile[]> {
     );
   }
 
-  const prepared: (StoredFile & { bytes: Uint8Array })[] = [];
+  const prepared: (Omit<StoredFile, 's3Bucket' | 's3ObjectKey'> & { bytes: Uint8Array })[] = [];
 
   for (const file of files) {
     const reject = (message: string) =>
@@ -160,76 +184,43 @@ export async function storeUploads(files: File[]): Promise<StoredFile[]> {
       throw reject('محتوای فایل با نوع اعلام‌شدهٔ آن هم‌خوانی ندارد.');
     }
 
-    const extension = ALLOWED_FILE_TYPES[type];
-
     prepared.push({
-      // Sharded by month: one directory holding a whole institution's uploads
-      // is slow to list and unpleasant to back up. The name is a fresh UUIDv7,
-      // so it sorts by upload time and collides with nothing.
-      fileUrl: `${new Date().toISOString().slice(0, 7)}/${Bun.randomUUIDv7()}${extension}`,
-      fileName: safeDisplayName(file.name, extension),
+      fileName: safeDisplayName(file.name, ALLOWED_FILE_TYPES[type]),
       fileType: type,
       fileSize: bytes.byteLength,
       bytes,
     });
   }
 
-  const written: string[] = [];
+  const stored: StoredFile[] = [];
 
   try {
-    for (const { fileUrl, bytes } of prepared) {
-      const absolute = join(ROOT, fileUrl);
-      await mkdir(join(absolute, '..'), { recursive: true });
-      await Bun.write(absolute, bytes);
-      written.push(fileUrl);
+    for (const { bytes, ...file } of prepared) {
+      const s3ObjectKey = await s3Storage.uploadFile(bytes, file.fileType, file.fileName);
+      stored.push({ ...file, s3Bucket: s3Storage.bucket, s3ObjectKey });
     }
   } catch (error) {
-    // A half-written batch is worse than none: the message it belonged to will
+    // A half-uploaded batch is worse than none: the message it belonged to will
     // never be created, so nothing would ever reference these again.
-    await removeStored(written);
+    await removeStored(stored.map((file) => file.s3ObjectKey));
     throw error;
   }
 
-  return prepared.map(({ bytes: _bytes, ...stored }) => stored);
+  return stored;
 }
 
 /**
- * The absolute path of a stored file.
- *
- * `fileUrl` comes out of the database and was generated by `storeUploads`, so
- * it cannot contain `..` — this checks anyway. The cost is one string compare
- * and the alternative is that a single bad migration or a hand-edited row turns
- * the download route into an arbitrary-file reader.
- */
-export function resolveStored(fileUrl: string): string {
-  const absolute = resolve(ROOT, fileUrl);
-
-  if (absolute !== ROOT && !absolute.startsWith(ROOT + sep)) {
-    throw Errors.notFound('این فایل در دسترس نیست.');
-  }
-
-  return absolute;
-}
-
-/**
- * Deletes stored files, best effort.
+ * Deletes stored objects, best effort.
  *
  * Never throws. Every caller is finishing something that has already succeeded
- * — a message deleted, a transaction rolled back — and failing that operation
- * because a file was already gone would turn a tidying step into an outage.
- * What is left behind is an unreferenced blob, which costs disk and nothing
+ * — a message deleted, a transaction rolled back — and failing that because the
+ * bucket was briefly unreachable would turn a tidying step into an outage. What
+ * is left behind is an object no row names, which costs storage and nothing
  * else.
+ *
+ * `deleteFile` already swallows; the `catch` is here anyway so the guarantee is
+ * enforced where it is promised rather than borrowed from another file.
  */
-export async function removeStored(fileUrls: string[]): Promise<void> {
-  await Promise.all(
-    fileUrls.map(async (fileUrl) => {
-      try {
-        await unlink(resolveStored(fileUrl));
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-          console.error('[storage] could not remove', fileUrl, error);
-        }
-      }
-    })
-  );
+export async function removeStored(s3ObjectKeys: string[]): Promise<void> {
+  await Promise.all(s3ObjectKeys.map((key) => s3Storage.deleteFile(key).catch(() => false)));
 }

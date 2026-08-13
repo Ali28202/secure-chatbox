@@ -44,12 +44,20 @@ function AttachmentFile({ attachment, isOwn }: { attachment: AttachmentDto; isOw
   return (
     <a
       href={attachmentUrl(attachment.id)}
-      // The API answers these with `Content-Disposition: attachment`, so the
-      // browser saves rather than navigates. `download` is here for the case
-      // where it decides otherwise, and it is deliberately bare — a filename
-      // given here would override the server's, and the server's is the
-      // sanitized one.
-      download
+      // A new tab, and no `download`.
+      //
+      // The API redirects into the bucket, and a signed URL cannot carry a
+      // `Content-Disposition` — the signature covers the query string, so there
+      // is nothing to add to it afterwards. `download` is ignored on a
+      // cross-origin destination for the same reason it has always been ignored
+      // here, so what the browser does is decided entirely by the type: a PDF
+      // renders, a .docx saves. Opening in a tab is what keeps the first case
+      // from navigating the chat away.
+      //
+      // The saved filename comes from the last segment of the object's key,
+      // which is why the key ends with the sanitized name.
+      target="_blank"
+      rel="noreferrer"
       className={cn(
         'flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors',
         isOwn

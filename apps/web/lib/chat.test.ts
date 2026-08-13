@@ -68,7 +68,6 @@ const chat = (overrides: Partial<ChatListItemDto> = {}): ChatListItemDto =>
 const attachment = {
   id: 'attachment-1',
   fileName: 'گزارش.pdf',
-  fileUrl: '2026-08/x.pdf',
   fileType: 'application/pdf',
   fileSize: 1024,
 };

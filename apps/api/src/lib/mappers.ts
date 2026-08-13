@@ -102,10 +102,17 @@ export function toChatMemberDto(
   };
 }
 
+/**
+ * Where the bytes actually are is not in here.
+ *
+ * `s3Bucket` and `s3ObjectKey` stay server-side: a client that knew them could
+ * name an object directly, and the whole download design is that it cannot —
+ * it asks for an attachment by id and the API decides, every time, whether to
+ * sign for it.
+ */
 const attachmentSelect = {
   id: true,
   fileName: true,
-  fileUrl: true,
   fileType: true,
   fileSize: true,
 } satisfies Prisma.AttachmentSelect;
@@ -149,7 +156,6 @@ function toAttachmentDto(attachment: MessageRow['attachments'][number]): Attachm
   return {
     id: attachment.id,
     fileName: attachment.fileName,
-    fileUrl: attachment.fileUrl,
     fileType: attachment.fileType,
     fileSize: attachment.fileSize,
   };

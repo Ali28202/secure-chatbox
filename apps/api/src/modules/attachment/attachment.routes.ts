@@ -1,23 +1,26 @@
 import { prisma } from '@repo/database';
-import { isImageType } from '@repo/shared';
 import { Hono } from 'hono';
 import { Errors } from '../../lib/errors';
-import { resolveStored } from '../../lib/storage';
+import { s3Storage } from '../../lib/s3';
 import { requireAuth } from '../../middleware/require-auth';
 import type { AppEnv } from '../../types';
 
 /**
  * Mounted at `/api/attachments`. Downloads, and nothing else.
  *
- * Served by the API rather than handed to nginx as a static directory, which
- * would be simpler and wrong: a file under a static root is readable by anyone
- * who knows its URL, and a URL is exactly the thing that leaks — pasted into a
- * ticket, forwarded, sitting in a browser history. A private supervision chat's
- * attachment has to be as private as the message that carried it, and the only
- * place that knows who may read that message is the database.
+ * The bucket is private and stays private — no public read policy, no static
+ * root, no URL that works for whoever finds it. A URL is exactly the thing that
+ * leaks: pasted into a ticket, forwarded, sitting in a browser history. A
+ * supervision chat's attachment has to be as private as the message that
+ * carried it, and the only place that knows who may read that message is this
+ * database.
  *
- * The cost is one query per download and no `sendfile`. On a campus LAN serving
- * a few hundred people that is not a tradeoff worth thinking about twice.
+ * So every download comes through here for the membership check, and what goes
+ * back is not the bytes but a *redirect* to a signed URL that expires in
+ * minutes. The browser then fetches from the store directly. Authorization
+ * happens on every single access, the API never becomes a byte pump for a
+ * semester of coursework, and a URL that escapes is worthless by the time
+ * anyone tries it.
  */
 export const attachmentRoutes = new Hono<AppEnv>();
 
@@ -38,41 +41,30 @@ attachmentRoutes.get('/:attachmentId', async (c) => {
         chat: { members: { some: { userId } } },
       },
     },
-    select: { fileUrl: true, fileName: true, fileType: true, fileSize: true },
+    select: { s3ObjectKey: true, fileType: true },
   });
 
   if (!attachment) {
     throw Errors.notFound('این فایل در دسترس نیست.');
   }
 
-  const file = Bun.file(resolveStored(attachment.fileUrl));
+  // `fileType` comes from the row — the type the bytes were checked against
+  // when they were stored — and rides into the signature, so the store sends it
+  // back and the browser cannot be talked into a different one.
+  const url = s3Storage.getSignedUrl(attachment.s3ObjectKey, attachment.fileType);
 
-  // The row can outlive the bytes — a restore from a database dump without the
-  // volume, a half-finished cleanup. Answering 404 beats streaming a zero-byte
-  // body that every client would render as a corrupt file.
-  if (!(await file.exists())) {
-    throw Errors.notFound('این فایل در دسترس نیست.');
-  }
-
-  return new Response(file.stream(), {
+  // Built by hand rather than with `c.redirect`, because the header below is
+  // the whole point and it must not be at the mercy of anything merging
+  // defaults over it.
+  return new Response(null, {
+    status: 302,
     headers: {
-      // From the row, which is the type the bytes were checked against when
-      // they were stored — never from the request and never sniffed.
-      'Content-Type': attachment.fileType,
-      'Content-Length': String(attachment.fileSize),
-      // Images render in place; everything else downloads. `filename*` carries
-      // the Persian name that `filename` cannot: an HTTP header is Latin-1, so
-      // the plain parameter would mangle «گزارش نهایی.pdf» into noise.
-      'Content-Disposition': `${isImageType(attachment.fileType) ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`,
-      // The pairing that matters: `inline` invites the browser to render the
-      // body, and this forbids it from deciding the body is something more
-      // interesting than what the header says. Without it a .txt whose contents
-      // begin with `<script>` is an XSS on this origin.
-      'X-Content-Type-Options': 'nosniff',
-      // A stored file never changes — the name is a fresh UUID per upload — so
-      // it can be cached hard. `private` keeps it out of any shared proxy,
-      // which for an authenticated response is the whole point.
-      'Cache-Control': 'private, max-age=31536000, immutable',
+      Location: url,
+      // A cached redirect outlives the signature it points at, and would then
+      // serve a dead URL to the one person allowed to have a live one. `Found`
+      // rather than a permanent redirect for the same reason: the answer to
+      // this request is only true for the next few minutes.
+      'Cache-Control': 'no-store',
     },
   });
 });

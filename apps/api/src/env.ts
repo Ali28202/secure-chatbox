@@ -43,15 +43,39 @@ const envSchema = z
     COOKIE_SECURE: z.stringbool().default(false),
 
     /**
-     * Where message attachments are written.
+     * The S3 bucket message attachments live in.
      *
-     * Resolved against the API's working directory, so the default lands in
-     * `apps/api/storage/uploads` and needs no configuration to work. In
-     * production it is an absolute path onto a mounted volume — uploads must
-     * outlive the container, and a default that quietly stores a semester of
-     * coursework inside an image layer would not tell anyone it had.
+     * No default, and no fallback to the local disk. A platform that quietly
+     * stored a semester of coursework somewhere other than where it was
+     * configured to would be worse than one that refused to start — the files
+     * would be found missing later, by someone looking for them.
      */
-    UPLOAD_DIR: z.string().min(1).default('storage/uploads'),
+    S3_BUCKET: z.string().min(1, { error: 'is required — the bucket attachments are stored in' }),
+    S3_REGION: z.string().min(1).default('us-east-1'),
+    S3_ACCESS_KEY_ID: z.string().min(1, { error: 'is required' }),
+    S3_SECRET_ACCESS_KEY: z.string().min(1, { error: 'is required' }),
+
+    /**
+     * Empty for AWS S3 itself, which the client addresses from the region
+     * alone. Set for every other implementation — MinIO, Arvan, Ceph — which
+     * are S3-compatible but are not at `s3.<region>.amazonaws.com`.
+     */
+    S3_ENDPOINT: z
+      .union([z.url({ error: 'must be a valid http(s):// URL' }), z.literal('')])
+      .default(''),
+
+    /**
+     * Seconds a download link stays valid.
+     *
+     * Short on purpose: the signed URL *is* the credential for that one object,
+     * and it travels through a browser's history and address bar. Long enough to
+     * start a large download, worthless by the time anyone finds it later.
+     */
+    S3_URL_TTL: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(60 * 5),
 
     /** Comma-separated. Empty in production, where nginx makes it one origin. */
     CORS_ORIGINS: z

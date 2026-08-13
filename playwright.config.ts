@@ -79,9 +79,9 @@ export default defineConfig({
        * Started *without* `--env-file=../../.env`, unlike the `dev` script.
        *
        * Bun's `--env-file` would load the development `DATABASE_URL`,
-       * `API_PORT` and `UPLOAD_DIR` over the top of the block below, and the
-       * suite would quietly run against the database you are developing with.
-       * Everything the API needs is passed explicitly instead.
+       * `API_PORT` and `S3_*` values over the top of the block below, and the
+       * suite would quietly run against the database — and the bucket — you are
+       * developing with. Everything the API needs is passed explicitly instead.
        */
       command: 'bun run src/index.ts',
       cwd: join(ROOT_DIR, 'apps/api'),

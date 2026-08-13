@@ -71,10 +71,18 @@ export interface ChatListItemDto extends ChatDto {
   unreadCount: number;
 }
 
+/**
+ * An attachment as a client sees it: enough to draw, and no way to fetch.
+ *
+ * There is deliberately no URL here. The bytes live in a private bucket and the
+ * only route to them is `GET /api/attachments/:id`, which re-checks chat
+ * membership and answers with a redirect to a URL signed for the next few
+ * minutes. Shipping the object's location instead would make that check
+ * something a client could route around.
+ */
 export interface AttachmentDto {
   id: string;
   fileName: string;
-  fileUrl: string;
   fileType: string;
   fileSize: number;
 }

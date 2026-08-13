@@ -128,9 +128,8 @@ export const MAINTENANCE_DATABASE_URL = withDatabase(DEV_DATABASE_URL, 'postgres
 
 // --- Artifacts ---------------------------------------------------------------
 
-/** Gitignored. Uploads, reports, traces — everything the suite writes. */
+/** Gitignored. Reports, traces — everything the suite writes to disk. */
 export const ARTIFACT_DIR = join(ROOT_DIR, 'e2e/.artifacts');
-export const UPLOAD_DIR = join(ARTIFACT_DIR, 'uploads');
 
 /**
  * Where the argon2id hash of `E2E_PASSWORD` is cached between the global setup
@@ -148,15 +147,50 @@ export const PASSWORD_HASH_FILE = join(ARTIFACT_DIR, 'password-hash.txt');
  */
 export const E2E_PASSWORD = 'E2ePass@1404';
 
+// --- The object store --------------------------------------------------------
+
+/**
+ * The bucket the suite's attachments go to.
+ *
+ * This suite really uploads files, so it really needs somewhere to put them —
+ * and the platform itself runs no object store, by design. So a store has to
+ * come from outside the application, exactly as it does in production, and the
+ * suite is told where it is rather than starting one.
+ *
+ * The defaults describe a throwaway MinIO on the loopback: `bun run test:s3:up`
+ * starts one, the CI workflow starts the same image as a step, and `global-setup`
+ * fails with instructions if neither has happened. Override any of these to run
+ * the suite against a real bucket instead — the API cannot tell the difference,
+ * which is the point of it being configuration.
+ *
+ * Never point these at a bucket with anything in it. The suite empties what it
+ * finds between runs.
+ */
+export const E2E_S3_BUCKET = process.env.E2E_S3_BUCKET ?? 'chatbox-e2e';
+export const E2E_S3_ENDPOINT = process.env.E2E_S3_ENDPOINT ?? 'http://127.0.0.1:9000';
+const E2E_S3_ACCESS_KEY_ID = process.env.E2E_S3_ACCESS_KEY_ID ?? 'minioadmin';
+const E2E_S3_SECRET_ACCESS_KEY = process.env.E2E_S3_SECRET_ACCESS_KEY ?? 'minioadmin';
+
+/** The same five values the API takes, in the shape a `Bun.S3Client` wants. */
+export function s3ClientConfig(): Record<string, string> {
+  return {
+    accessKeyId: E2E_S3_ACCESS_KEY_ID,
+    secretAccessKey: E2E_S3_SECRET_ACCESS_KEY,
+    bucket: E2E_S3_BUCKET,
+    endpoint: E2E_S3_ENDPOINT,
+    region: 'us-east-1',
+  };
+}
+
 // --- The API server's environment -------------------------------------------
 
 /**
  * What `apps/api` is started with.
  *
  * Passed as an explicit block, and the server is started *without*
- * `--env-file=../../.env` — the development file sets `API_PORT`, `UPLOAD_DIR`
- * and `DATABASE_URL`, and `Bun`'s `--env-file` would load them over the top of
- * these. Nothing here is a secret except the two JWT secrets, which are read
+ * `--env-file=../../.env` — the development file sets `API_PORT`, the `S3_*`
+ * block and `DATABASE_URL`, and `Bun`'s `--env-file` would load them over the
+ * top of these. Nothing here is a secret except the two JWT secrets, which are read
  * from the developer's `.env` rather than invented so that the suite exercises
  * the same configuration path a real deployment does.
  */
@@ -176,9 +210,18 @@ export function apiServerEnv(): Record<string, string> {
     // like a broken login.
     COOKIE_SECURE: 'false',
 
-    // Absolute, because the API resolves this against its working directory and
-    // the suite's artifacts belong next to the suite.
-    UPLOAD_DIR,
+    // Its own bucket, never the developer's. The download tests then exercise
+    // the real path: signed URL, expiry, and a store that refuses anonymous
+    // reads.
+    S3_BUCKET: E2E_S3_BUCKET,
+    S3_REGION: 'us-east-1',
+    S3_ACCESS_KEY_ID: E2E_S3_ACCESS_KEY_ID,
+    S3_SECRET_ACCESS_KEY: E2E_S3_SECRET_ACCESS_KEY,
+    S3_ENDPOINT: E2E_S3_ENDPOINT,
+    // Long enough that a slow CI machine does not lose a link between the
+    // redirect and the fetch, short enough that the expiry test does not have
+    // to wait around for it.
+    S3_URL_TTL: '120',
 
     // The only origin the browser will be on.
     CORS_ORIGINS: WEB_URL,

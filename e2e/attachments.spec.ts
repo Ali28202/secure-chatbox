@@ -1,5 +1,7 @@
 import { getAttachments } from './support/db';
+import { API_URL, E2E_S3_BUCKET, E2E_S3_ENDPOINT } from './support/env';
 import { expect, test } from './support/fixtures';
+import { objectExists } from './support/s3';
 import type { Page } from '@playwright/test';
 
 /**
@@ -15,6 +17,12 @@ import type { Page } from '@playwright/test';
  * The bytes are real. `storage.ts` checks a file's leading bytes against its
  * declared type, so a placeholder named `.png` would be refused for the right
  * reason and prove nothing about the happy path.
+ *
+ * And the bucket is real. This is the only suite that can prove the round trip
+ * an attachment actually makes — into an object store over the network, back
+ * out through a signed URL that expires — because every layer of it is a
+ * different process and none of them can be mocked without mocking the thing
+ * under test.
  */
 
 /** A valid 1×1 transparent PNG, signature and all. */
@@ -116,8 +124,9 @@ test.describe('what the server refuses to trust', () => {
 
     await student.page.goto(`/chats/${chat.id}`);
 
-    // A name with a path in it, which is the shape of the attack: if any part of
-    // it reached the filesystem, the upload would land outside the storage root.
+    // A name with a path in it, which is the shape of the attack: an object key
+    // is a path-shaped string, so a separator that survived would put the upload
+    // somewhere the platform did not choose.
     await fileInput(student.page).setInputFiles({
       name: '../../etc/passwd.png',
       mimeType: 'image/png',
@@ -129,15 +138,22 @@ test.describe('what the server refuses to trust', () => {
     const [attachment] = await getAttachments(await messageId(student.page));
     expect(attachment).toBeDefined();
 
-    // The stored path is a generated UUID under a month directory, with the
-    // extension taken from the declared type and not from the name.
-    expect(attachment!.fileUrl).toMatch(/^\d{4}-\d{2}\/[0-9a-f-]{36}\.png$/);
+    // A month, a UUIDv7 nobody can guess, and the sanitized name — three
+    // segments, so the separators in what was uploaded did not survive into a
+    // fourth.
+    expect(attachment!.s3ObjectKey).toMatch(/^\d{4}-\d{2}\/[0-9a-f-]{36}\/[^/]+\.png$/);
+    expect(attachment!.s3Bucket).toBe(E2E_S3_BUCKET);
 
     // The display name keeps something readable but loses its separators, so it
     // can never be reassembled into a path.
     expect(attachment!.fileName).not.toContain('/');
     expect(attachment!.fileName).not.toContain('\\');
     expect(attachment!.fileType).toBe('image/png');
+
+    // And the bytes are genuinely in the bucket, under exactly the key the row
+    // claims. A row that named an object nobody wrote would pass every other
+    // assertion in this file and fail on the first download.
+    expect(objectExists(attachment!.s3ObjectKey)).toBe(true);
   });
 
   test('refuses a file whose bytes disagree with its declared type', async ({
@@ -190,7 +206,11 @@ test.describe('what the server refuses to trust', () => {
 });
 
 test.describe('downloading', () => {
-  test('serves the file to a member and nobody else', async ({ student, newSession, browser }) => {
+  test('hands a member a signed link and nobody else anything', async ({
+    student,
+    newSession,
+    browser,
+  }) => {
     const peer = await newSession('STUDENT');
     const outsider = await newSession('STUDENT');
     const chat = await student.api.createDirectChat(peer.account.id);
@@ -207,17 +227,73 @@ test.describe('downloading', () => {
     const href = await student.page.getByRole('link', { name: /خصوصی\.pdf/ }).getAttribute('href');
     expect(href).not.toBeNull();
 
-    // The recipient can read it.
-    expect((await peer.api.raw().get(href!)).status()).toBe(200);
+    // What the recipient gets back is a redirect, not the file: the API checks
+    // membership and then steps out of the way. `maxRedirects: 0` because
+    // following it silently would prove only that the whole chain works and
+    // never that the API stopped being a byte pump.
+    const redirect = await peer.api.raw().get(href!, { maxRedirects: 0 });
+    expect(redirect.status()).toBe(302);
 
-    // Someone in neither side of the conversation cannot, and gets the same
-    // answer as for a file that does not exist.
-    expect((await outsider.api.raw().get(href!)).status()).toBe(404);
+    // The link outlives nothing. A cached redirect would hand this member a
+    // dead signature the next time they clicked.
+    expect(redirect.headers()['cache-control']).toBe('no-store');
 
-    // Nor can someone with no session at all — the attachment route is behind
-    // the same wall as everything else, not a public static path.
+    const signed = redirect.headers()['location'];
+    expect(signed, 'expected a Location header pointing into the bucket').toBeDefined();
+    expect(signed).toContain(`${E2E_S3_ENDPOINT}/${E2E_S3_BUCKET}/`);
+    expect(signed).toContain('X-Amz-Signature=');
+
+    // And it really works, straight from the store, with the type the bytes
+    // were checked against when they were stored.
     const anonymous = await browser.newContext();
-    expect((await anonymous.request.get(href!)).status()).toBe(401);
+    const download = await anonymous.request.get(signed!);
+    expect(download.status()).toBe(200);
+    expect(download.headers()['content-type']).toContain('application/pdf');
+    expect(Buffer.from(await download.body())).toEqual(PDF);
+
+    // The signature is the entire permission. The same object without it is
+    // refused, which is what makes it safe for the URL above to travel through
+    // a browser's address bar.
+    expect((await anonymous.request.get(signed!.split('?')[0]!)).status()).toBe(403);
+
+    // Someone in neither side of the conversation gets no redirect and no
+    // signature — and the same answer as for a file that does not exist.
+    expect((await outsider.api.raw().get(href!, { maxRedirects: 0 })).status()).toBe(404);
+
+    // Nor does someone with no session at all: the attachment route is behind
+    // the same wall as everything else, and the bucket is behind the route.
+    expect((await anonymous.request.get(href!, { maxRedirects: 0 })).status()).toBe(401);
+
     await anonymous.close();
+  });
+
+  test('deleting a message takes its file out of the bucket', async ({ student, newSession }) => {
+    const peer = await newSession('STUDENT');
+    const chat = await student.api.createDirectChat(peer.account.id);
+
+    await student.page.goto(`/chats/${chat.id}`);
+    await fileInput(student.page).setInputFiles({
+      name: 'اشتباهی.pdf',
+      mimeType: 'application/pdf',
+      buffer: PDF,
+    });
+    await student.page.getByRole('button', { name: 'ارسال پیام' }).click();
+    await expect(student.page.getByRole('link', { name: /اشتباهی\.pdf/ })).toBeVisible();
+
+    const id = await messageId(student.page);
+    const [attachment] = await getAttachments(id);
+    expect(objectExists(attachment!.s3ObjectKey)).toBe(true);
+
+    const deleted = await student.api
+      .raw()
+      .delete(`${API_URL}/api/chats/${chat.id}/messages/${id}`, { data: {} });
+    expect(deleted.status()).toBe(200);
+
+    // A soft delete leaves a tombstone in the database on purpose — reply
+    // chains hang off it. The bytes are not part of that: nothing can reach
+    // them any more, and a semester of deleted coursework sitting in a bucket
+    // is exactly the kind of thing nobody discovers until it leaks.
+    expect(await getAttachments(id)).toHaveLength(0);
+    expect(objectExists(attachment!.s3ObjectKey)).toBe(false);
   });
 });

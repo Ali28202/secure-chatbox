@@ -65,11 +65,10 @@ RUN cd packages/database \
   && DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=public" \
   bunx --bun prisma generate --config ./prisma.config.ts
 
-# Where attachments are written. Absolute and outside /app on purpose: this path
-# is a mounted volume in compose.prod.yml, and a semester of coursework written
-# into an image layer would vanish with the next deploy without anyone noticing.
-ENV UPLOAD_DIR=/data/uploads
-RUN mkdir -p /data/uploads && chown -R bun:bun /data
+# No directory for attachments, and no volume for one: they go to an S3 bucket
+# that this image is only ever told the address of. The container therefore has
+# no state of its own — nothing to mount, nothing to back up, nothing lost when
+# it is replaced.
 
 # After the install, never before: Bun skips devDependencies when NODE_ENV is
 # production, and this image needs the Prisma CLI for the `migrate` service.

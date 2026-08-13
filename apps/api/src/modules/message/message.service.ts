@@ -111,10 +111,10 @@ class MessageService {
       }
     }
 
-    // Written to disk before the transaction opens, because writing a file is
-    // slow and a transaction held open across it would hold its locks for the
-    // duration of an upload. The consequence is that a failed commit leaves
-    // files behind, which is what the `catch` below is for.
+    // Uploaded before the transaction opens, because the bucket is across a
+    // network and a transaction held open across it would hold its locks for the
+    // length of somebody's upload. The consequence is that a failed commit
+    // leaves objects behind, which is what the `catch` below is for.
     const stored = files.length > 0 ? await storeUploads(files) : [];
 
     // Both writes or neither: a message that exists without bumping
@@ -154,9 +154,9 @@ class MessageService {
         return created;
       });
     } catch (error) {
-      // The rows never committed, so nothing will ever reference these files
+      // The rows never committed, so nothing will ever reference these objects
       // again. Cleaning up here is the only chance anything gets.
-      await removeStored(stored.map((file) => file.fileUrl));
+      await removeStored(stored.map((file) => file.s3ObjectKey));
       throw error;
     }
 
@@ -191,9 +191,9 @@ class MessageService {
         senderId: true,
         isDeleted: true,
         // Read here rather than after the update, because the update deletes
-        // the rows — this is the last moment anything knows which files on disk
-        // belonged to this message.
-        attachments: { select: { fileUrl: true } },
+        // the rows — this is the last moment anything knows which objects in the
+        // bucket belonged to this message.
+        attachments: { select: { s3ObjectKey: true } },
       },
     });
 
@@ -230,11 +230,11 @@ class MessageService {
       select: messageSelect,
     });
 
-    // After the row is gone, and only then. Deleting the file first would leave
-    // a broken download link behind if the update failed; deleting it after
-    // means the worst case is an orphaned blob, which nothing can reach because
-    // the row that named it no longer exists.
-    await removeStored(message.attachments.map((attachment) => attachment.fileUrl));
+    // After the row is gone, and only then. Deleting the object first would
+    // leave a broken download link behind if the update failed; deleting it
+    // after means the worst case is an orphaned object, which nothing can reach
+    // because the row that named it no longer exists.
+    await removeStored(message.attachments.map((attachment) => attachment.s3ObjectKey));
 
     const dto = toMessageDto(updated);
 
