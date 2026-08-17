@@ -148,12 +148,105 @@ services:
       NODE_ENV: production
     networks: [internal]
 
+  # Metabase's own database and the read-only role it reads this platform's data
+  # as. See infra/metabase/init.sql; it is idempotent and runs on every `up`.
+  #
+  # After `migrate`, not merely after `db`: the column-level grants name columns
+  # of `users` and `messages`, so the tables have to exist first. On the very
+  # first deployment those two run back to back and the ordering is the whole
+  # difference between analytics that can read a message body and analytics that
+  # cannot.
+  metabase-init:
+    image: postgres:18-alpine
+    container_name: chatbox-prod-metabase-init
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-chatbox}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # The maintenance database: CREATE DATABASE cannot run from inside the
+      # database being created, and has no business running from the one holding
+      # the platform's data.
+      PGDATABASE: postgres
+    volumes:
+      - ./infra/metabase/init.sql:/init.sql:ro
+    command: >-
+      psql -v ON_ERROR_STOP=1
+           -v app_database=${POSTGRES_DB:-chatbox}
+           -v metabase_database=${METABASE_DB:-metabase}
+           -v ro_role=${METABASE_RO_USER:-metabase_ro}
+           -v ro_password=${METABASE_RO_PASSWORD:?set METABASE_RO_PASSWORD in .env}
+           -f /init.sql
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: 'no'
+    networks: [internal]
+
+  # Dashboards over the platform's data — messages per course group per week,
+  # accounts that have gone quiet, whatever the department asks for.
+  #
+  # Not part of the application, and deliberately kept at arm's length from it:
+  # it reads through `metabase_ro`, which cannot see message bodies, password
+  # hashes, phone numbers or device fingerprints. The API neither knows nor
+  # cares that this container exists, and the platform serves every request
+  # exactly the same with it stopped.
+  #
+  # No published port. Like everything else here it is reached through nginx —
+  # on :8080 rather than a path under :80, because Metabase cannot be served
+  # from a URL subpath. Same allow list, same front door.
+  metabase:
+    image: metabase/metabase:v0.63.13
+    container_name: chatbox-prod-metabase
+    restart: unless-stopped
+    environment:
+      # Postgres, not the default embedded H2 file. Metabase's own documentation
+      # warns against H2 for anything but a trial: it is one file, it corrupts
+      # under concurrent access, and it takes every saved dashboard with it.
+      MB_DB_TYPE: postgres
+      MB_DB_HOST: db
+      MB_DB_PORT: 5432
+      MB_DB_DBNAME: ${METABASE_DB:-metabase}
+      MB_DB_USER: ${POSTGRES_USER:-chatbox}
+      MB_DB_PASS: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+
+      # Encrypts the stored credentials of every database Metabase connects to.
+      # Required here rather than defaulted: losing it does not lock anyone out
+      # of Metabase, it makes those saved connections unreadable — so it belongs
+      # in .env, alongside the JWT secrets, and in whatever backup they are in.
+      MB_ENCRYPTION_SECRET_KEY: ${METABASE_ENCRYPTION_KEY:?set METABASE_ENCRYPTION_KEY in .env}
+
+      # A JVM sizes its heap from the host's total memory unless told otherwise,
+      # which on a shared campus server means Metabase quietly reserving a
+      # quarter of it while the platform it is reporting on gets the rest.
+      JAVA_OPTS: ${METABASE_JAVA_OPTS:--Xmx1g}
+    depends_on:
+      db:
+        condition: service_healthy
+      metabase-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', '-s', '-o', '/dev/null', 'http://localhost:3000/api/health']
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      # Metabase applies its own schema migrations on first boot and takes the
+      # better part of a minute. A shorter window reports it unhealthy while it
+      # is doing precisely what it should.
+      start_period: 90s
+    networks: [internal]
+
   nginx:
     image: nginx:1.29-alpine
     container_name: chatbox-prod-nginx
     restart: unless-stopped
     ports:
       - '${HTTP_PORT:-80}:80'
+      # Analytics, on a port of its own. See the comment on `metabase` above for
+      # why this is not a path under :80. nginx starts and serves the platform
+      # whether or not anything is listening behind this one.
+      - '${METABASE_PORT:-8080}:8080'
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./infra/nginx/conf.d:/etc/nginx/conf.d:ro
