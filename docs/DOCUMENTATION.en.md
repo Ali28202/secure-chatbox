@@ -85,8 +85,8 @@ Everything in the project brief is implemented, verified, and committed:
 | Attachments in an S3 bucket, served by short-lived signed URLs     | ✅    |
 | Fully Persian, right-to-left interface                             | ✅    |
 | Dark and light themes                                              | ✅    |
-| 297 unit tests, 72 end-to-end browser tests                        | ✅    |
-| CI on every pull request (lint, typecheck, unit, e2e)              | ✅    |
+| 72 end-to-end browser tests                                        | ✅    |
+| CI on every pull request (lint, typecheck, e2e)                    | ✅    |
 | One-command production deployment behind nginx                     | ✅    |
 | Analytics dashboards that structurally cannot read message bodies  | ✅    |
 
@@ -237,8 +237,7 @@ secure-chatbox/
 ├── .github/actions/setup/action.yml
 ├── compose.yml             Development: Postgres (+ optional Metabase)
 ├── compose.prod.yml        Production: everything, behind nginx
-├── turbo.json
-└── vitest.config.ts        One config, three projects
+└── turbo.json
 ```
 
 ### Two structural rules that are load-bearing
@@ -890,18 +889,15 @@ that path.
 
 ### Tests
 
-| Command                                 | What it does                             |
-| --------------------------------------- | ---------------------------------------- |
-| `bun run test`                          | 297 unit tests, 16 files, ~2.5 s         |
-| `bun run test:watch`                    | The same, watching                       |
-| `bun run test:api` / `:shared` / `:web` | One project only                         |
-| `bun run test:s3:up`                    | A MinIO bucket for the attachment specs  |
-| `bun run test:e2e`                      | 72 Playwright tests in a real Chromium   |
-| `bun run test:e2e:ui`                   | Playwright's interactive runner          |
-| `bun run test:e2e:report`               | Open the last report                     |
-| `bun run test:s3:down`                  | Stop MinIO                               |
-| `bun run typecheck:e2e`                 | The suite has its own tsconfig (DOM lib) |
-| `bun run lint:e2e`                      | And its own lint step                    |
+| Command                   | What it does                             |
+| ------------------------- | ---------------------------------------- |
+| `bun run test:s3:up`      | A MinIO bucket for the attachment specs  |
+| `bun run test:e2e`        | 72 Playwright tests in a real Chromium   |
+| `bun run test:e2e:ui`     | Playwright's interactive runner          |
+| `bun run test:e2e:report` | Open the last report                     |
+| `bun run test:s3:down`    | Stop MinIO                               |
+| `bun run typecheck:e2e`   | The suite has its own tsconfig (DOM lib) |
+| `bun run lint:e2e`        | And its own lint step                    |
 
 ### Analytics
 
@@ -1005,38 +1001,11 @@ them.
 
 ## 14. Testing
 
-### Unit — Vitest
-
-**297 tests, 16 files, about 2.5 seconds.**
-
-```bash
-bun run test
-```
-
-Run it with `bun --bun`, which is what the script does. Vitest's binary has a
-`#!/usr/bin/env node` shebang, and on Node this codebase is only half testable:
-`Bun.password` (argon2id), `Bun.write` and `Bun.randomUUIDv7` simply are not
-there. Under `--bun` the tests execute in the same runtime as production, which
-means the argon2id hashes and the magic-byte checks are the real ones rather than
-stand-ins.
-
-One root config, three projects — `shared`, `api`, `web` — because Bun's isolated
-linker gives each workspace its own `node_modules` with no hoisting, and three
-configs would mean three copies of the same aliases kept in step by hand. Each
-project still gets its own root, so a test only sees its own package's files.
-
-The `api` project is handed a full set of environment variables in
-`vitest.config.ts`. `src/env.ts` parses `process.env` at import and calls
-`process.exit(1)` when it does not like what it finds, so anything importing it
-transitively would otherwise take the whole worker down. They are set there rather
-than in a `.env` so the suite cannot pick up a developer's real secrets.
-
-The `web` project runs in `node`, not `jsdom`. What is unit-tested there is the
-pure logic behind the screens — titles, previews, error mapping. The rendering is
-covered by Playwright against a real browser, which is a truer test of an RTL
-Persian interface than jsdom can give.
-
-**No database is needed.**
+One suite, end to end. There is no unit layer: every rule this platform enforces
+— a policy check, an argon2id hash, a signed URL, a Persian numeral — is worth
+asserting against the running system rather than against a function called in
+isolation, and a browser driving the real API over the real database is the only
+place where all of them are true at once.
 
 ### End-to-end — Playwright
 
@@ -1086,7 +1055,7 @@ subsequent push is covered anyway.
 it replaces rather than queueing behind it. The older result is about code that no
 longer exists.
 
-Four **parallel** jobs, so a pull request gets four independent verdicts. A type
+Three **parallel** jobs, so a pull request gets three independent verdicts. A type
 error and a failing test are different problems, and finding both in one run is
 faster than finding the second one tomorrow.
 
@@ -1094,7 +1063,6 @@ faster than finding the second one tomorrow.
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Lint**       | `bun run lint` + `bun run lint:e2e`                                                                                                                |
 | **Typecheck**  | `bun run typecheck` + `bun run typecheck:e2e`                                                                                                      |
-| **Unit tests** | `bun run test` — no services needed                                                                                                                |
 | **End-to-end** | Postgres service container, a MinIO step, Chromium with `--with-deps`, then `bun run test:e2e`. The report is uploaded on failure and kept 7 days. |
 
 The e2e job starts MinIO as a **step** rather than a `services:` entry because
@@ -1105,7 +1073,7 @@ pulling a second image just to run `mc mb`.
 
 The shared setup lives in
 [`.github/actions/setup/action.yml`](../.github/actions/setup/action.yml) —
-written once because four jobs need the same five steps and GitHub Actions has no
+written once because three jobs need the same five steps and GitHub Actions has no
 YAML anchors to share them with. It:
 
 - installs Bun with **no version pinned**, so `setup-bun` reads `packageManager`

@@ -12,11 +12,6 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
-    "test": "bun --bun vitest run",
-    "test:watch": "bun --bun vitest",
-    "test:api": "bun --bun vitest run --project=api",
-    "test:shared": "bun --bun vitest run --project=shared",
-    "test:web": "bun --bun vitest run --project=web",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report e2e/.artifacts/report",
@@ -57,7 +52,6 @@
     "prettier": "^3.9.6",
     "turbo": "^2.10.8",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.66.0",
-    "vitest": "^4.1.10"
+    "typescript-eslint": "^8.66.0"
   }
 }

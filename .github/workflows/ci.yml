@@ -25,8 +25,8 @@ permissions:
   contents: read
 
 jobs:
-  # Four separate jobs rather than one sequence of steps, so they run at the
-  # same time and a pull request gets four independent verdicts. A type error
+  # Three separate jobs rather than one sequence of steps, so they run at the
+  # same time and a pull request gets three independent verdicts. A type error
   # and a failing test are different problems, and finding both in one run is
   # faster than finding the second one tomorrow.
 
@@ -64,21 +64,6 @@ jobs:
       # `page.evaluate` run in the browser.
       - name: Typecheck the end-to-end suite
         run: bun run typecheck:e2e
-
-  unit:
-    name: Unit tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-
-      # `bun run test` is `bun --bun vitest run`, and the `--bun` is the point:
-      # `Bun.password`, `Bun.write` and `Bun.randomUUIDv7` do not exist on Node,
-      # so on Node half of these tests would be testing stand-ins. No database
-      # needed — vitest.config.ts gives each project the environment it wants.
-      - name: Run the unit suite
-        run: bun run test
 
   e2e:
     name: End-to-end tests

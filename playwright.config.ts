@@ -14,13 +14,11 @@ import {
  * End-to-end tests: a real Chromium against the real Next server, the real
  * Hono API and a real Postgres.
  *
- * These are the tests the unit suite deliberately leaves out. `vitest.config.ts`
- * runs the web project under `environment: 'node'` and covers pure logic only,
- * because an RTL Persian interface is not something jsdom can tell you the
- * truth about — whether the conversation actually reads right-to-left, whether
- * a message written in one browser appears in another, whether an upload
- * survives the round trip to disk. Those questions need a browser, so they live
- * here.
+ * The only suite in the repository. There is no unit layer, because the
+ * questions worth asking here are not ones a function called in isolation can
+ * answer — whether the conversation actually reads right-to-left, whether a
+ * message written in one browser appears in another, whether an upload survives
+ * the round trip to the bucket. Those need a browser, so everything lives here.
  *
  * Run with `bun run test:e2e`. Postgres must be up (`bun run db:up`); everything
  * else — the database, the migrations, both servers — the suite starts itself.

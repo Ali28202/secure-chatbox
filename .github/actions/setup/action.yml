@@ -2,7 +2,7 @@ name: Prepare the workspace
 description: >
   Bun, the dependency cache, the workspaces and the generated Prisma client —
   everything each job in the CI workflow needs before it can run its first
-  command. Written once here because four jobs need the same five steps, and
+  command. Written once here because three jobs need the same five steps, and
   GitHub Actions has no YAML anchors to share them with.
 
 runs:
