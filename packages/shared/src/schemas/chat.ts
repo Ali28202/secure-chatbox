@@ -7,26 +7,15 @@ const chatTitleSchema = z
   .string({ error: 'نام گفت‌وگو را وارد کنید.' })
   .trim()
   .min(LIMITS.chatTitle.min, {
-    error: `نام باید دست‌کم ${toPersianDigits(LIMITS.chatTitle.min)} نویسه باشد.`,
+    error: `نام باید دست‌کم ${toPersianDigits(LIMITS.chatTitle.min)} کاراکتر باشد.`,
   })
   .max(LIMITS.chatTitle.max, {
-    error: `نام نمی‌تواند بیشتر از ${toPersianDigits(LIMITS.chatTitle.max)} نویسه باشد.`,
+    error: `نام نمی‌تواند بیشتر از ${toPersianDigits(LIMITS.chatTitle.max)} کاراکتر باشد.`,
   });
 
-/**
- * A discriminated union rather than one object with optional fields, because
- * the three chat types genuinely take different input: a direct chat is
- * defined by the single person on the other side and has no title, while a
- * group is defined by its title and an initial member list.
- *
- * Modelling it this way means an impossible request — a DIRECT chat with a
- * title, or a group with no name — cannot typecheck on the client and cannot
- * parse on the server.
- */
 export const createChatSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('DIRECT'),
-    /** The other participant. The creator is added by the server. */
     memberId: idSchema,
   }),
   z.object({
@@ -46,14 +35,6 @@ export const addMemberSchema = z.object({
   role: z.enum(CHAT_ROLES, { error: 'نقش انتخاب‌شده معتبر نیست.' }).default('MEMBER'),
 });
 
-/**
- * A partial update, hence every field optional — but not *all* of them absent.
- *
- * The refinement is what stops `PATCH {}` from being a request the server
- * answers `200` to after doing nothing: a client that sent the wrong field name
- * would otherwise get a success and a screen that never changes, which is the
- * hardest kind of bug to see.
- */
 export const updateChatSchema = z
   .object({
     title: chatTitleSchema.optional(),
@@ -63,15 +44,6 @@ export const updateChatSchema = z
     error: 'تغییری برای اعمال مشخص نشده است.',
   });
 
-/**
- * What an admin may change about someone else's membership: the role they hold
- * in this chat, and whether they are muted in it.
- *
- * Both are here rather than on two endpoints because they are the same
- * operation from the caller's side — editing one row of the member list — and
- * because handing the ADMIN role over is the step that lets the last admin
- * leave, which the removal route refuses until someone else can take over.
- */
 export const updateMemberSchema = z
   .object({
     role: z.enum(CHAT_ROLES, { error: 'نقش انتخاب‌شده معتبر نیست.' }).optional(),

@@ -23,7 +23,6 @@ import { getAttachmentSummary } from '@/lib/chat';
 import { getInitials } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
-/** The grey line above a reply, quoting whatever is being answered. */
 function ReplyQuote({
   reply,
   isOwn,
@@ -35,16 +34,12 @@ function ReplyQuote({
     <div
       className={cn(
         'mb-1 border-s-2 ps-2 text-xs',
-        // Inside a filled bubble the usual muted grey disappears, so the quote
-        // is dimmed against its own background instead of the page's.
         isOwn
           ? 'border-primary-foreground/40 text-primary-foreground/80'
           : 'border-border text-muted-foreground'
       )}
     >
       <p className="font-medium">{reply.senderName}</p>
-      {/* A quoted photo with no caption has nothing to quote, and an empty line
-          under a name reads as a rendering fault rather than as a picture. */}
       <p className={cn('line-clamp-2', (reply.isDeleted || !reply.content) && 'italic')}>
         {reply.isDeleted
           ? 'این پیام حذف شده است.'
@@ -53,24 +48,11 @@ function ReplyQuote({
     </div>
   );
 }
-
-/** How many of the other members have read this message, out of how many. */
 export interface ReadState {
   read: number;
   total: number;
 }
 
-/**
- * The delivery ticks under your own messages.
- *
- * One tick for sent, two once anyone has read it, and the pair brightens when
- * everyone has — the convention every messenger uses, so it needs no legend.
- *
- * Brightness rather than the familiar blue: these sit on a filled `bg-primary`
- * bubble, and a coloured tick on a coloured background is a tick nobody can
- * see. The count is in the label for the case a group makes ambiguous, where
- * "someone has read this" and "the class has read this" look the same.
- */
 function ReadTicks({ read, total }: ReadState) {
   const allRead = total > 0 && read === total;
 
@@ -95,18 +77,6 @@ function ReadTicks({ read, total }: ReadState) {
   );
 }
 
-/**
- * One message.
- *
- * Own messages sit on the far side of the conversation. The row is reversed
- * rather than aligned to a named side, so the mirroring follows the page's
- * direction — on this RTL page "the far side" is the left, and on an LTR one
- * the same markup would put it on the right without a second rule.
- *
- * A deleted message keeps its place in the column. The row is what a reply
- * points at, and removing it would leave every answer quoting nothing; the
- * tombstone is also the honest thing to show, since the message *was* there.
- */
 export function MessageBubble({
   message,
   isOwn,
@@ -120,12 +90,9 @@ export function MessageBubble({
 }: {
   message: MessageDto;
   isOwn: boolean;
-  /** False when the message continues a run from the same sender. */
   showSender: boolean;
   canDelete: boolean;
-  /** Pinning is moderation, so it is the chat's admins and nobody else. */
   canPin: boolean;
-  /** Null where ticks would mean nothing: someone else's message, or a tombstone. */
   readState: ReadState | null;
   onReply: (message: MessageDto) => void;
   onDelete: (message: MessageDto) => void;
@@ -136,19 +103,12 @@ export function MessageBubble({
   return (
     <div
       data-slot="message"
-      // The row carries its own id so anything that needs to find a message in
-      // the DOM can — M9's read receipts observe these to decide what has
-      // actually been on screen.
       data-message-id={message.id}
       className={cn(
         'group flex w-full items-end gap-2',
         isOwn ? 'flex-row-reverse justify-start' : 'justify-start'
       )}
     >
-      {/* The avatar column is held open through a run so the bubbles stay in
-          line; only the first message of the run actually fills it. Own
-          messages have no avatar at all — you know who you are — so the column
-          is not reserved on that side. */}
       {!isOwn && (
         <div className="w-8 shrink-0">
           {showSender && (
@@ -187,15 +147,8 @@ export function MessageBubble({
             </p>
           ) : (
             <>
-              {/* Above the caption, the way every messenger orders it: the
-                  picture is the message and the text is a note about it. The
-                  API returns an empty array for a tombstone, so nothing here
-                  needs to know about deletion. */}
               <MessageAttachments attachments={message.attachments} isOwn={isOwn} />
 
-              {/* `whitespace-pre-wrap` keeps the line breaks the sender typed;
-                  `wrap-break-word` keeps an unbroken URL from widening the
-                  bubble past the column. */}
               {message.content && (
                 <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
               )}
@@ -203,13 +156,9 @@ export function MessageBubble({
           )}
 
           <span className="mt-1 flex items-center justify-end gap-1">
-            {/* Marks the bubble itself, so scrolling back to a message found
-                through the banner shows why it was there. The banner is the
-                other half of this and the one people actually use; without a
-                mark here, arriving at the message would say nothing. */}
             {message.isPinned && !message.isDeleted && (
               <PinIcon
-                aria-label="سنجاق‌شده"
+                aria-label="پین‌شده"
                 role="img"
                 className={cn(
                   'size-3 shrink-0',
@@ -241,9 +190,6 @@ export function MessageBubble({
                 variant="ghost"
                 size="icon-sm"
                 aria-label={`گزینه‌های پیام ${message.sender.name}`}
-                // Hidden until the row is hovered or something inside it takes
-                // focus — a menu button on every bubble is noise. On a touch
-                // screen there is no hover to reveal it, so below `sm` it stays.
                 className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-sm:opacity-100 data-popup-open:opacity-100"
               />
             }
@@ -254,13 +200,13 @@ export function MessageBubble({
           <DropdownMenuContent align="start" className="w-40">
             <DropdownMenuItem onClick={() => onReply(message)}>
               <ReplyIcon />
-              پاسخ
+              ریپلای
             </DropdownMenuItem>
 
             {canPin && (
               <DropdownMenuItem onClick={() => onSetPinned(message, !message.isPinned)}>
                 {message.isPinned ? <PinOffIcon /> : <PinIcon />}
-                {message.isPinned ? 'برداشتن سنجاق' : 'سنجاق کردن'}
+                {message.isPinned ? 'برداشتن پین' : 'پین‌ کردن'}
               </DropdownMenuItem>
             )}
 

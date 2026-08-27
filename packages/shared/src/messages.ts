@@ -1,13 +1,5 @@
 import { ERROR_CODES, type ErrorCode } from './constants';
 
-/**
- * The Persian text shown to users when a request fails.
- *
- * Every error leaving the API carries one of these as its `message`, so the
- * web client can render `error.message` directly and never has to map codes to
- * strings itself. Codes stay English for logs and for `switch` statements;
- * only this table is user-facing.
- */
 export const FA_ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ERROR_CODES.VALIDATION_ERROR]: 'اطلاعات واردشده معتبر نیست.',
   [ERROR_CODES.UNAUTHORIZED]: 'برای انجام این کار باید وارد حساب کاربری خود شوید.',

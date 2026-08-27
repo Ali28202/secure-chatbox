@@ -34,15 +34,6 @@ import {
 import { getInitials } from '@/lib/labels';
 import { ROUTES } from '@/lib/routes';
 
-/**
- * Turns read-only on and off, for an admin.
- *
- * A `Button` rather than a switch because there is no switch primitive in this
- * project, and adding one for a single control would be the tail wagging the
- * dog. It states the current mode and toggles on click — `aria-pressed` is what
- * makes that legible to a screen reader as a two-state control rather than as a
- * command whose effect is a guess.
- */
 function ReadOnlyToggle({ chatId, isReadOnly }: { chatId: string; isReadOnly: boolean }) {
   const updateChat = useUpdateChat(chatId);
 
@@ -55,8 +46,8 @@ function ReadOnlyToggle({ chatId, isReadOnly }: { chatId: string; isReadOnly: bo
       disabled={updateChat.isPending}
       title={
         isReadOnly
-          ? 'اکنون تنها مدیران می‌توانند پیام بفرستند. برای باز کردن کلیک کنید.'
-          : 'همه می‌توانند پیام بفرستند. برای فقط‌خواندنی کردن کلیک کنید.'
+          ? 'فعلاً فقط مدیرها می‌تونن پیام بدن. برای باز کردن گروه کلیک کن.'
+          : 'الان همه می‌تونن پیام بدن. برای قفل کردن گروه کلیک کن.'
       }
       onClick={() =>
         updateChat.mutate(
@@ -66,19 +57,11 @@ function ReadOnlyToggle({ chatId, isReadOnly }: { chatId: string; isReadOnly: bo
       }
     >
       {isReadOnly ? <LockIcon /> : <UnlockIcon />}
-      {isReadOnly ? 'فقط‌خواندنی' : 'باز'}
+      {isReadOnly ? 'بسته' : 'باز'}
     </Button>
   );
 }
 
-/**
- * The pinned messages, above the conversation.
- *
- * The newest one is shown in full width and the rest are counted, because a
- * banner that grows with the number of pins is a banner that eventually leaves
- * no room for the chat. Anyone who wants the older ones can scroll to them —
- * they are marked in place.
- */
 function PinnedBanner({ messages }: { messages: MessageDto[] }) {
   const [newest, ...rest] = messages;
   if (!newest) return null;
@@ -89,7 +72,7 @@ function PinnedBanner({ messages }: { messages: MessageDto[] }) {
 
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium text-muted-foreground">
-          پیام سنجاق‌شده از {newest.sender.name}
+          پیام پین‌شده از {newest.sender.name}
         </p>
         <p className="truncate">
           {newest.content ?? getAttachmentSummary(newest.attachments.length)}
@@ -105,22 +88,11 @@ function PinnedBanner({ messages }: { messages: MessageDto[] }) {
   );
 }
 
-/**
- * One conversation: who is in it, what was said in it, and the box to add to
- * it.
- *
- * The API answers 404 when a chat exists but is not yours, so there is one
- * "not found" state here rather than two — a deliberate choice, not an
- * omission. Telling the two apart would tell an outsider that the chat exists.
- */
 export function ChatDetail({ chatId }: { chatId: string }) {
   const user = useCurrentUser();
   const chat = useChat(chatId);
   const [replyTo, setReplyTo] = useState<MessageDto | null>(null);
 
-  // Above the early returns, because hooks are. Both tolerate a chat that has
-  // not loaded: permissions deny everything until the member list arrives, and
-  // the pinned query is keyed on the id, which is known from the route.
   const permissions = useChatPermissions(chat.data);
   const pinned = usePinnedMessages(chatId);
 
@@ -139,7 +111,7 @@ export function ChatDetail({ chatId }: { chatId: string }) {
         <SearchXIcon className="size-8 text-muted-foreground" />
         <p className="font-medium">این گفت‌وگو در دسترس نیست</p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          یا حذف شده است، یا شما عضو آن نیستید.
+          این گروه یا کلاً پاک شده، یا تو عضوش نیستی.
         </p>
         <Button variant="outline" size="sm" render={<Link href={ROUTES.chats} />}>
           بازگشت به فهرست گفت‌وگوها
@@ -151,7 +123,6 @@ export function ChatDetail({ chatId }: { chatId: string }) {
   const title = getChatTitle(chat.data, user.id);
 
   const peer = getChatPeer(chat.data, user.id);
-  // Everyone but the viewer: counting yourself as online is true and useless.
   const peerIds = getOtherMembers(chat.data.members, user.id).map((member) => member.user.id);
 
   return (
@@ -163,7 +134,6 @@ export function ChatDetail({ chatId }: { chatId: string }) {
           aria-label="بازگشت"
           render={<Link href={ROUTES.chats} />}
         >
-          {/* The arrow points right because "back" runs with the text in RTL. */}
           <ArrowRightIcon />
         </Button>
 
@@ -176,20 +146,15 @@ export function ChatDetail({ chatId }: { chatId: string }) {
 
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-semibold">{title}</h1>
-          {/* Presence when there is any, the chat's type when there is not —
-              one line, because the type never changes and is the less useful of
-              the two to anyone already looking at the conversation. */}
           <p className="truncate text-xs text-muted-foreground">
             <PresenceLabel userIds={peerIds} fallback={CHAT_TYPE_LABELS[chat.data.type]} />
           </p>
         </div>
 
-        {/* Shown to everyone, but only an admin's is a button — for everyone
-            else it is a badge stating the fact, which is what it was before. */}
         {permissions.canUpdateChat ? (
           <ReadOnlyToggle chatId={chatId} isReadOnly={chat.data.isReadOnly} />
         ) : (
-          chat.data.isReadOnly && <Badge variant="outline">فقط‌خواندنی</Badge>
+          chat.data.isReadOnly && <Badge variant="outline">بسته</Badge>
         )}
 
         {chat.data.type !== 'DIRECT' && (

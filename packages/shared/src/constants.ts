@@ -20,60 +20,23 @@ export type ChatRole = (typeof CHAT_ROLES)[number];
 export const RECEIPT_STATUSES = ['DELIVERED', 'READ'] as const;
 export type ReceiptStatus = (typeof RECEIPT_STATUSES)[number];
 
-/**
- * Field bounds, in one place so the Zod schemas, the database columns and the
- * UI's `maxLength` attributes cannot disagree.
- */
 export const LIMITS = {
-  universityId: { min: 3, max: 32 },
-  /** Canonical form is `09` plus nine digits — see `normalizePhoneNumber`. */
+  universityId: { min: 3, max: 16 },
   phoneNumber: { min: 11, max: 11 },
   password: { min: 8, max: 128 },
   name: { min: 3, max: 64 },
-  /**
-   * The browser-generated device fingerprint. Bounded on both sides because it
-   * arrives from the client and is written to a column: long enough that a
-   * guessed value is not a device, short enough that nobody can post a novel.
-   */
   deviceId: { min: 16, max: 128 },
   chatTitle: { min: 2, max: 100 },
   messageContent: { min: 1, max: 4000 },
-  /** Cursor page size for message history and chat lists. */
   page: { default: 50, max: 100 },
 } as const;
 
-/**
- * What may be attached to a message.
- *
- * Here rather than in the API because the composer has to refuse a 200 MB file
- * before it spends five minutes uploading it, and the two answers have to be
- * the same answer. The API remains the one that decides — everything below is
- * enforced there again, against a request that may never have been near this
- * client.
- */
 export const UPLOAD = {
   maxFileBytes: 10 * 1024 * 1024,
   maxFilesPerMessage: 5,
-  /**
-   * The whole multipart body, not one file: five files at the limit plus the
-   * part headers and the text. Slack is deliberate — a request rejected at the
-   * body limit is rejected before anything can say *which* file was too big,
-   * so the per-file check is the one that should normally fire.
-   */
   maxRequestBytes: 5 * 10 * 1024 * 1024 + 1024 * 1024,
 } as const;
 
-/**
- * Accepted MIME types, each mapped to the extension the file is stored under.
- *
- * The stored name is built from this table and never from the uploaded
- * filename. A filename is client-supplied text; the only reliable defence
- * against storing `report.pdf.php` is to never ask the client what the
- * extension should be.
- *
- * The list is an allowlist for the same reason: a denylist of dangerous types
- * is a promise to have thought of every one of them.
- */
 export const ALLOWED_FILE_TYPES = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
@@ -92,29 +55,12 @@ export const ALLOWED_FILE_TYPES = {
 
 export type AllowedFileType = keyof typeof ALLOWED_FILE_TYPES;
 
-/**
- * `Object.hasOwn`, not `type in ALLOWED_FILE_TYPES`.
- *
- * `in` walks the prototype chain, so `'constructor'` and `'toString'` would pass
- * an allowlist that never listed them. The declared type is `file.type` — a
- * string a client typed into a multipart part header — and the caller in
- * `storage.ts` immediately looks the "allowed" type up in its signature table,
- * where an inherited key yields a function instead of a byte array.
- */
 export function isAllowedFileType(type: string): type is AllowedFileType {
   return Object.hasOwn(ALLOWED_FILE_TYPES, type);
 }
 
-/** Drives the `accept` attribute on the file picker. */
 export const FILE_ACCEPT = Object.keys(ALLOWED_FILE_TYPES).join(',');
 
-/**
- * Whether a stored attachment should be drawn in the conversation rather than
- * listed as a file to download.
- *
- * Reads the type recorded at upload, which is an allowlisted value the server
- * chose — not the `Content-Type` of whatever is being served right now.
- */
 export function isImageType(type: string): boolean {
   return type.startsWith('image/');
 }
@@ -122,41 +68,14 @@ export function isImageType(type: string): boolean {
 export const COOKIE_NAMES = {
   access: 'access_token',
   refresh: 'refresh_token',
-  /**
-   * Carries no token — its presence alone says "this browser may have a live
-   * session", and it is set and cleared in lockstep with the two real cookies.
-   *
-   * The web client's `proxy.ts` needs to decide whether to render the app or
-   * send the visitor to the login page, and neither real cookie can tell it:
-   * the access cookie expires after fifteen minutes while the session is still
-   * good for a week, and the refresh cookie is deliberately scoped to
-   * `REFRESH_COOKIE_PATH`, so a page request never carries it.
-   *
-   * It is a navigation hint and **never an authorization decision**. Anyone can
-   * forge it; all they win is a page that immediately asks the API for data and
-   * gets a 401. Authorization lives on the API, where the signature is checked.
-   */
   sessionHint: 'session_hint',
 } as const;
 
-/**
- * The refresh cookie is scoped to the auth routes so it is not attached to
- * every ordinary API call — it only travels where it is actually needed.
- */
 export const REFRESH_COOKIE_PATH = '/api/auth';
 
 export const ERROR_CODES = {
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   UNAUTHORIZED: 'UNAUTHORIZED',
-  /**
-   * The session is valid but belongs to a device this account has since left.
-   *
-   * Its own code rather than a plain 401 because the two need opposite
-   * handling: an ordinary 401 means "refresh and carry on", while this one
-   * means the account is signed in somewhere else and refreshing will fail for
-   * the same reason. The client checks for it to skip the refresh, drop the
-   * session and say what actually happened.
-   */
   DEVICE_MISMATCH: 'DEVICE_MISMATCH',
   FORBIDDEN: 'FORBIDDEN',
   NOT_FOUND: 'NOT_FOUND',

@@ -11,13 +11,6 @@ import { getInitials } from '@/lib/labels';
 import { ROUTES } from '@/lib/routes';
 import { cn } from '@/lib/utils';
 
-/**
- * One row of the sidebar.
- *
- * The whole row is the link rather than the title alone: a target the width of
- * the list is far easier to hit than a few words of it, and there is nothing
- * else in the row to click.
- */
 export function ChatListItem({
   chat,
   viewerId,
@@ -31,9 +24,6 @@ export function ChatListItem({
   const preview = getChatPreview(chat, viewerId);
   const timestamp = chat.lastMessage?.createdAt ?? chat.lastMessageAt;
 
-  // Only direct chats get a dot. A group's avatar would need one dot per member
-  // to mean anything, and the count belongs in the conversation's own header,
-  // where there is room to say it in words.
   const peer = getChatPeer(chat, viewerId);
 
   return (
@@ -64,9 +54,6 @@ export function ChatListItem({
         <div className="flex items-baseline gap-2">
           <span className="truncate font-medium">{title}</span>
           {timestamp && (
-            // `shrink-0` and `ms-auto` keep the time pinned to the far edge no
-            // matter how long the title is — a truncating title should eat its
-            // own width, not push the timestamp out of the row.
             <time dateTime={timestamp} className="ms-auto shrink-0 text-xs text-muted-foreground">
               {formatChatTimestamp(timestamp)}
             </time>

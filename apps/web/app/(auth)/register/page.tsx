@@ -9,10 +9,7 @@ export default function RegisterPage() {
     <Card>
       <CardHeader>
         <CardTitle className="text-xl">ساخت حساب کاربری</CardTitle>
-        <CardDescription>
-          حساب‌های ساخته‌شده از این صفحه، حساب دانشجویی هستند. حساب استادان را مدیر سامانه ایجاد
-          می‌کند.
-        </CardDescription>
+        <CardDescription>اینجا مخصوص ثبت‌نام شما دانشجوهاست </CardDescription>
       </CardHeader>
       <CardContent>
         <RegisterForm />

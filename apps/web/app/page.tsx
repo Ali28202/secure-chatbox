@@ -1,6 +1,5 @@
 import { LockKeyholeIcon, MessagesSquareIcon, NetworkIcon } from 'lucide-react';
 import Link from 'next/link';
-import { ConnectionStatus } from '@/components/system/connection-status';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card';
 import { ROUTES } from '@/lib/routes';
@@ -8,21 +7,21 @@ import { ROUTES } from '@/lib/routes';
 const FEATURES = [
   {
     icon: MessagesSquareIcon,
-    title: 'گفت‌وگوی آنی',
+    title: 'ارتباط در لحظه',
     description:
-      'پیام‌های خصوصی میان استاد و دانشجو و گروه‌های درسی، با تحویل بی‌درنگ و نشانه‌گذاری خوانده‌شدن.',
+      'خیلی راحت و سریع با استادها و هم‌کلاسی‌هات چت کن؛ چه تو پیام خصوصی، چه تو گروه‌های درسی.',
   },
   {
     icon: LockKeyholeIcon,
-    title: 'نشست امن',
+    title: 'امنیت کامل',
     description:
-      'ورود با شناسهٔ دانشگاهی و گذرواژه، نشست بر پایهٔ JWT در کوکی‌های HttpOnly و دسترسی مبتنی بر نقش.',
+      'خیالت راحت! با شناسه و رمز دانشگاهیت وارد شو؛ ما حواسمون به امنیت حسابت هست و اطلاعاتت پیش ما جاش امنه.',
   },
   {
     icon: NetworkIcon,
-    title: 'فقط شبکهٔ داخلی',
+    title: 'اختصاصیِ دانشگاه',
     description:
-      'سامانه تنها از درون شبکهٔ دانشگاه در دسترس است؛ هیچ گفت‌وگویی از مرزهای دانشگاه بیرون نمی‌رود.',
+      'این سیستم فقط با اینترنت دانشگاه باز می‌شه؛ یه فضای کاملاً اختصاصی که هیچ اطلاعات و پیامی ازش بیرون نمی‌ره.',
   },
 ] as const;
 
@@ -30,9 +29,7 @@ export default function HomePage() {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-10 px-6 py-16">
       <header className="space-y-3">
-        <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">
-          چت‌باکس امن دانشگاه
-        </h1>
+        <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">چت‌باکس</h1>
         <p className="text-lg text-pretty text-muted-foreground">
           سامانهٔ گفت‌وگو و کنترل دسترسی درون‌شبکه‌ای برای استادان و دانشجویان.
         </p>
@@ -43,8 +40,6 @@ export default function HomePage() {
           </Button>
         </div>
       </header>
-
-      <ConnectionStatus />
 
       <section className="grid gap-4 sm:grid-cols-3">
         {FEATURES.map(({ icon: Icon, title, description }) => (

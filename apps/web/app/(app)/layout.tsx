@@ -8,18 +8,6 @@ import { RealtimeBridge } from '@/components/realtime/realtime-bridge';
 import { SessionContext, useSession } from '@/hooks/use-auth';
 import { ROUTES } from '@/lib/routes';
 
-/**
- * The authenticated shell, and the second half of route protection.
- *
- * `proxy.ts` already turned away anyone with no session cookie, but that check
- * is a hint — it verifies nothing. This is where the claim is actually tested:
- * the session query asks the API who you are, and the API checks the signature
- * and re-reads the account. Everything below only renders once that answered.
- *
- * A session that fails here has already been through the axios interceptor's
- * refresh attempt, so an error means the session is genuinely over — most often
- * a forged or stale hint cookie, or an account disabled since the last request.
- */
 export default function AppLayout({ children }: { children: ReactNode }) {
   const session = useSession();
   const router = useRouter();
@@ -37,39 +25,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  /*
-   * The shell is exactly one screen tall and never scrolls itself; the pages
-   * inside it scroll their own content. That is what a conversation needs — the
-   * composer has to stay reachable while the history moves behind it — and it
-   * has to be settled here, because a scroll region can only be as tall as an
-   * ancestor with a real height.
-   *
-   * `min-h-0` on the content row is the other half: a flex child defaults to
-   * `min-height: auto`, which refuses to shrink below its content, so without
-   * it a long conversation would push the composer off the bottom of the screen
-   * instead of scrolling.
-   *
-   * `svh` rather than `vh` because mobile browsers count their collapsing
-   * address bar in `vh`, and a composer that hides under it is worse than one
-   * that sits a little high.
-   */
-  /*
-   * Everything below is inside the gate, so `session.data` is the session this
-   * component just proved. Handing it down means a child re-rendering on its
-   * own state — a mutation settling, a menu opening — reads the value this
-   * render published, not whatever the query cache happens to hold at that
-   * instant. `AppHeader` does exactly that on logout, and used to throw for it.
-   */
   return (
     <SessionContext value={session.data}>
       <div className="flex h-svh flex-col">
-        {/*
-         * Inside the `isSuccess` gate, deliberately. The socket handshake
-         * authenticates by cookie, and connecting before `/auth/me` has answered
-         * would race a cold load's silent token refresh — the handshake would be
-         * refused, and recovering from that costs more than waiting for a query
-         * that is already in flight.
-         */}
         <RealtimeBridge />
         <AppHeader />
         <div className="mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col px-4 py-6">

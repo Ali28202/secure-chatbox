@@ -7,7 +7,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCurrentUser } from '@/hooks/use-auth';
 import { useChats } from '@/hooks/use-chats';
 
-/** Matches the row height of a real item so the list does not jump on load. */
 function ChatListSkeleton() {
   return (
     <ul className="flex flex-col gap-1" aria-busy aria-label="در حال بارگذاری گفت‌وگوها">
@@ -34,9 +33,9 @@ export function ChatList({ activeChatId }: { activeChatId?: string }) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
         <AlertCircleIcon className="size-8 text-muted-foreground" />
-        <p className="font-medium">فهرست گفت‌وگوها بارگذاری نشد</p>
+        <p className="font-medium">گفت‌وگوهات لود نشدن!</p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          اتصال خود به شبکهٔ دانشگاه را بررسی کنید و دوباره تلاش کنید.
+          انگار به شبکه دانشگاه وصل نیستی! اتصالت رو چک کن و دوباره امتحان کن.
         </p>
         <Button variant="outline" size="sm" onClick={() => void chats.refetch()}>
           تلاش دوباره
@@ -49,10 +48,9 @@ export function ChatList({ activeChatId }: { activeChatId?: string }) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center">
         <MessagesSquareIcon className="size-8 text-muted-foreground" />
-        <p className="font-medium">هنوز گفت‌وگویی ندارید</p>
+        <p className="font-medium">هنوز گفت‌وگویی نداری</p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          با دکمهٔ «گفت‌وگوی جدید» یک گفت‌وگوی خصوصی آغاز کنید یا گروهی بسازید. گروه‌هایی که استادان
-          شما را به آن‌ها اضافه کنند نیز همین‌جا نمایان می‌شوند.
+          برای شروع یه چت خصوصی یا ساختن گروه، کافیه روی دکمهٔ «گفت‌وگوی جدید» بزنی.{' '}
         </p>
       </div>
     );

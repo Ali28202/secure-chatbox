@@ -24,7 +24,7 @@ export function AppHeader() {
     <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-4">
         <ShieldIcon className="size-5 shrink-0 text-muted-foreground" />
-        <span className="font-semibold">چت‌باکس امن</span>
+        <span className="font-semibold">چت‌باکس</span>
 
         <div className="ms-auto flex items-center gap-1">
           <ThemeToggle />
@@ -41,13 +41,7 @@ export function AppHeader() {
               <span className="hidden text-sm font-normal sm:inline">{user.name}</span>
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent align="end" className="w-56">
-              {/*
-               * The group is not decoration: Base UI's `GroupLabel` reads a
-               * context that only `Menu.Group` provides, and throws without it.
-               * Keeping the label and the item it introduces inside one group is
-               * also what lets a screen reader announce them together.
-               */}
+            <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuGroup>
                 <DropdownMenuLabel className="font-normal">
                   <p className="text-sm font-medium">{user.name}</p>

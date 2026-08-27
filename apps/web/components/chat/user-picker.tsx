@@ -14,20 +14,10 @@ import { cn } from '@/lib/utils';
 interface UserPickerProps {
   selected: string[];
   onSelect: (user: UserSummaryDto) => void;
-  /** Multi-select shows checkmarks and keeps the list open after a choice. */
   multiple?: boolean;
   emptyHint?: string;
 }
 
-/**
- * A searchable list of people, used both for picking the single recipient of a
- * direct chat and for gathering a group's initial members.
- *
- * The search field is controlled while the *query* is debounced, so typing
- * never stutters but the API sees one request per pause. The directory endpoint
- * already excludes the signed-in user and anyone deactivated, so nothing here
- * has to filter.
- */
 export function UserPicker({
   selected,
   onSelect,
@@ -38,24 +28,21 @@ export function UserPicker({
   const debouncedSearch = useDebouncedValue(search);
   const directory = useUserDirectory(debouncedSearch);
 
-  // `isFetching` rather than `isLoading`: with `keepPreviousData` the query is
-  // never in a loading state after the first run, so this is what marks the
-  // list as catching up with the box.
   const isCatchingUp = directory.isFetching && search !== debouncedSearch;
 
   return (
     <div className="flex flex-col gap-3">
       <div className="relative">
-        <SearchIcon className="pointer-events-none absolute inset-y-0 start-3 my-auto size-4 text-muted-foreground" />
+        <SearchIcon className="pointer-events-none absolute inset-y-0 inset-s-3 my-auto size-4 text-muted-foreground" />
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="جست‌وجو با نام یا شناسهٔ دانشگاهی"
+          placeholder="جست‌وجو با نام یا شماره دانشجویی/کارمندی"
           className="ps-9"
           aria-label="جست‌وجوی کاربران"
         />
         {isCatchingUp && (
-          <Loader2Icon className="pointer-events-none absolute inset-y-0 end-3 my-auto size-4 animate-spin text-muted-foreground" />
+          <Loader2Icon className="pointer-events-none absolute inset-y-0 inset-e-3 my-auto size-4 animate-spin text-muted-foreground" />
         )}
       </div>
 

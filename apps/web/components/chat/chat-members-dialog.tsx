@@ -32,22 +32,6 @@ import type { ChatPermissions } from '@/hooks/use-permissions';
 import { getApiErrorMessage } from '@/lib/api';
 import { getInitials, ROLE_LABELS } from '@/lib/labels';
 
-/**
- * The member list, behind a button rather than down the page.
- *
- * It used to sit above the conversation, which was fine when there was no
- * conversation to push down. A course group is a class-sized list, and thirty
- * names between the title and the first message is thirty names nobody reads
- * twice.
- *
- * For an admin it is also where the chat is administered: promote, demote,
- * mute, unmute. Each item is offered only where `policy.ts` says the API would
- * accept it, so the menu never holds an action that answers 403 — and the
- * viewer's own row never has one at all, because acting on yourself is the
- * thing the policy refuses outright. That refusal is what keeps a group from
- * being left without an admin: nobody can demote themselves, so the only way
- * out is to promote someone else first.
- */
 export function ChatMembersDialog({
   chatId,
   members,
@@ -79,7 +63,7 @@ export function ChatMembersDialog({
         <DialogHeader>
           <DialogTitle>اعضای گفت‌وگو</DialogTitle>
           <DialogDescription>
-            هر کسی که در این فهرست است می‌تواند پیام‌های این گفت‌وگو را بخواند.
+            همه کسایی که تو این لیستن، می‌تونن پیام‌های این چت رو بخونن.
           </DialogDescription>
         </DialogHeader>
 
@@ -106,7 +90,7 @@ export function ChatMembersDialog({
                     )}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {isAdmin ? 'مدیر گفت‌وگو' : ROLE_LABELS[member.user.role]} ·{' '}
+                    {isAdmin ? 'مدیر گروه' : ROLE_LABELS[member.user.role]} ·{' '}
                     <span dir="ltr">{member.user.universityId}</span>
                   </p>
                 </div>
@@ -138,12 +122,9 @@ export function ChatMembersDialog({
                         onClick={() => change(member, { role: isAdmin ? 'MEMBER' : 'ADMIN' })}
                       >
                         {isAdmin ? <ShieldOffIcon /> : <ShieldIcon />}
-                        {isAdmin ? 'برداشتن مدیریت' : 'مدیر کردن'}
+                        {isAdmin ? 'برداشتن مدیر' : 'مدیر کردن'}
                       </DropdownMenuItem>
 
-                      {/* Absent for an admin rather than disabled: muting the
-                          moderator is not an action with a reason to explain,
-                          and the API refuses it for the same reason. */}
                       {permissions.canMuteMember(member) && (
                         <DropdownMenuItem
                           onClick={() => change(member, { isMuted: !member.isMuted })}

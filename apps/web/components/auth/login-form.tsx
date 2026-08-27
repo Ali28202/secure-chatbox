@@ -22,10 +22,6 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
   const login = useLogin();
 
   const form = useForm<LoginFormValues>({
-    // `loginFormSchema`, not `loginSchema` — the request carries a device id
-    // that no one types and the form therefore has no field for. Otherwise the
-    // same schema the API validates with, so the messages a user sees for a
-    // too-short password are identical on both sides — and already in Persian.
     resolver: zodResolver(loginFormSchema),
     defaultValues: { identifier: '', password: '' },
   });
@@ -49,13 +45,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
         <FormError message={errors.root?.message} />
 
         <Field>
-          <FieldLabel htmlFor="identifier">شناسهٔ دانشگاهی یا شمارهٔ تلفن</FieldLabel>
-          {/*
-           * `dir="ltr"` because both a student number and a phone number are
-           * digit strings and would otherwise be reordered by the surrounding
-           * RTL context; `text-end` keeps them visually aligned with the rest of
-           * the form.
-           */}
+          <FieldLabel htmlFor="identifier">شماره دانشجویی یا شمارهٔ تلفن</FieldLabel>
           <Input
             id="identifier"
             dir="ltr"

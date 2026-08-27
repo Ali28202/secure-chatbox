@@ -27,21 +27,8 @@ import { useSendMessage } from '@/hooks/use-messages';
 import { getApiErrorMessage } from '@/lib/api';
 import { getAttachmentSummary } from '@/lib/chat';
 
-/** How much of the budget must be gone before the counter is worth the space. */
 const COUNTER_THRESHOLD = 0.9 * LIMITS.messageContent.max;
 
-/**
- * Filters a new selection against everything already queued.
- *
- * Every rule here is enforced again by the API, and neither copy is redundant.
- * The server's is the one that matters — this one exists so a 40 MB video is
- * refused in the moment it is picked, rather than after it has been pushed
- * across the network to be told no.
- *
- * Rejections are collected rather than thrown on the first one: someone who
- * selects eight files at once should be told what happened to all of them, not
- * shown one complaint and left to guess at the rest.
- */
 function acceptFiles(queued: File[], incoming: File[]): { files: File[]; rejected: string[] } {
   const files = [...queued];
   const rejected: string[] = [];
@@ -52,8 +39,6 @@ function acceptFiles(queued: File[], incoming: File[]): { files: File[]; rejecte
       break;
     }
 
-    // `accept` on the input is a hint the file dialog uses, not a rule — a
-    // drag-and-drop or a "all files" override walks straight past it.
     if (!isAllowedFileType(file.type)) {
       rejected.push(`«${file.name}»: این نوع فایل پذیرفته نمی‌شود.`);
       continue;
@@ -64,8 +49,6 @@ function acceptFiles(queued: File[], incoming: File[]): { files: File[]; rejecte
       continue;
     }
 
-    // Name and size together, because picking the same file twice from two
-    // folders is a real thing to want and picking it twice from one is not.
     if (
       files.some((queuedFile) => queuedFile.name === file.name && queuedFile.size === file.size)
     ) {
@@ -78,7 +61,6 @@ function acceptFiles(queued: File[], incoming: File[]): { files: File[]; rejecte
   return { files, rejected };
 }
 
-/** One queued file, before it has been sent. */
 function AttachmentChip({ file, onRemove }: { file: File; onRemove: () => void }) {
   const Icon = isImageType(file.type) ? ImageIcon : FileTextIcon;
 
@@ -104,15 +86,6 @@ function AttachmentChip({ file, onRemove }: { file: File; onRemove: () => void }
   );
 }
 
-/**
- * The box you type in.
- *
- * `disabledReason` is Persian text rather than a boolean: a composer that is
- * simply greyed out reads as a bug, and the two reasons it can happen — the
- * chat is read-only, or you have been muted in it — are things the person
- * needs told. The API enforces both regardless; this only saves a round trip
- * to be refused.
- */
 export function MessageComposer({
   chatId,
   replyTo,
@@ -130,8 +103,6 @@ export function MessageComposer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Picking a message to answer should leave the cursor where the answer goes;
-  // otherwise every reply starts with a click the person did not ask to make.
   useEffect(() => {
     if (replyTo) textareaRef.current?.focus();
   }, [replyTo]);
@@ -152,9 +123,6 @@ export function MessageComposer({
     setFiles(next);
     for (const message of rejected) toast.error(message);
 
-    // Cleared so that picking the *same* file again still fires `change` — the
-    // event only fires when the value differs, and a file removed by mistake
-    // would otherwise be unpickable until something else was chosen first.
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
@@ -185,9 +153,6 @@ export function MessageComposer({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    // Enter sends, Shift+Enter breaks the line — the convention every messenger
-    // shares. `isComposing` guards the case where Enter is confirming a word in
-    // an input method rather than finishing a message.
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       submit();
@@ -203,7 +168,7 @@ export function MessageComposer({
       {replyTo && (
         <div className="mb-2 flex items-start gap-2 rounded-lg bg-muted px-3 py-2">
           <div className="min-w-0 flex-1 border-s-2 ps-2 text-xs">
-            <p className="font-medium">پاسخ به {replyTo.sender.name}</p>
+            <p className="font-medium">ریپلای به {replyTo.sender.name}</p>
             <p className="line-clamp-1 text-muted-foreground">
               {replyTo.content ?? getAttachmentSummary(replyTo.attachments.length)}
             </p>
@@ -212,7 +177,7 @@ export function MessageComposer({
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label="لغو پاسخ"
+            aria-label="لغو ریپلای"
             onClick={onCancelReply}
           >
             <XIcon />
@@ -232,11 +197,7 @@ export function MessageComposer({
         </ul>
       )}
 
-      <div className="flex items-end gap-2">
-        {/* Outside the label on purpose: a visually-hidden input inside a
-            styled button is the usual trick, and it puts a second focusable
-            element in the tab order that screen readers announce as unlabelled.
-            A real button that clicks a hidden input has neither problem. */}
+      <div className="flex items-center gap-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -281,8 +242,6 @@ export function MessageComposer({
           {send.isPending ? (
             <Loader2Icon className="animate-spin" />
           ) : (
-            // The arrow has to point the way the text runs, and the icon is
-            // drawn for a left-to-right page.
             <SendHorizontalIcon className="rtl:-scale-x-100" />
           )}
         </Button>

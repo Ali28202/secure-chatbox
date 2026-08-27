@@ -5,14 +5,6 @@ import { DownloadIcon, FileTextIcon } from 'lucide-react';
 import { attachmentUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
-/**
- * An image, shown in place.
- *
- * A plain `<img>`, not `next/image`: the optimizer runs on the web server,
- * which holds no session, so an authenticated URL routed through it comes back
- * 401 — see `attachmentUrl`. `loading="lazy"` covers most of what the component
- * would have bought here, since a chat renders a screen at a time.
- */
 function AttachmentImage({ attachment }: { attachment: AttachmentDto }) {
   const href = attachmentUrl(attachment.id);
 
@@ -21,9 +13,6 @@ function AttachmentImage({ attachment }: { attachment: AttachmentDto }) {
       href={href}
       target="_blank"
       rel="noreferrer"
-      // The full-size image opens in a tab rather than a lightbox. A lightbox is
-      // a modal, a focus trap and a keyboard contract; a tab is the browser's
-      // own zoom, back button and save dialog, already working.
       className="block overflow-hidden rounded-lg ring-1 ring-black/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       title={attachment.fileName}
     >
@@ -31,31 +20,16 @@ function AttachmentImage({ attachment }: { attachment: AttachmentDto }) {
         src={href}
         alt={attachment.fileName}
         loading="lazy"
-        // `bg-muted` so the space is a placeholder rather than a hole while the
-        // bytes are in flight.
         className="max-h-72 w-full bg-muted object-cover"
       />
     </a>
   );
 }
 
-/** Anything that is not an image: a row you click to download. */
 function AttachmentFile({ attachment, isOwn }: { attachment: AttachmentDto; isOwn: boolean }) {
   return (
     <a
       href={attachmentUrl(attachment.id)}
-      // A new tab, and no `download`.
-      //
-      // The API redirects into the bucket, and a signed URL cannot carry a
-      // `Content-Disposition` — the signature covers the query string, so there
-      // is nothing to add to it afterwards. `download` is ignored on a
-      // cross-origin destination for the same reason it has always been ignored
-      // here, so what the browser does is decided entirely by the type: a PDF
-      // renders, a .docx saves. Opening in a tab is what keeps the first case
-      // from navigating the chat away.
-      //
-      // The saved filename comes from the last segment of the object's key,
-      // which is why the key ends with the sanitized name.
       target="_blank"
       rel="noreferrer"
       className={cn(
@@ -79,14 +53,6 @@ function AttachmentFile({ attachment, isOwn }: { attachment: AttachmentDto; isOw
   );
 }
 
-/**
- * Everything hanging off one message.
- *
- * Images and files are separated rather than laid out in the order they were
- * attached, because they want different shapes: images tile into a grid and are
- * read at a glance, files stack into rows and are read one at a time. Mixing
- * them would give both the worse of the two layouts.
- */
 export function MessageAttachments({
   attachments,
   isOwn,
@@ -102,15 +68,7 @@ export function MessageAttachments({
   return (
     <div className="mb-1 flex flex-col gap-1.5">
       {images.length > 0 && (
-        <div
-          className={cn(
-            'grid gap-1',
-            // One image gets the full bubble width; more than one pairs up, so
-            // a set of four reads as a block rather than a column the length of
-            // the screen.
-            images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
-          )}
-        >
+        <div className={cn('grid gap-1', images.length === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
           {images.map((attachment) => (
             <AttachmentImage key={attachment.id} attachment={attachment} />
           ))}

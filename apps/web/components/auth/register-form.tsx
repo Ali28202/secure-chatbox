@@ -21,9 +21,6 @@ export function RegisterForm() {
   const router = useRouter();
   const register = useRegister();
 
-  // Typed on the schema's *input*, which is what the fields are bound to: the
-  // phone number a user types is normalised on its way through, so what the
-  // form holds and what the API receives are not the same value.
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: { name: '', universityId: '', phoneNumber: '', password: '' },
@@ -60,7 +57,7 @@ export function RegisterForm() {
         </Field>
 
         <Field>
-          <FieldLabel htmlFor="universityId">شناسهٔ دانشگاهی</FieldLabel>
+          <FieldLabel htmlFor="universityId">شماره دانشجویی</FieldLabel>
           <Input
             id="universityId"
             dir="ltr"
@@ -69,7 +66,7 @@ export function RegisterForm() {
             aria-invalid={Boolean(errors.universityId)}
             {...form.register('universityId')}
           />
-          <FieldDescription>شمارهٔ دانشجویی یا شمارهٔ کارمندی خود را وارد کنید.</FieldDescription>
+          <FieldDescription>شمارهٔ دانشجویی خود را وارد کنید</FieldDescription>
           <FieldError errors={[errors.universityId]} />
         </Field>
 
@@ -85,12 +82,8 @@ export function RegisterForm() {
             aria-invalid={Boolean(errors.phoneNumber)}
             {...form.register('phoneNumber')}
           />
-          {/*
-           * Persian digits in the hint, Latin digits accepted in the field —
-           * `normalizePhoneNumber` folds ۰۹, ٠٩, +98 and 0098 into one canonical
-           * form before it is stored, so nobody has to be told which to type.
-           */}
-          <FieldDescription>مانند {toPersianDigits('09123456789')}.</FieldDescription>
+
+          <FieldDescription>مانند {toPersianDigits('09123456789')}</FieldDescription>
           <FieldError errors={[errors.phoneNumber]} />
         </Field>
 
@@ -105,17 +98,10 @@ export function RegisterForm() {
             aria-invalid={Boolean(errors.password)}
             {...form.register('password')}
           />
-          <FieldDescription>دست‌کم {toPersianDigits(LIMITS.password.min)} نویسه.</FieldDescription>
+          <FieldDescription>دست‌کم {toPersianDigits(LIMITS.password.min)} کاراکتر</FieldDescription>
           <FieldError errors={[errors.password]} />
         </Field>
 
-        {/*
-         * No role selector, deliberately. Everyone who registers themselves is
-         * a student — a form that could mint a professor account would hand out
-         * the right to create course groups and delete other people's messages.
-         * The API's `registerSchema` has no `role` field either, so sending one
-         * by hand achieves nothing.
-         */}
         <Button type="submit" disabled={register.isPending}>
           {register.isPending && <Loader2Icon className="animate-spin" />}
           ساخت حساب کاربری
