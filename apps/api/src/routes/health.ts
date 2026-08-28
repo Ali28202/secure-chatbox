@@ -28,26 +28,21 @@ healthRoutes.get('/db', async (c) => {
   }
 });
 
-if (!isProduction) {
-  const echoSchema = z.object({
-    message: z
-      .string({ error: 'متن پیام را وارد کنید.' })
-      .trim()
-      .min(1, { error: 'پیام نمی‌تواند خالی باشد.' })
-      .max(200, { error: 'پیام نمی‌تواند بیشتر از ۲۰۰ نویسه باشد.' }),
-    repeat: z.coerce
-      .number({ error: 'تعداد تکرار باید یک عدد باشد.' })
-      .int({ error: 'تعداد تکرار باید عدد صحیح باشد.' })
-      .min(1, { error: 'تعداد تکرار باید دست‌کم ۱ باشد.' })
-      .max(5, { error: 'تعداد تکرار نمی‌تواند بیشتر از ۵ باشد.' })
-      .default(1),
-  });
+export const echoSchema = z.object({
+  message: z
+    .string({ error: 'متن پیام را وارد کنید.' })
+    .trim()
+    .min(1, { error: 'پیام نمی‌تواند خالی باشد.' })
+    .max(200, { error: 'پیام نمی‌تواند بیشتر از ۲۰۰ کاراکتر باشد.' }),
+  repeat: z.coerce
+    .number({ error: 'تعداد تکرار باید یک عدد باشد.' })
+    .int({ error: 'تعداد تکرار باید عدد صحیح باشد.' })
+    .min(1, { error: 'تعداد تکرار باید دست‌کم ۱ باشد.' })
+    .max(5, { error: 'تعداد تکرار نمی‌تواند بیشتر از ۵ باشد.' })
+    .default(1),
+});
 
-  /**
-   * Exercises the whole request path — validator, error envelope, Persian
-   * messages — without needing a real feature to exist yet. Development only;
-   * an endpoint that reflects its input has no business in production.
-   */
+if (!isProduction) {
   healthRoutes.post('/echo', zValidator('json', echoSchema, onValidationError), (c) => {
     const { message, repeat } = c.req.valid('json');
     return c.json({ echoed: Array.from({ length: repeat }, () => message) });
