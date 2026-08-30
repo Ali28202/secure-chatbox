@@ -38,7 +38,7 @@ export const addMemberSchema = z.object({
 export const updateChatSchema = z
   .object({
     title: chatTitleSchema.optional(),
-    isReadOnly: z.boolean({ error: 'مقدار فقط‌خواندنی باید درست یا نادرست باشد.' }).optional(),
+    isReadOnly: z.boolean().optional(),
   })
   .refine((input) => input.title !== undefined || input.isReadOnly !== undefined, {
     error: 'تغییری برای اعمال مشخص نشده است.',
@@ -47,7 +47,7 @@ export const updateChatSchema = z
 export const updateMemberSchema = z
   .object({
     role: z.enum(CHAT_ROLES, { error: 'نقش انتخاب‌شده معتبر نیست.' }).optional(),
-    isMuted: z.boolean({ error: 'مقدار بی‌صدا باید درست یا نادرست باشد.' }).optional(),
+    isMuted: z.boolean().optional(),
   })
   .refine((input) => input.role !== undefined || input.isMuted !== undefined, {
     error: 'تغییری برای اعمال مشخص نشده است.',

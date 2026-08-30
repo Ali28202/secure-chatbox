@@ -1,35 +1,18 @@
 name: CI
 
-# Every pull request, from the moment it opens and again on each push to its
-# branch — plus `main` itself, so a merge or a direct commit is checked too.
-#
-# Pull requests rather than every branch push on purpose: a branch you are still
-# rebasing does not need a runner, and once it becomes a pull request every
-# subsequent push is covered anyway. (`pull_request` fires on `opened`,
-# `synchronize` and `reopened` by default.) To check every push instead, drop
-# the `branches` filter below.
 on:
   pull_request:
   push:
     branches: [main]
 
-# One run per branch. Pushing a fix should cancel the run for the commit it
-# replaces rather than queue behind it — the older result is about code that no
-# longer exists.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# Read-only. Nothing here comments, pushes or deploys.
 permissions:
   contents: read
 
 jobs:
-  # Three separate jobs rather than one sequence of steps, so they run at the
-  # same time and a pull request gets three independent verdicts. A type error
-  # and a failing test are different problems, and finding both in one run is
-  # faster than finding the second one tomorrow.
-
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -41,10 +24,6 @@ jobs:
       - name: Lint the workspaces
         run: bun run lint
 
-      # `turbo run lint` above visits the four workspaces, and the end-to-end
-      # suite is not one of them — it is a directory at the root that cannot
-      # declare workspace dependencies under Bun's isolated linker. Without this
-      # line the tests would be the only unlinted TypeScript in the repository.
       - name: Lint the end-to-end suite
         run: bun run lint:e2e
 
@@ -59,9 +38,6 @@ jobs:
       - name: Typecheck the workspaces
         run: bun run typecheck
 
-      # Same reason as the lint job, and with its own tsconfig: the suite is
-      # compiled with the DOM lib because the callbacks it hands to
-      # `page.evaluate` run in the browser.
       - name: Typecheck the end-to-end suite
         run: bun run typecheck:e2e
 
@@ -72,10 +48,6 @@ jobs:
 
     services:
       postgres:
-        # The same image and the same credentials as compose.yml and
-        # .env.example, because the suite creates its own `chatbox_e2e` database
-        # on this server exactly as it does on a developer's machine. If those
-        # credentials ever change, this fails at the first connection.
         image: postgres:18-alpine
         env:
           POSTGRES_USER: chatbox
@@ -83,10 +55,6 @@ jobs:
           POSTGRES_DB: chatbox
         ports:
           - 5432:5432
-        # The suite runs on the runner, not in a container, so the job must not
-        # start until Postgres is actually accepting connections on the mapped
-        # port. `pg_isready` alone is enough — it checks that the server answers,
-        # which is the only question at this point.
         options: >-
           --health-cmd pg_isready
           --health-interval 5s
@@ -97,18 +65,6 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
 
-      # A bucket for the attachment specs, which really upload files.
-      #
-      # A step rather than a `services:` entry, because this image needs a
-      # command — `minio server /data` — and a service container can only set
-      # `options`, never the command. The directory made first *is* the bucket:
-      # MinIO reads the top level of its data directory as the bucket list, so
-      # pre-creating it saves pulling a second image just to run `mc mb`.
-      #
-      # Deliberately not part of the platform. Nothing in compose.yml or
-      # compose.prod.yml starts an object store — production points at a real
-      # bucket through S3_* environment variables and so does this, which is why
-      # the suite can be pointed at one instead by setting E2E_S3_*.
       - name: Start a bucket
         run: |
           docker run -d --name chatbox-ci-s3 -p 9000:9000 \
@@ -121,21 +77,12 @@ jobs:
           done
           echo 'MinIO never became healthy'; docker logs chatbox-ci-s3; exit 1
 
-      # Chromium only: playwright.config.ts defines one project. `--with-deps`
-      # installs the system libraries a headless browser needs, which a bare
-      # runner does not have.
       - name: Install Chromium
         run: ./node_modules/.bin/playwright install --with-deps chromium
 
-      # Migrations, the test database, both servers and the browser — the suite
-      # brings all of it up itself. The only things it cannot provide are the
-      # Postgres above and the bucket.
       - name: Run the end-to-end suite
         run: bun run test:e2e
 
-      # The difference between "a test failed on CI" and knowing which click it
-      # died on. Traces and screenshots are recorded only for failures, so this
-      # is small and only ever uploaded when there is something to look at.
       - name: Upload the report
         if: failure()
         uses: actions/upload-artifact@v7

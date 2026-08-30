@@ -8,9 +8,6 @@ description: >
 runs:
   using: composite
   steps:
-    # No version pinned on purpose. Given none, the action reads the
-    # `packageManager` field from package.json, so the runner installs exactly
-    # the Bun this repository declares and the two cannot drift apart.
     - name: Install Bun
       uses: oven-sh/setup-bun@v2
 
@@ -19,25 +16,12 @@ runs:
       with:
         path: ~/.bun/install/cache
         key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-        # A lockfile change invalidates the key but most of the packages in it
-        # are still the same ones, so a stale cache is worth far more than none.
         restore-keys: bun-${{ runner.os }}-
 
-    # `--frozen-lockfile`: install what bun.lock says, and fail if a manifest
-    # has moved on without it. A run that quietly resolved a different tree
-    # would be testing something nobody has on their machine.
     - name: Install dependencies
       shell: bash
       run: bun install --frozen-lockfile
 
-    # .env.example is the documented configuration, so CI runs against it rather
-    # than against a private copy kept in this file — which also means the
-    # example is exercised on every pull request instead of quietly rotting.
-    #
-    # The two JWT secrets are the exception. They are deliberately placeholders
-    # in a committed file, and `src/env.ts` refuses to start unless they are at
-    # least 32 characters and different from each other, so they are generated
-    # here. Fresh per run: nothing in CI outlives the job that made it.
     - name: Write the environment file
       shell: bash
       run: |
@@ -47,10 +31,6 @@ runs:
           echo "JWT_REFRESH_SECRET=$(openssl rand -base64 48)"
         } >> .env
 
-    # The generated client is a build product and is not committed, so it has to
-    # be produced here. It costs a couple of seconds, and doing it for every job
-    # saves each one from having to know whether its command happens to import
-    # `@repo/database` somewhere down the tree.
     - name: Generate the Prisma client
       shell: bash
       run: bun --filter='@repo/database' db:generate

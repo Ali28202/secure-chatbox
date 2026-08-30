@@ -1,12 +1,3 @@
-/**
- * The contract between `apps/api` and `apps/web`.
- *
- * Everything here is runtime-agnostic — no Prisma, no Hono, no React — so both
- * sides can import it without pulling the other's dependencies along.
- */
-
-// Side-effect import: puts Zod's built-in messages into Persian before any
-// schema below is ever parsed. Must stay first.
 import './locale';
 
 export * from './constants';
@@ -22,6 +13,4 @@ export * from './schemas/user';
 
 export * from './types/api';
 export type * from './types/dto';
-// `export *`, not `export type *` — the socket module carries runtime values
-// (`SOCKET_PATH`, `socketRooms`) alongside its event maps.
 export * from './types/socket';

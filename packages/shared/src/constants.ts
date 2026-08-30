@@ -1,13 +1,3 @@
-/**
- * Values the API and the web client both need to agree on.
- *
- * The role/type unions below deliberately duplicate the Prisma enums rather
- * than importing them: `@repo/database` must never become a dependency of
- * `apps/web`, or Prisma's WASM ends up in the Turbopack graph. The duplication
- * is kept honest by `apps/api/src/lib/enum-parity.ts`, which fails typecheck
- * if the two definitions ever drift apart.
- */
-
 export const GLOBAL_ROLES = ['STUDENT', 'PROFESSOR', 'ADMIN'] as const;
 export type GlobalRole = (typeof GLOBAL_ROLES)[number];
 

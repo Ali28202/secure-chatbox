@@ -32,7 +32,7 @@ export const markReadSchema = z.object({
 });
 
 export const pinMessageSchema = z.object({
-  isPinned: z.boolean({ error: 'پیام پین‌ باید درست یا نادرست باشد.' }),
+  isPinned: z.boolean(),
 });
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;

@@ -1,44 +1,9 @@
 import { prisma, type ChatRole, type ChatType, type GlobalRole } from '../src/index.ts';
 
-/**
- * Development seed — a small university's worth of data, so that opening the app
- * on a fresh database shows a working platform instead of an empty sidebar.
- *
- * It covers every table the application writes except `attachments`, and the
- * exception is deliberate: attachment rows are pointers into an S3 bucket, and a
- * row whose object does not exist is worse than no row at all — the file appears
- * in the conversation and fails when anyone clicks it. Send one through the UI
- * to get a real pair.
- *
- * Idempotent, and that is what the fixed ids below are for. Users are keyed by
- * `universityId`, everything else by an id written into this file, so running it
- * a second time updates the same rows rather than producing a second copy of the
- * whole roster. Re-seeding is therefore a way to *reset* the demo data to a known
- * state — a message you deleted while testing comes back.
- *
- * Two things are never overwritten: `passwordHash`, so re-seeding does not reset
- * a password someone changed, and `createdAt` on messages, so the conversation
- * keeps the shape it was first given instead of collapsing to "all sent now".
- */
-
-/**
- * Shared by every seeded account. This is the entire reason the script refuses
- * to run with NODE_ENV=production below — a known password on a real professor
- * account is worse than no seed at all.
- */
 const DEV_PASSWORD = 'Chatbox@1404';
-
-// ---------------------------------------------------------------------------
-// Users
-// ---------------------------------------------------------------------------
 
 interface SeedUser {
   universityId: string;
-  /**
-   * The other way in. Stored in the canonical `09…` form these literals are
-   * already written in — `normalizePhoneNumber` in `@repo/shared` is what puts
-   * anything a person types into this shape before it is looked up.
-   */
   phoneNumber: string;
   name: string;
   role: GlobalRole;
@@ -66,18 +31,6 @@ const USERS: SeedUser[] = [
   { universityId: '40012304', phoneNumber: '09351230004', name: 'نگین صادقی', role: 'STUDENT' },
 ];
 
-// ---------------------------------------------------------------------------
-// Chats
-// ---------------------------------------------------------------------------
-
-/**
- * Fixed ids, not `uuid(7)` defaults.
- *
- * The id column is TEXT, so any stable string would do; these keep the UUIDv7
- * shape so seeded rows sort beside generated ones instead of ahead of or behind
- * every one of them. The readable tail is what makes a row recognisable in
- * Studio or in a psql session.
- */
 const CHAT_IDS = {
   netSecurity: '01990000-0000-7000-8000-00000000c001',
   databases: '01990000-0000-7000-8000-00000000c002',
@@ -88,7 +41,6 @@ const CHAT_IDS = {
 } as const;
 
 interface SeedMember {
-  /** A `universityId` from USERS above. */
   user: string;
   role?: ChatRole;
   isMuted?: boolean;
@@ -96,25 +48,13 @@ interface SeedMember {
 
 interface SeedChat {
   id: string;
-  /** Null for DIRECT chats, whose title is derived from the other member. */
   title: string | null;
   type: ChatType;
   isReadOnly?: boolean;
-  /** A `universityId`. Must also appear in `members` — the API always adds it. */
   creator: string;
   members: SeedMember[];
 }
 
-/**
- * Six conversations chosen to cover the shapes the UI has to draw, not just to
- * fill the sidebar: a normal course group, a muted member, a read-only
- * announcement channel, a student-run group, and two direct chats.
- *
- * Every one of them satisfies `canCreateChat` in @repo/shared — COURSE_GROUPs
- * are created by faculty, and the creator is an ADMIN of their own chat. Seeding
- * a row the policy would have refused would mean testing against a state the
- * application cannot produce.
- */
 const CHATS: SeedChat[] = [
   {
     id: CHAT_IDS.netSecurity,
@@ -126,8 +66,6 @@ const CHATS: SeedChat[] = [
       { user: '40012301' },
       { user: '40012302' },
       { user: '40012303' },
-      // Muted, so the disabled composer and its explanation are visible without
-      // anyone having to set it up by hand. Log in as نگین صادقی to see it.
       { user: '40012304', isMuted: true },
     ],
   },
@@ -147,8 +85,6 @@ const CHATS: SeedChat[] = [
     id: CHAT_IDS.announcements,
     title: 'اطلاعیه‌های دانشکده',
     type: 'COURSE_GROUP',
-    // Only chat ADMINs may write here. The two professors are admins so they can
-    // post; the students read.
     isReadOnly: true,
     creator: 'admin',
     members: [
@@ -164,8 +100,6 @@ const CHATS: SeedChat[] = [
   {
     id: CHAT_IDS.finalProject,
     title: 'پروژهٔ پایانی — گروه ۳',
-    // A student organising their own group is the platform working as intended;
-    // `canCreateChat` only restricts COURSE_GROUP.
     type: 'CUSTOM_GROUP',
     creator: '40012301',
     members: [{ user: '40012301', role: 'ADMIN' }, { user: '40012302' }, { user: '40012303' }],
@@ -175,8 +109,6 @@ const CHATS: SeedChat[] = [
     title: null,
     type: 'DIRECT',
     creator: '40012301',
-    // Both ADMIN, matching `createDirectChat`: there is no hierarchy in a
-    // conversation between two people, and no member to administer.
     members: [
       { user: '40012301', role: 'ADMIN' },
       { user: '900101', role: 'ADMIN' },
@@ -193,32 +125,16 @@ const CHATS: SeedChat[] = [
     ],
   },
 ];
-
-// ---------------------------------------------------------------------------
-// Messages
-// ---------------------------------------------------------------------------
-
 interface SeedMessage {
   id: string;
-  /** A value from CHAT_IDS. */
   chat: string;
-  /** A `universityId`. Must be a member of `chat`, and able to write in it. */
   sender: string;
-  /** Null only on a soft-deleted message, which keeps its row for reply chains. */
   content: string | null;
-  /** Written into `createdAt` on insert only, so re-seeding does not reshuffle. */
   minutesAgo: number;
-  /** An id from earlier in this list. Order matters: the target must exist. */
   replyTo?: string;
   isPinned?: boolean;
   isEdited?: boolean;
   isDeleted?: boolean;
-  /**
-   * `universityId`s that have read it. Everyone else in the chat gets a
-   * DELIVERED receipt, which is what puts an unread badge on the sidebar — so
-   * leaving the most recent messages out of this list is what makes the badges
-   * appear at all.
-   */
   readBy?: string[];
 }
 
@@ -226,12 +142,7 @@ const MESSAGE_ID = (n: number): string => `01990000-0000-7000-8000-${String(n).p
 
 const DAY = 60 * 24;
 
-/**
- * Ordered oldest first, and a reply always follows what it replies to — the
- * upserts run in this order and `reply_to_id` is a foreign key.
- */
 const MESSAGES: SeedMessage[] = [
-  // --- امنیت شبکه ---------------------------------------------------------
   {
     id: MESSAGE_ID(101),
     chat: CHAT_IDS.netSecurity,
@@ -265,7 +176,6 @@ const MESSAGES: SeedMessage[] = [
     content: 'بله، ویرایش هشتم. فصل‌های ۱ تا ۴ برای میان‌ترم کافی است.',
     minutesAgo: 3 * DAY - 45,
     replyTo: MESSAGE_ID(103),
-    // Edited, so the «ویرایش‌شده» marker has something to render.
     isEdited: true,
     readBy: ['40012301', '40012302'],
   },
@@ -273,8 +183,6 @@ const MESSAGES: SeedMessage[] = [
     id: MESSAGE_ID(105),
     chat: CHAT_IDS.netSecurity,
     sender: '40012303',
-    // Soft-deleted: the row survives so that anything replying to it still has a
-    // target, and the UI shows «این پیام حذف شده است» in its place.
     content: null,
     isDeleted: true,
     minutesAgo: 2 * DAY,
@@ -285,10 +193,7 @@ const MESSAGES: SeedMessage[] = [
     sender: '900101',
     content: 'تمرین اول بارگذاری شد. مهلت ارسال تا پایان همین هفته است.',
     minutesAgo: 90,
-    // Nobody has read this one — every student gets an unread badge.
   },
-
-  // --- پایگاه داده --------------------------------------------------------
   {
     id: MESSAGE_ID(201),
     chat: CHAT_IDS.databases,
@@ -315,8 +220,6 @@ const MESSAGES: SeedMessage[] = [
     replyTo: MESSAGE_ID(202),
     readBy: ['40012302'],
   },
-
-  // --- اطلاعیه‌های دانشکده (فقط‌خواندنی) ----------------------------------
   {
     id: MESSAGE_ID(301),
     chat: CHAT_IDS.announcements,
@@ -334,8 +237,6 @@ const MESSAGES: SeedMessage[] = [
     minutesAgo: 26 * 60,
     readBy: ['40012301'],
   },
-
-  // --- پروژهٔ پایانی ------------------------------------------------------
   {
     id: MESSAGE_ID(401),
     chat: CHAT_IDS.finalProject,
@@ -360,8 +261,6 @@ const MESSAGES: SeedMessage[] = [
     content: 'منم بخش تست‌ها را برمی‌دارم.',
     minutesAgo: 40,
   },
-
-  // --- گفت‌وگوی مستقیم: علی ↔ دکتر آقایی ----------------------------------
   {
     id: MESSAGE_ID(501),
     chat: CHAT_IDS.aliToProfessor,
@@ -378,8 +277,6 @@ const MESSAGES: SeedMessage[] = [
     minutesAgo: 7 * 60,
     replyTo: MESSAGE_ID(501),
   },
-
-  // --- گفت‌وگوی مستقیم: سارا ↔ محمد ---------------------------------------
   {
     id: MESSAGE_ID(601),
     chat: CHAT_IDS.saraToMohammad,
@@ -398,10 +295,6 @@ const MESSAGES: SeedMessage[] = [
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Seeding
-// ---------------------------------------------------------------------------
-
 function minutesAgo(minutes: number): Date {
   return new Date(Date.now() - minutes * 60_000);
 }
@@ -413,9 +306,6 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Hashed once and shared across the rows. They all carry the same password,
-  // so identical hashes give away nothing that the constant above doesn't —
-  // and it saves ~50ms of argon2id per account. Real accounts never do this.
   const passwordHash = await Bun.password.hash(DEV_PASSWORD, 'argon2id');
 
   const userIds = new Map<string, string>();
@@ -423,9 +313,6 @@ async function main(): Promise<void> {
   for (const user of USERS) {
     const { id } = await prisma.user.upsert({
       where: { universityId: user.universityId },
-      // `deviceId` is deliberately not touched. Re-seeding is something you do
-      // while the app is open in a browser, and resetting it there would sign
-      // yourself out of the session you are testing with.
       update: {
         name: user.name,
         role: user.role,
@@ -439,15 +326,12 @@ async function main(): Promise<void> {
     userIds.set(user.universityId, id);
   }
 
-  /** A seeded user's real id, or a loud failure — a typo above must not pass. */
   const idOf = (universityId: string): string => {
     const id = userIds.get(universityId);
     if (!id) throw new Error(`seed: no user with universityId "${universityId}"`);
     return id;
   };
 
-  // Members are needed twice — once to write `chat_members`, once to work out
-  // who each message needs a receipt for — so the roster is kept as it is built.
   const membersOf = new Map<string, string[]>();
 
   for (const chat of CHATS) {
@@ -499,8 +383,6 @@ async function main(): Promise<void> {
       }
     }
 
-    // `createdAt` is set on insert only. Re-seeding an existing conversation
-    // must not slide every message forward to the moment of the re-run.
     const data = {
       content: message.content,
       isPinned: message.isPinned ?? false,
@@ -522,9 +404,6 @@ async function main(): Promise<void> {
       select: { id: true },
     });
 
-    // One receipt per member except the author, exactly as `createDeliveredReceipts`
-    // writes them: writing your own message is not reading it, and a row for the
-    // author would need clearing on every send.
     for (const member of members) {
       if (member === message.sender) continue;
 
@@ -540,9 +419,6 @@ async function main(): Promise<void> {
     }
   }
 
-  // Read back rather than computed from `minutesAgo`, so the denormalized column
-  // agrees with the rows that are actually in the table — including on a re-run,
-  // where the messages kept their original timestamps.
   const latest = await prisma.message.groupBy({
     by: ['chatId'],
     where: { chatId: { in: CHATS.map((chat) => chat.id) } },

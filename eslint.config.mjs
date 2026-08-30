@@ -8,7 +8,6 @@ export default tseslint.config(
   eslintPluginPrettierRecommended,
 
   {
-    // اعمال قوانین روی تمام فایل‌های تی‌اس و جی‌اس پروژه بدون درگیری با ری‌اکت
     files: ['**/*.{ts,tsx,js,jsx}'],
     rules: {
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
@@ -17,14 +16,11 @@ export default tseslint.config(
     },
   },
   {
-    // الگوها با **/ شروع می‌شوند تا هم از ریشه و هم از داخل هر پکیج کار کنند
     ignores: [
       '**/.next/**',
       '**/dist/**',
       '**/node_modules/**',
-      // خروجی تولیدشدهٔ پریزما — دست‌نویس نیست و خودش ts-nocheck دارد
       '**/generated/**',
-      // این فایل را خود Next در هر بیلد بازتولید می‌کند
       '**/next-env.d.ts',
       '**/*.config.ts',
       '**/*.config.js',

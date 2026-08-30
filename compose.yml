@@ -12,9 +12,6 @@ services:
     ports:
       - '${POSTGRES_PORT:-5432}:5432'
     volumes:
-      # Postgres 18 moved PGDATA to /var/lib/postgresql/18/docker and declares
-      # its VOLUME at /var/lib/postgresql. Mounting the old .../data path here
-      # would silently fail to persist anything.
       - db-data:/var/lib/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
@@ -23,11 +20,6 @@ services:
       retries: 10
       start_period: 10s
 
-  # Creates Metabase's own database and the read-only role it reads this
-  # platform's data as, then exits. See infra/metabase/init.sql — it is
-  # idempotent, so it runs on every `up` and does nothing on most of them.
-  #
-  # The postgres image purely for its psql client; nothing is served here.
   metabase-init:
     image: postgres:18-alpine
     container_name: chatbox-metabase-init
@@ -35,9 +27,6 @@ services:
       PGHOST: db
       PGUSER: ${POSTGRES_USER:-chatbox}
       PGPASSWORD: ${POSTGRES_PASSWORD:-chatbox_dev_pw}
-      # The maintenance database, because CREATE DATABASE cannot be run from
-      # inside the database being created and must not be run from the one
-      # holding the application's data either.
       PGDATABASE: postgres
     volumes:
       - ./infra/metabase/init.sql:/init.sql:ro
@@ -53,22 +42,11 @@ services:
         condition: service_healthy
     restart: 'no'
 
-  # Analytics over the platform's data: message volume per course group, active
-  # accounts per week, whatever a dashboard is asked for. It reads the same
-  # Postgres the application writes to — through `metabase_ro`, which cannot see
-  # message bodies or password hashes — and keeps its own questions and
-  # dashboards in a database of its own.
-  #
-  # Not part of the application. Nothing in apps/ knows this exists, and the
-  # platform runs identically without it.
   metabase:
     image: metabase/metabase:v0.63.13
     container_name: chatbox-metabase
     restart: unless-stopped
     environment:
-      # Postgres rather than the default embedded H2 file, which Metabase's own
-      # documentation warns against: H2 corrupts under concurrent access and
-      # takes every saved dashboard with it when it does.
       MB_DB_TYPE: postgres
       MB_DB_HOST: db
       MB_DB_PORT: 5432
@@ -76,20 +54,10 @@ services:
       MB_DB_USER: ${POSTGRES_USER:-chatbox}
       MB_DB_PASS: ${POSTGRES_PASSWORD:-chatbox_dev_pw}
 
-      # Metabase stores the credentials of every database it connects to. This
-      # key encrypts them at rest. Losing or changing it does not lock you out
-      # of Metabase — it makes the saved connections unreadable, and they have
-      # to be entered again.
       MB_ENCRYPTION_SECRET_KEY: ${METABASE_ENCRYPTION_KEY:-chatbox_dev_metabase_key_change_me}
 
-      # A JVM left to itself sizes its heap from the *host's* memory, which on a
-      # developer's laptop can mean several gigabytes reserved for a tab nobody
-      # has open.
       JAVA_OPTS: ${METABASE_JAVA_OPTS:--Xmx1g}
     ports:
-      # Clear of the web app on 3000 and the API on 3001, and the same host port
-      # compose.prod.yml puts it on, so the address does not move between the
-      # machine you develop on and the server.
       - '${METABASE_PORT:-8080}:3000'
     depends_on:
       db:
@@ -101,9 +69,6 @@ services:
       interval: 15s
       timeout: 5s
       retries: 12
-      # Metabase migrates its own application database on first boot and takes
-      # the better part of a minute about it. Anything shorter reports it
-      # unhealthy while it is doing exactly what it should.
       start_period: 90s
 
 volumes:
