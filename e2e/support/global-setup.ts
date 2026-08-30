@@ -14,15 +14,6 @@ import {
   s3ClientConfig,
 } from './env';
 
-/**
- * Everything that has to be true before the first test, done once.
- *
- * Note the ordering Playwright imposes: web servers are plugins, and plugin
- * setup runs *before* this file. So the API is already listening by the time
- * the database is created here. That is fine, and it is why the readiness probe
- * is `/api/health` rather than `/api/health/db` — the API touches Postgres
- * lazily, on its first query, which is after this has finished.
- */
 export default async function globalSetup(): Promise<void> {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
 
@@ -45,19 +36,6 @@ async function createDatabase(): Promise<void> {
   }
 }
 
-/**
- * `migrate deploy`, not `migrate dev`.
- *
- * `deploy` applies the committed migrations and nothing else. `dev` would
- * compare the schema against the database and offer to generate a new
- * migration, which is a prompt in the middle of a test run at best and a
- * migration file nobody meant to write at worst.
- *
- * `DATABASE_URL` is passed in the child's environment on purpose: dotenv, which
- * `prisma.config.ts` uses to load the root `.env`, does not overwrite a
- * variable that is already set. Ours therefore wins, and the suite cannot
- * migrate the development database by accident.
- */
 function migrate(): void {
   execFileSync('bun', ['run', 'db:deploy'], {
     cwd: join(ROOT_DIR, 'packages/database'),
@@ -66,23 +44,6 @@ function migrate(): void {
   });
 }
 
-/**
- * Proves the bucket is there, and leaves it empty.
- *
- * Objects from the previous run are stale the moment the tables are truncated:
- * the rows that named them are gone. Clearing them keeps a failure that leaves
- * a file behind from being invisible in the next run.
- *
- * Run through Bun for the same reason `writePasswordHash` is: `Bun.S3Client` is
- * a runtime built-in and Playwright is on Node. It also means the suite signs
- * with exactly the client the API signs with, rather than a second
- * implementation that might disagree about something subtle.
- *
- * The failure message matters more than the code here. Nothing in this
- * repository starts an object store — that is a deliberate property of the
- * platform — so a developer who has never needed one has no reason to guess
- * that the attachment specs want a bucket.
- */
 function emptyBucket(): void {
   const script = `
     const client = new Bun.S3Client(${JSON.stringify(s3ClientConfig())});
@@ -113,14 +74,6 @@ function emptyBucket(): void {
   }
 }
 
-/**
- * One argon2id hash of the shared test password, cached for the workers.
- *
- * Produced by Bun because `Bun.password` is what the API verifies against, and
- * Playwright runs on Node where it does not exist. Hashing is deliberately slow
- * — a second or so — which is exactly why it happens once here instead of on
- * every `createAccount` call.
- */
 function writePasswordHash(): void {
   const hash = execFileSync(
     'bun',

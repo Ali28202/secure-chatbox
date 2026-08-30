@@ -2,13 +2,8 @@ import { COOKIE_NAMES, FILE_ACCEPT, REFRESH_COOKIE_PATH, UPLOAD } from '@repo/sh
 import { isProduction } from '../env';
 import { buildComponentSchemas, queryParameters, ref, type SchemaName } from './schemas';
 
-// -----------------------------------------------------------------------------
-// Response helpers
-// -----------------------------------------------------------------------------
-
 type Content = Record<string, unknown>;
 
-/** A JSON response body, by component name. */
 const json = (description: string, schema: SchemaName | { $ref: string }): Content => ({
   description,
   content: {
@@ -16,7 +11,6 @@ const json = (description: string, schema: SchemaName | { $ref: string }): Conte
   },
 });
 
-/** An array of a component, which OpenAPI has no shorthand for. */
 const jsonArray = (description: string, schema: SchemaName): Content => ({
   description,
   content: { 'application/json': { schema: { type: 'array', items: ref(schema) } } },
@@ -44,10 +38,6 @@ const CHAT_SCOPE_ERRORS = {
   ),
 } as const;
 
-// -----------------------------------------------------------------------------
-// Parameters
-// -----------------------------------------------------------------------------
-
 const pathParam = (name: string, description: string) => ({
   name,
   in: 'path',
@@ -59,7 +49,6 @@ const pathParam = (name: string, description: string) => ({
 const CHAT_ID_PARAM = pathParam('chatId', 'The conversation.');
 const MESSAGE_ID_PARAM = pathParam('messageId', 'A message in this conversation.');
 
-/** Names, types and bounds come from the schema itself; only the prose is ours. */
 const PAGINATION_PARAMS = queryParameters('ListMessagesQuery', {
   before: 'Cursor: return the page of messages older than this id. Omit for the newest page.',
   limit: 'How many messages to return.',
@@ -69,10 +58,6 @@ const USER_SEARCH_PARAMS = queryParameters('UserSearchQuery', {
   search: 'Matches name or university id. Omit to list the directory.',
   limit: 'Maximum number of results.',
 });
-
-// -----------------------------------------------------------------------------
-// Paths
-// -----------------------------------------------------------------------------
 
 const paths: Record<string, Record<string, unknown>> = {
   '/': {
@@ -507,11 +492,6 @@ The redirect is sent with \`Cache-Control: no-store\`: a cached one would outliv
   },
 };
 
-/**
- * Development only, and described only where it exists. An endpoint that
- * reflects its input has no business in production, and neither has a reference
- * page that claims it is there.
- */
 if (!isProduction) {
   paths['/api/health/echo'] = {
     post: {
@@ -533,10 +513,6 @@ if (!isProduction) {
   };
 }
 
-// -----------------------------------------------------------------------------
-// The document
-// -----------------------------------------------------------------------------
-
 export function buildOpenApiDocument(): Record<string, unknown> {
   return {
     openapi: '3.1.0',
@@ -545,13 +521,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       version: '1.0.0',
       description: `The HTTP surface of Secure Chatbox — a messaging platform for a university intranet.
 
-**Authentication is by cookie.** \`POST /api/auth/login\` sets an httpOnly \`${COOKIE_NAMES.access}\`, and the browser sends it with every subsequent request; there is no bearer token to paste. If you are signed in to the web client on this origin, the *Test Request* button below will work as you are.
-
-**Only errors are wrapped.** A successful response is its payload, directly. A failure is always \`{ error: { code, message } }\` — \`code\` is stable and English and safe to branch on, \`message\` is Persian and ready to display.
-
-**Realtime is not described here.** Message delivery, typing indicators and receipts arrive over a Socket.IO connection at \`/socket.io\`, authenticated by the same cookie. OpenAPI has no vocabulary for it; see the platform documentation in \`docs/\`.
-
-**The whole API is IP-restricted** to the ranges in \`ALLOWED_IP_RANGES\`. A caller from outside the university network is refused before any of this is reachable.`,
+**Authentication is by cookie.** \`POST /api/auth/login\` sets an httpOnly \`${COOKIE_NAMES.access}\`, and the browser sends it with every subsequent request; there is no bearer token to paste. If you are signed in to the web client on this origin, the *Test Request* button below will work as you are.`,
     },
     servers: [{ url: '/', description: 'This server' }],
     tags: [
@@ -584,10 +554,6 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     },
   };
 }
-
-// -----------------------------------------------------------------------------
-// Drift guard
-// -----------------------------------------------------------------------------
 
 interface RegisteredRoute {
   path: string;

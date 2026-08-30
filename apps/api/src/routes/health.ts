@@ -8,18 +8,14 @@ import { onValidationError } from '../lib/validation';
 
 export const healthRoutes = new Hono();
 
-/** Liveness — the process is up. Says nothing about the database. */
 healthRoutes.get('/', (c) => c.json({ status: 'ok', uptime: process.uptime() }));
 
-/** Readiness — the database is reachable and migrated. */
 healthRoutes.get('/db', async (c) => {
   try {
     const users = await prisma.user.count();
     return c.json({ db: 'ok', users });
   } catch (error) {
     console.error('[health/db] database unreachable:', error);
-    // 503, not 500: the service is fine, its dependency is not. Orchestrators
-    // and load balancers treat the two differently.
     throw new AppError(
       503,
       'INTERNAL_ERROR',

@@ -11,20 +11,6 @@ import type {
   ReceiptStatus as SharedReceiptStatus,
 } from '@repo/shared';
 
-/**
- * `@repo/shared` re-declares the Prisma enums as plain string unions, because
- * `apps/web` must never import `@repo/database`. This file is the seam where
- * both are visible at once, and it fails typecheck the moment they disagree.
- *
- * Nothing imports it — `tsc` checks every file under `src/`, so a drift shows
- * up as a build error the next time anyone runs `bun run typecheck`, which is
- * the only place this check could live without dragging Prisma somewhere it
- * does not belong.
- *
- * Nothing here survives compilation; these are types only.
- */
-
-/** `false` rather than `never` on mismatch — `never extends true` would pass. */
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 
 type Assert<T extends true> = T;

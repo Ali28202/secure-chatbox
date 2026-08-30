@@ -11,13 +11,6 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type * as z from 'zod';
 import { isProduction } from '../env';
 
-/**
- * An error that is safe to show a user.
- *
- * Anything thrown that is *not* an AppError is treated as a bug: it gets
- * logged in full and reported as a generic 500, so a stack trace or a database
- * constraint name can never reach the browser.
- */
 export class AppError extends Error {
   readonly status: ContentfulStatusCode;
   readonly code: ErrorCode;
@@ -47,21 +40,10 @@ export class AppError extends Error {
   }
 }
 
-/**
- * Constructors for the errors routes actually throw. Each takes an optional
- * message so a route can be specific ("این گفت‌وگو خوانده‌شدنی است") while
- * still defaulting to the shared Persian text.
- */
 export const Errors = {
   validation: (details: FieldIssue[], message?: string) =>
     new AppError(422, ERROR_CODES.VALIDATION_ERROR, message, details),
   unauthorized: (message?: string) => new AppError(401, ERROR_CODES.UNAUTHORIZED, message),
-  /**
-   * Also a 401 — the session is over either way and the status is what every
-   * HTTP client keys off. Only the code differs, so the browser can tell "your
-   * token aged out, refresh it" from "you are signed in somewhere else, and
-   * refreshing will fail for the same reason".
-   */
   deviceMismatch: (message?: string) => new AppError(401, ERROR_CODES.DEVICE_MISMATCH, message),
   forbidden: (message?: string) => new AppError(403, ERROR_CODES.FORBIDDEN, message),
   notFound: (message?: string) => new AppError(404, ERROR_CODES.NOT_FOUND, message),
@@ -71,7 +53,6 @@ export const Errors = {
   internal: (message?: string) => new AppError(500, ERROR_CODES.INTERNAL_ERROR, message),
 };
 
-/** Flattens Zod issues into the `details` array the web forms read. */
 export function toFieldIssues(issues: readonly z.core.$ZodIssue[]): FieldIssue[] {
   return issues.map((issue) => ({
     path: issue.path.map(String).join('.'),
@@ -79,9 +60,6 @@ export function toFieldIssues(issues: readonly z.core.$ZodIssue[]): FieldIssue[]
   }));
 }
 
-// Only for errors raised outside our own type, which never carry a device
-// verdict — `DEVICE_MISMATCH` is deliberately absent, since 401 maps to the
-// generic code and the specific one is only ever chosen explicitly.
 const STATUS_TO_CODE: Partial<Record<number, ErrorCode>> = {
   400: ERROR_CODES.VALIDATION_ERROR,
   401: ERROR_CODES.UNAUTHORIZED,
@@ -93,17 +71,11 @@ const STATUS_TO_CODE: Partial<Record<number, ErrorCode>> = {
   429: ERROR_CODES.RATE_LIMITED,
 };
 
-/**
- * The single exit point for every failure in the API — registered via
- * `app.onError`, so routes can just `throw` and stay readable.
- */
 export const errorHandler: ErrorHandler = (err, c) => {
   if (err instanceof AppError) {
     return c.json(err.toBody(), err.status);
   }
 
-  // Raised by Hono itself (body limits, malformed JSON) and by any middleware
-  // that predates our own error type.
   if (err instanceof HTTPException) {
     const code = STATUS_TO_CODE[err.status] ?? ERROR_CODES.INTERNAL_ERROR;
     return c.json(new AppError(err.status, code).toBody(), err.status);
@@ -111,8 +83,6 @@ export const errorHandler: ErrorHandler = (err, c) => {
 
   console.error('[unhandled]', err);
 
-  // In development the real message is far more useful than the polite one;
-  // in production it could disclose schema or filesystem details.
   const message = isProduction
     ? FA_ERROR_MESSAGES[ERROR_CODES.INTERNAL_ERROR]
     : `${FA_ERROR_MESSAGES[ERROR_CODES.INTERNAL_ERROR]} (${err instanceof Error ? err.message : String(err)})`;

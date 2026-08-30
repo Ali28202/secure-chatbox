@@ -32,10 +32,6 @@ import {
 import * as z from 'zod';
 import { echoSchema } from '../routes/health';
 
-// -----------------------------------------------------------------------------
-// Primitives
-// -----------------------------------------------------------------------------
-
 const uuid = (example: string) => z.string().meta({ format: 'uuid', example });
 
 const dateTime = z.string().meta({ format: 'date-time', example: '2026-03-14T09:21:47.000Z' });
@@ -43,10 +39,6 @@ const dateTime = z.string().meta({ format: 'date-time', example: '2026-03-14T09:
 const CHAT_ID = '3f8a1c22-4b7e-4d1a-9c6f-1b2e5a7d9014';
 const MESSAGE_ID = 'c1d4e77b-2a90-4f35-8e61-7d0b3a5c8f22';
 const USER_ID = '9b2f6d10-58c3-4a7e-b1d9-6e4a0c3f5b88';
-
-// -----------------------------------------------------------------------------
-// Response DTOs
-// -----------------------------------------------------------------------------
 
 const userSummaryDto = z.object({
   id: uuid(USER_ID),
@@ -155,10 +147,6 @@ const markReadResultDto = z.object({
   }),
 });
 
-// -----------------------------------------------------------------------------
-// Errors
-// -----------------------------------------------------------------------------
-
 const fieldIssue = z.object({
   path: z.string().meta({
     description: 'Dotted path into the submitted body, e.g. `memberIds.0`.',
@@ -181,7 +169,6 @@ const apiErrorBody = z.object({
   }),
 });
 
-/** What `GET /` answers with — a liveness banner, not part of `/api`. */
 const serviceInfo = z.object({
   name: z.string().meta({ example: 'Secure Chatbox API' }),
   status: z.string().meta({ example: 'active' }),
@@ -201,14 +188,10 @@ const successResult = z.object({ success: z.literal(true) });
 
 const echoResult = z.object({ echoed: z.array(z.string()) });
 
-// -----------------------------------------------------------------------------
-// Registry
-// -----------------------------------------------------------------------------
-
 const registry = z.registry<{ id: string }>();
 
 export const SCHEMA_NAMES = {
-  // Requests — the schemas the validators actually run.
+  // Requests
   RegisterRequest: registerSchema,
   LoginRequest: loginSchema,
   CreateChatRequest: createChatSchema,
@@ -248,24 +231,10 @@ for (const [id, schema] of Object.entries(SCHEMA_NAMES)) {
   registry.add(schema, { id });
 }
 
-/** An OpenAPI `$ref` to one of the components above, checked at compile time. */
 export function ref(name: SchemaName): { $ref: string } {
   return { $ref: `#/components/schemas/${name}` };
 }
 
-// -----------------------------------------------------------------------------
-// Query strings
-// -----------------------------------------------------------------------------
-
-/**
- * The query schemas, deliberately *not* registered as components.
- *
- * OpenAPI models a query string as a list of parameters rather than as an
- * object, so there would be nothing for a `$ref` to point at and a component
- * here would only ever be dead weight in the document. `queryParameters` takes
- * them apart instead — which is what keeps `limit`'s bounds derived from the
- * schema the validator runs rather than copied out beside it and left to rot.
- */
 const QUERY_SCHEMAS = {
   UserSearchQuery: userSearchSchema,
   ListMessagesQuery: listMessagesQuerySchema,
@@ -273,12 +242,6 @@ const QUERY_SCHEMAS = {
 
 export type QuerySchemaName = keyof typeof QUERY_SCHEMAS;
 
-/**
- * One OpenAPI `parameter` per property of a query schema.
- *
- * Prose is the one thing a schema cannot supply, so `descriptions` is passed in
- * by the operation that uses it, keyed by property name.
- */
 export function queryParameters(
   name: QuerySchemaName,
   descriptions: Partial<Record<string, string>> = {}
@@ -302,42 +265,17 @@ export function queryParameters(
   }));
 }
 
-/**
- * Converts the whole registry in one pass, so a schema referenced by another —
- * `UserSummaryDto` inside `MessageDto` — becomes a `$ref` rather than a copy.
- *
- * `io: 'input'` is what makes the *request* schemas describe what a client
- * sends rather than what the server ends up with: `phoneNumber` is normalised
- * by a transform and `limit` is coerced from a query string, and the output
- * side of both is a shape no caller ever writes.
- *
- * Response schemas are unaffected by the choice — none of them transform.
- */
 export function buildComponentSchemas(): Record<string, unknown> {
   const { schemas } = z.toJSONSchema(registry, {
     uri: (id) => `#/components/schemas/${id}`,
     target: 'draft-2020-12',
     io: 'input',
-    // A schema Zod cannot express in JSON Schema should degrade to "anything"
-    // rather than abort the document and take the whole reference page with it.
     unrepresentable: 'any',
   });
 
   return Object.fromEntries(Object.entries(schemas).map(([id, schema]) => [id, prune(schema)]));
 }
 
-/**
- * Strips the keywords that are meaningful to a standalone JSON Schema document
- * and noise inside an OpenAPI `components` block.
- *
- * `$schema` and `$id` are the dialect declaration and self-reference of a
- * document that no longer exists once the schema is inlined here. `pattern`
- * goes only where a `format` already states the same rule — Zod emits a
- * 200-character regex for `uuid` and a longer one for `date-time`, and neither
- * tells a reader anything the format keyword has not. A `pattern` with no
- * `format` beside it, such as the device id's, is the only statement of its
- * constraint and stays.
- */
 function prune(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(prune);
@@ -359,15 +297,6 @@ function prune(value: unknown): unknown {
   );
 }
 
-// -----------------------------------------------------------------------------
-// Parity with the hand-written DTOs
-//
-// Nothing imports these — `tsc` checks every file under `src/`, so a mirror
-// that has drifted from the interface it mirrors is a build error rather than a
-// reference page that quietly describes last month's API.
-// -----------------------------------------------------------------------------
-
-/** `false` rather than `never` on mismatch — `never extends true` would pass. */
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 
 type Assert<T extends true> = T;

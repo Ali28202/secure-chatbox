@@ -10,20 +10,6 @@ import {
   PASSWORD_HASH_FILE,
 } from './env';
 
-/**
- * Direct SQL against the suite's database.
- *
- * Deliberately not Prisma. `@repo/database` generates a client for the Bun
- * runtime, and Playwright runs on Node — but the better reason is that these
- * helpers exist to *arrange* a situation, and arranging it through the same
- * layer the application uses would mean a bug in that layer could make a test
- * pass. A professor account inserted by hand is a professor account regardless
- * of what the service layer believes.
- *
- * Everything the tests *assert* still goes through the real UI and the real
- * API. This is the setup door, and it is only ever opened before the test.
- */
-
 async function withClient<T>(connectionString: string, fn: (client: Client) => Promise<T>) {
   const client = new Client({ connectionString });
   await client.connect();
@@ -34,19 +20,10 @@ async function withClient<T>(connectionString: string, fn: (client: Client) => P
   }
 }
 
-/** A connection to the suite's own database. */
 export async function withDb<T>(fn: (client: Client) => Promise<T>): Promise<T> {
   return withClient(E2E_DATABASE_URL, fn);
 }
 
-/**
- * Creates `chatbox_e2e` if this machine has never run the suite before.
- *
- * Postgres has no `CREATE DATABASE IF NOT EXISTS`, so the existence check is a
- * separate query. The name is interpolated rather than bound because an
- * identifier cannot be a bind parameter — `env.ts` validates it as a plain
- * identifier for exactly this line.
- */
 export async function ensureDatabase(): Promise<void> {
   await withClient(MAINTENANCE_DATABASE_URL, async (client) => {
     const existing = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [
@@ -58,16 +35,6 @@ export async function ensureDatabase(): Promise<void> {
   });
 }
 
-/**
- * Empties every application table, leaving the schema and Prisma's migration
- * history alone.
- *
- * Discovered from `pg_tables` rather than listed, so a future migration that
- * adds a table does not quietly leave rows behind for the next run to trip
- * over. `CASCADE` because the tables reference each other and there is no
- * ordering that satisfies all of them; `RESTART IDENTITY` is a formality here
- * since every key is a UUID.
- */
 export async function resetDatabase(): Promise<void> {
   await withDb(async (client) => {
     const { rows } = await client.query<{ tablename: string }>(
@@ -81,8 +48,6 @@ export async function resetDatabase(): Promise<void> {
   });
 }
 
-// --- Accounts ----------------------------------------------------------------
-
 export interface Account {
   id: string;
   universityId: string;
@@ -94,40 +59,17 @@ export interface Account {
 
 let sequence = 0;
 
-/**
- * Unique per account, and unique across parallel workers.
- *
- * The suite does not truncate between tests — that would make `fullyParallel`
- * unsafe — so isolation comes from every test working with people nobody else
- * has heard of. The worker's pid is in there because `Date.now()` has
- * millisecond resolution and four workers start within one.
- */
 function uniqueTag(): string {
   sequence += 1;
   return `${process.pid.toString(36)}${Date.now().toString(36).slice(-5)}${sequence.toString(36)}`;
 }
 
-/**
- * A mobile number that passes `phoneNumberSchema` and belongs to nobody else.
- *
- * `09` then nine digits, because the column is unique and the schema will not
- * accept any other shape — so the tag above cannot be reused here, base36 being
- * mostly letters. Four digits of pid and five of counter give every worker its
- * own block, which is all the isolation a single run needs.
- */
 function uniquePhoneNumber(): string {
   sequence += 1;
   const worker = (process.pid % 10_000).toString().padStart(4, '0');
   return `09${worker}${(sequence % 100_000).toString().padStart(5, '0')}`;
 }
 
-/**
- * The argon2id hash of `E2E_PASSWORD`, computed once by the global setup.
- *
- * Read from disk rather than recomputed because hashing is intentionally slow,
- * and rather than passed through `process.env` because the file is one less
- * thing to be wrong about when a worker is restarted.
- */
 let cachedHash: string | null = null;
 
 function passwordHash(): string {
@@ -143,13 +85,6 @@ function passwordHash(): string {
   return cachedHash;
 }
 
-/**
- * Inserts a user and hands back the credentials to sign in with.
- *
- * Registration through the API would only ever produce students — `registerSchema`
- * has no `role` field, on purpose — so professors and admins have to arrive this
- * way. Doing all three the same way keeps the fixtures symmetrical.
- */
 export async function createAccount(
   role: GlobalRole,
   overrides: { name?: string; universityId?: string; phoneNumber?: string; isActive?: boolean } = {}
@@ -169,14 +104,9 @@ export async function createAccount(
     );
   });
 
-  // `device_id` is deliberately left null: an account holds no device until
-  // somebody signs in from one, and half these accounts never do.
   return { id, universityId, phoneNumber, name, password: E2E_PASSWORD, role };
 }
 
-// --- Reading back what the application did ------------------------------------
-
-/** The membership row, for asserting on state the UI only hints at. */
 export async function getMembership(
   chatId: string,
   userId: string
@@ -191,13 +121,6 @@ export async function getMembership(
   });
 }
 
-/**
- * Attachment rows for a message.
- *
- * Read straight from the table rather than from the API, because the columns
- * the API deliberately does not serve — the bucket and the object key — are
- * exactly the ones that prove the upload went where it was supposed to.
- */
 export async function getAttachments(messageId: string): Promise<
   {
     fileName: string;
@@ -228,7 +151,6 @@ export async function getAttachments(messageId: string): Promise<
   });
 }
 
-/** How far a given reader has got, as the receipts table sees it. */
 export async function getReceiptStatus(messageId: string, userId: string): Promise<string | null> {
   return withDb(async (client) => {
     const { rows } = await client.query<{ status: string }>(
@@ -239,13 +161,6 @@ export async function getReceiptStatus(messageId: string, userId: string): Promi
   });
 }
 
-/**
- * The one device an account currently holds, or null before its first login.
- *
- * With stateless tokens this column *is* the session list: overwriting it is
- * what ends every session issued to the device it replaced. Reading it lets a
- * test assert the cause rather than only the symptom.
- */
 export async function getBoundDevice(userId: string): Promise<string | null> {
   return withDb(async (client) => {
     const { rows } = await client.query<{ device_id: string | null }>(

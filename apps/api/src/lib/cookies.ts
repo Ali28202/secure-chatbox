@@ -3,12 +3,6 @@ import type { Context } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
 import { env } from '../env';
 
-/**
- * `SameSite=Lax` is enough here: ports are not part of a "site", so the web
- * client on :3000 and the API on :3001 are same-site even in development. That
- * lets us avoid `SameSite=None`, which would force `Secure`, which would break
- * a plain-HTTP intranet deployment.
- */
 const BASE_OPTIONS = {
   httpOnly: true,
   secure: env.COOKIE_SECURE,
@@ -27,20 +21,12 @@ export function setAuthCookies(c: Context, tokens: AuthTokens): void {
     maxAge: env.ACCESS_TOKEN_TTL,
   });
 
-  // Scoped to the auth routes so the long-lived token is not sent with every
-  // ordinary request — it only travels where it can actually be redeemed.
   setCookie(c, COOKIE_NAMES.refresh, tokens.refreshToken, {
     ...BASE_OPTIONS,
     path: REFRESH_COOKIE_PATH,
     maxAge: env.REFRESH_TOKEN_TTL,
   });
 
-  // Holds no token — see `COOKIE_NAMES.sessionHint`. It exists so the web
-  // client's proxy can tell "logged out" from "access token expired, refresh
-  // still good" on a page request, which neither cookie above can express: one
-  // is gone after fifteen minutes, the other is never sent to a page. It tracks
-  // the refresh lifetime because that is how long a session can still be
-  // revived. Still `httpOnly` — nothing in the browser needs to read it.
   setCookie(c, COOKIE_NAMES.sessionHint, '1', {
     ...BASE_OPTIONS,
     path: '/',
@@ -48,11 +34,6 @@ export function setAuthCookies(c: Context, tokens: AuthTokens): void {
   });
 }
 
-/**
- * Paths must match the ones used when setting, exactly. A cookie deleted at a
- * different path is silently left in place by the browser, which shows up
- * later as a logout that appears to work until the next page load.
- */
 export function clearAuthCookies(c: Context): void {
   deleteCookie(c, COOKIE_NAMES.access, { ...BASE_OPTIONS, path: '/' });
   deleteCookie(c, COOKIE_NAMES.refresh, { ...BASE_OPTIONS, path: REFRESH_COOKIE_PATH });

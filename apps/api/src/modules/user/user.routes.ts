@@ -6,10 +6,6 @@ import { requireAuth } from '../../middleware/require-auth';
 import type { AppEnv } from '../../types';
 import { userService } from './user.service';
 
-/**
- * Mounted at `/api/users`. Behind `requireAuth` because the member directory of
- * a private university network is not public information.
- */
 export const userRoutes = new Hono<AppEnv>();
 
 userRoutes.use('*', requireAuth);
