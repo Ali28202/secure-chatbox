@@ -235,7 +235,7 @@ secure-chatbox/
 ├── infra/
 │   ├── nginx/nginx.conf
 │   ├── nginx/templates/app.conf.template        Port 80 — web, API, WebSocket
-│   ├── nginx/templates/metabase.conf.template   Port 8080 — analytics
+│   ├── nginx/templates/metabase.conf.template   Analytics: METABASE_DOMAIN + tunnel on 8080
 │   └── metabase/init.sql            The read-only role and its grants
 ├── .github/workflows/ci.yml
 ├── .github/actions/setup/action.yml
@@ -998,7 +998,8 @@ them.
 
 | Variable                  | Default       | Notes                                                                                                                                                                              |
 | ------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `METABASE_PORT`           | `8080`        |                                                                                                                                                                                    |
+| `METABASE_DOMAIN`         | —             | Required by `compose.prod.yml`. Analytics hostname; gets its own certificate and its own nginx `server` blocks.                                                                    |
+| `METABASE_PORT`           | `8080`        | The SSH-tunnel port, bound to `127.0.0.1` on the host. Public access goes through `METABASE_DOMAIN`.                                                                               |
 | `METABASE_DB`             | `metabase`    | Metabase's own database, created by `metabase-init`                                                                                                                                |
 | `METABASE_RO_USER`        | `metabase_ro` |                                                                                                                                                                                    |
 | `METABASE_RO_PASSWORD`    | —             | `openssl rand -base64 24`. Changing it and bringing the stack up again rotates it.                                                                                                 |
@@ -1181,9 +1182,12 @@ explicitly, so it is unaffected. This only bites in the native SQL editor.
   database it connects to. **Generate it once and keep it.** Changing it does not
   lock anyone out of Metabase — it makes those saved connections unreadable, and
   every one of them has to be entered again. Back it up with the JWT secrets.
-- In production Metabase has **no published port**. It is reached through nginx
-  on `:8080` — a port of its own rather than a path under `:80`, because Metabase
-  cannot be served from a URL subpath. Same allow list, same front door.
+- In production Metabase has a **hostname of its own**, `METABASE_DOMAIN`, with
+  its own certificate — not a path under `DOMAIN`. Two reasons: Metabase cannot
+  be served from a URL subpath at all, and a separate origin means its cookies
+  and the app's can never be confused for one another.
+- The **SSH tunnel on `:8080` still works** and is still bound to `127.0.0.1`.
+  Keep it. It is the way in on the day the certificate, DNS, or nginx is broken.
 - Data sources are configured in the UI only. There is no file in this repository
   that provisions them.
 
@@ -1213,14 +1217,20 @@ being explicit about:
   and guards nothing that authorization does not already guard, but it is a map.
   To close it, wrap the `app.route(DOCS_PATH, docsRoutes)` call in `app.ts` in
   `if (!isProduction)`.
-- **Analytics is not published.** Metabase can read message bodies, so its port
-  is bound to `127.0.0.1` and reached over an SSH tunnel. Do not "temporarily"
-  publish it.
+- **Analytics is published too.** Metabase answers on `METABASE_DOMAIN`, and it
+  can read every message body in the database. Tunnel-only access used to mean
+  an attacker needed an SSH key before they could even see the login form; now
+  the admin password is the whole boundary. Give it a long unique one, turn on
+  Metabase's MFA, and know that nginx rate-limits `POST /api/session` to 10 a
+  minute per address. If you do not actually need it public, delete the two
+  `${METABASE_DOMAIN}` server blocks from `infra/nginx/templates/metabase.conf.template`
+  and keep the tunnel — the rest of the stack does not depend on them.
 
 ### Prerequisites
 
 - A Linux server with a **public** IP, Docker, and the Compose plugin
-- A domain name whose `A` record points at that IP, already propagated
+- **Two** domain names whose `A` records point at that IP, already propagated:
+  one for the app (`DOMAIN`) and one for analytics (`METABASE_DOMAIN`)
 - Ports **80 and 443** reachable from the internet
 - An S3 bucket, private, with credentials
 
@@ -1251,6 +1261,7 @@ tokens anyone can forge.
 
 ```dotenv
 DOMAIN=chat.example.com
+METABASE_DOMAIN=panel.example.com
 LETSENCRYPT_EMAIL=you@example.com
 ```
 
@@ -1260,11 +1271,16 @@ certificate paths and `server_name` from it, and the API derives `CORS_ORIGINS`
 reaches the site by any other name, every `GET` will work and every `POST` will
 fail; set `PUBLIC_ORIGIN` explicitly in that case.
 
-Confirm DNS before going further. Issuance fails, with a rate limit attached, if
-the name does not already resolve to this machine:
+`METABASE_DOMAIN` is the analytics hostname. It gets its own certificate and its
+own nginx `server` blocks, and Metabase is told about it through `MB_SITE_URL`
+so the links it emails out point somewhere real.
+
+Confirm DNS for **both** before going further. Issuance fails, with a rate limit
+attached, if a name does not already resolve to this machine:
 
 ```bash
-dig +short A "$DOMAIN"          # must print this server's public IP
+dig +short A "$DOMAIN"            # must print this server's public IP
+dig +short A "$METABASE_DOMAIN"   # same IP
 ```
 
 ### Step 3 — The bucket
@@ -1285,18 +1301,24 @@ are refused.
 ### Step 4 — The first certificate
 
 nginx will not start without a certificate, so it cannot be the thing that
-serves the challenge for its own first one. Issue it with a standalone certbot
-while port 80 is still free — once, by hand:
+serves the challenge for its own first one. There are **two** names now, and
+nginx refuses to start if _either_ is missing — issue both with a standalone
+certbot while port 80 is still free, once, by hand:
 
 ```bash
-docker run --rm -p 80:80 \
-  -v secure-chatbox-prod_letsencrypt:/etc/letsencrypt \
-  -v secure-chatbox-prod_certbot-webroot:/var/www/certbot \
-  certbot/certbot certonly --standalone \
-    -d "$DOMAIN" \
-    --email "$LETSENCRYPT_EMAIL" \
-    --agree-tos --no-eff-email
+for name in "$DOMAIN" "$METABASE_DOMAIN"; do
+  docker run --rm -p 80:80 \
+    -v secure-chatbox-prod_letsencrypt:/etc/letsencrypt \
+    -v secure-chatbox-prod_certbot-webroot:/var/www/certbot \
+    certbot/certbot certonly --standalone \
+      -d "$name" \
+      --email "$LETSENCRYPT_EMAIL" \
+      --agree-tos --no-eff-email
+done
 ```
+
+Two separate certificates, not one with both names as SANs: they renew
+independently, so a failure on one cannot take the other offline.
 
 The volume names carry the `secure-chatbox-prod` prefix from `name:` at the top
 of `compose.prod.yml` — that is what makes this the same volume the stack will
@@ -1378,8 +1400,19 @@ curl -s  "https://$DOMAIN/api/health/db"     # {"status":"ok",…}
 echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" 2>/dev/null \
   | openssl x509 -noout -subject -issuer -dates
 
-# Analytics must NOT answer from outside.
+# Analytics answers on its own name, with its own certificate.
+curl -sI "https://$METABASE_DOMAIN/"         # 200
+curl -sI "http://$METABASE_DOMAIN/"          # 301 to https://
+echo | openssl s_client -connect "$METABASE_DOMAIN:443" -servername "$METABASE_DOMAIN" 2>/dev/null \
+  | openssl x509 -noout -subject -dates
+
+# 8080 is the tunnel, and must still refuse the internet.
 curl -sS --max-time 5 "http://$DOMAIN:8080/" ; echo "  <- expect a connection failure"
+
+# The login limit bites: expect 200s, then 429s.
+for i in $(seq 20); do
+  curl -so /dev/null -w '%{http_code}\n' -X POST "https://$METABASE_DOMAIN/api/session"
+done | sort | uniq -c
 ```
 
 Then, in a browser: register, sign in, send a message, open a second browser
@@ -1390,7 +1423,9 @@ WebSocket upgrade is not getting through nginx.
 Leave the page idle for a minute. The socket must survive; that is the
 `idleTimeout: 30` check.
 
-Reach Metabase over a tunnel from your own machine, never over the internet:
+Then open `https://$METABASE_DOMAIN` and finish the Metabase setup wizard from
+§16. The tunnel remains as the fallback path, and is the one to use if the
+certificate or DNS for the analytics name ever breaks:
 
 ```bash
 ssh -N -L 8080:127.0.0.1:8080 user@your-server   # then open http://localhost:8080

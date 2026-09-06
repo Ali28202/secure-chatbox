@@ -1,13 +1,103 @@
-# Analytics, deliberately not published to the internet.
+# Analytics, reachable two ways that are deliberately different in kind.
 #
-# The compose file binds this port to 127.0.0.1 on the host, so the only way in
-# is from the server itself — in practice an SSH tunnel:
+#   1. https://${METABASE_DOMAIN} — public, TLS, Metabase's own login.
+#   2. An SSH tunnel to port 8080, which needs no certificate and no open port:
 #
-#   ssh -N -L 8080:127.0.0.1:8080 user@your-server
+#        ssh -N -L 8080:127.0.0.1:8080 user@your-server
 #
-# Metabase holds every message body in the database it can query. It has its own
-# login, but it is not the app's login, it is not behind the app's TLS, and it is
-# not something to put on a public port because it was convenient.
+# Metabase can read every message body the app has ever stored, and (1) puts its
+# login form on the public internet. That is a real widening of the attack
+# surface next to tunnel-only: the admin password becomes the whole boundary.
+# Give it a long unique one and turn on Metabase's MFA. (2) is kept because it
+# still works on the day the certificate, DNS, or nginx itself does not.
+
+server {
+    listen      80;
+    server_name ${METABASE_DOMAIN};
+
+    # Same reason as the app's port 80: renewal must reach this unencrypted and
+    # unredirected, or the certificate quietly expires 90 days later.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen      443 ssl;
+    http2       on;
+    server_name ${METABASE_DOMAIN};
+
+    # Its own certificate, not a SAN on the app's. The two names are issued and
+    # renewed independently, so a failure on one cannot take the other down.
+    ssl_certificate         /etc/letsencrypt/live/${METABASE_DOMAIN}/fullchain.pem;
+    ssl_certificate_key     /etc/letsencrypt/live/${METABASE_DOMAIN}/privkey.pem;
+    ssl_trusted_certificate /etc/letsencrypt/live/${METABASE_DOMAIN}/chain.pem;
+
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    ssl_protocols             TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    ssl_stapling        on;
+    ssl_stapling_verify on;
+
+    # Docker's embedded DNS, needed for the deferred `set` below so that nginx
+    # still starts when metabase is down. It forwards external names too, so
+    # OCSP stapling resolves through it — hence no second resolver here.
+    resolver         127.0.0.11 valid=30s ipv6=off;
+    resolver_timeout 5s;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options        SAMEORIGIN  always;
+    add_header Referrer-Policy        same-origin always;
+
+    client_max_body_size 100m;
+
+    # Metabase's login endpoint. Same reasoning as the app's auth limit in
+    # nginx.conf: a person signs in a handful of times a day, a script wants
+    # thousands. `= ` is exact, so /api/session/properties is untouched.
+    location = /api/session {
+        limit_req        zone=panel_zone burst=10 nodelay;
+        limit_req_status 429;
+
+        set $metabase_upstream http://metabase:3000;
+        proxy_pass $metabase_upstream;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        set $metabase_upstream http://metabase:3000;
+        proxy_pass $metabase_upstream;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # A question against a large table can legitimately run for minutes.
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+    }
+}
+
+# The tunnel, unchanged. Bound to 127.0.0.1 on the host by the compose file, so
+# the only way to reach it is from the server itself.
 server {
     listen      8080;
     server_name _;

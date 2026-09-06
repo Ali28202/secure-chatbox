@@ -240,7 +240,7 @@ secure-chatbox/
 ├── infra/
 │   ├── nginx/nginx.conf
 │   ├── nginx/templates/app.conf.template        درگاه ۸۰ — وب، API، WebSocket
-│   ├── nginx/templates/metabase.conf.template   درگاه ۸۰۸۰ — تحلیل داده
+│   ├── nginx/templates/metabase.conf.template   تحلیل داده: METABASE_DOMAIN + تونل ۸۰۸۰
 │   └── metabase/init.sql            نقش فقط‌خواندنی و مجوزهایش
 ├── .github/workflows/ci.yml
 ├── .github/actions/setup/action.yml
@@ -1008,7 +1008,8 @@ APIای که بدون آن‌ها بالا بیاید بارگذاری‌ها ر
 
 | متغیر                     | پیش‌فرض       | توضیح                                                                                                                                                                           |
 | ------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `METABASE_PORT`           | `8080`        |                                                                                                                                                                                 |
+| `METABASE_DOMAIN`         | —             | برای `compose.prod.yml` الزامی است. نام میزبان تحلیل داده؛ گواهی و بلوک‌های `server` خودش را می‌گیرد.                                                                           |
+| `METABASE_PORT`           | `8080`        | درگاه تونل SSH، بسته به `127.0.0.1` روی میزبان. دسترسی عمومی از راه `METABASE_DOMAIN` است.                                                                                      |
 | `METABASE_DB`             | `metabase`    | پایگاه دادهٔ خود Metabase که `metabase-init` می‌سازد                                                                                                                            |
 | `METABASE_RO_USER`        | `metabase_ro` |                                                                                                                                                                                 |
 | `METABASE_RO_PASSWORD`    | —             | `openssl rand -base64 24`. تغییر آن و بالاآوردن دوبارهٔ پشته، آن را می‌چرخاند.                                                                                                  |
@@ -1202,10 +1203,12 @@ FROM messages;
   متصل ذخیره می‌کند رمزگذاری می‌کند. **یک‌بار بسازید و نگه دارید.** تغییر آن کسی
   را از Metabase بیرون نمی‌اندازد — اتصال‌های ذخیره‌شده را ناخوانا می‌کند و باید
   تک‌تک دوباره وارد شوند. آن را همراه کلیدهای JWT پشتیبان بگیرید.
-- در محیط عملیاتی Metabase **هیچ درگاه منتشرشده‌ای ندارد**. مانند بقیه از راه
-  nginx در دسترس است، روی `:8080` — درگاهی از آنِ خودش به‌جای مسیری زیر `:80`،
-  چون Metabase نمی‌تواند از زیرمسیر یک URL سرو شود. همان فهرست مجاز، همان درِ
-  ورودی.
+- در محیط عملیاتی Metabase **نام میزبان از آنِ خودش** را دارد، `METABASE_DOMAIN`،
+  با گواهی خودش — نه مسیری زیر `DOMAIN`. دو دلیل: Metabase اصلاً نمی‌تواند از
+  زیرمسیر یک URL سرو شود، و مبدأ جدا یعنی کوکی‌های آن و کوکی‌های اپ هرگز با هم
+  اشتباه گرفته نمی‌شوند.
+- **تونل SSH روی `:8080` هنوز کار می‌کند** و هنوز به `127.0.0.1` بسته است. نگهش
+  دارید. همان راهی است که روزی که گواهی، DNS یا خود nginx خراب باشد باز است.
 - منابع داده فقط در رابط کاربری پیکربندی می‌شوند. هیچ فایلی در این مخزن آن‌ها را
   تأمین نمی‌کند.
 
@@ -1234,14 +1237,21 @@ FROM messages;
   نمی‌برد و از چیزی محافظت نمی‌کند که مجوزدهی از پیش محافظت نکرده باشد، اما یک
   نقشه است. برای بستنش، فراخوانی `app.route(DOCS_PATH, docsRoutes)` در `app.ts`
   را در `if (!isProduction)` بپیچید.
-- **تحلیل داده منتشر نمی‌شود.** Metabase می‌تواند متن پیام‌ها را بخواند، پس درگاهش
-  به `127.0.0.1` بسته شده و از راه تونل SSH در دسترس است. آن را «موقتاً» منتشر
-  نکنید.
+- **تحلیل داده هم منتشر می‌شود.** Metabase روی `METABASE_DOMAIN` پاسخ می‌دهد، و
+  می‌تواند متن هر پیامی را در پایگاه داده بخواند. دسترسیِ فقط-تونلی یعنی مهاجم پیش
+  از آنکه حتی فرم ورود را ببیند به کلید SSH نیاز داشت؛ حالا گذرواژهٔ مدیر تمامِ
+  مرز است. یک گذرواژهٔ بلند و یکتا بگذارید، MFA خود Metabase را روشن کنید، و
+  بدانید که nginx مسیر `POST /api/session` را به ۱۰ درخواست در دقیقه به‌ازای هر
+  نشانی محدود می‌کند. اگر واقعاً به نسخهٔ عمومی نیاز ندارید، دو بلوک `server` مربوط
+  به `${METABASE_DOMAIN}` را از
+  `infra/nginx/templates/metabase.conf.template` حذف کنید و تونل را نگه دارید —
+  بقیهٔ پشته به آن‌ها وابسته نیست.
 
 ### پیش‌نیازها
 
 - یک سرور لینوکسی با نشانی IP **عمومی**، به‌همراه Docker و افزونهٔ Compose
-- یک نام دامنه که رکورد `A` آن به همان IP اشاره کند و منتشر شده باشد
+- **دو** نام دامنه که رکورد `A` آن‌ها به همان IP اشاره کند و منتشر شده باشند:
+  یکی برای اپ (`DOMAIN`) و یکی برای تحلیل داده (`METABASE_DOMAIN`)
 - درگاه‌های **۸۰ و ۴۴۳** از اینترنت در دسترس
 - یک سطل S3 خصوصی به‌همراه اعتبارنامه
 
@@ -1278,6 +1288,7 @@ openssl rand -base64 32   # METABASE_ENCRYPTION_KEY
 
 ```dotenv
 DOMAIN=chat.example.com
+METABASE_DOMAIN=panel.example.com
 LETSENCRYPT_EMAIL=you@example.com
 ```
 
@@ -1289,13 +1300,18 @@ CSRF هم هست — برابر `https://$DOMAIN` می‌گیرد. اگر مرو
 برسد، هر `GET` کار می‌کند و هر `POST` شکست می‌خورد؛ در آن صورت `PUBLIC_ORIGIN` را
 صریح تنظیم کنید.
 
-پیش از ادامه، DNS را تأیید کنید. اگر نام از پیش به این ماشین اشاره نکند، صدور
-گواهی شکست می‌خورد و سهمیهٔ محدودیت نرخ هم مصرف می‌شود:
+`METABASE_DOMAIN` نام میزبان تحلیل داده است. گواهی خودش و بلوک‌های `server` خودش
+را در nginx می‌گیرد، و از راه `MB_SITE_URL` به خود Metabase هم اعلام می‌شود تا
+پیوندهایی که ایمیل می‌کند به جای واقعی اشاره کنند.
+
+پیش از ادامه، DNS را برای **هر دو** تأیید کنید. اگر نامی از پیش به این ماشین
+اشاره نکند، صدور گواهی شکست می‌خورد و سهمیهٔ محدودیت نرخ هم مصرف می‌شود:
 
 </div>
 
 ```bash
-dig +short A "$DOMAIN"          # باید IP عمومی همین سرور را چاپ کند
+dig +short A "$DOMAIN"            # باید IP عمومی همین سرور را چاپ کند
+dig +short A "$METABASE_DOMAIN"   # همان IP
 ```
 
 <div dir="rtl">
@@ -1322,20 +1338,29 @@ S3_URL_TTL=300
 ### گام ۴ — نخستین گواهی
 
 nginx بدون گواهی بالا نمی‌آید، پس نمی‌تواند خودش چالشِ نخستین گواهیِ خودش را سرو
-کند. آن را یک‌بار و با دست، با certbot مستقل و در حالی که درگاه ۸۰ هنوز آزاد است
-بگیرید:
+کند. حالا **دو** نام در کار است و nginx اگر _هرکدام_ نباشد بالا نمی‌آید — هر دو را
+یک‌بار و با دست، با certbot مستقل و در حالی که درگاه ۸۰ هنوز آزاد است بگیرید:
 
 </div>
 
 ```bash
-docker run --rm -p 80:80 \
-  -v secure-chatbox-prod_letsencrypt:/etc/letsencrypt \
-  -v secure-chatbox-prod_certbot-webroot:/var/www/certbot \
-  certbot/certbot certonly --standalone \
-    -d "$DOMAIN" \
-    --email "$LETSENCRYPT_EMAIL" \
-    --agree-tos --no-eff-email
+for name in "$DOMAIN" "$METABASE_DOMAIN"; do
+  docker run --rm -p 80:80 \
+    -v secure-chatbox-prod_letsencrypt:/etc/letsencrypt \
+    -v secure-chatbox-prod_certbot-webroot:/var/www/certbot \
+    certbot/certbot certonly --standalone \
+      -d "$name" \
+      --email "$LETSENCRYPT_EMAIL" \
+      --agree-tos --no-eff-email
+done
 ```
+
+<div dir="rtl">
+
+دو گواهیِ جدا، نه یک گواهی با هر دو نام به‌عنوان SAN: این‌ها مستقل تمدید می‌شوند،
+پس شکست یکی نمی‌تواند دیگری را از دسترس خارج کند.
+
+</div>
 
 <div dir="rtl">
 
@@ -1430,8 +1455,19 @@ curl -s  "https://$DOMAIN/api/health/db"     # {"status":"ok",…}
 echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" 2>/dev/null \
   | openssl x509 -noout -subject -issuer -dates
 
-# تحلیل داده نباید از بیرون پاسخ دهد.
+# تحلیل داده روی نام خودش و با گواهی خودش پاسخ می‌دهد.
+curl -sI "https://$METABASE_DOMAIN/"         # ۲۰۰
+curl -sI "http://$METABASE_DOMAIN/"          # ۳۰۱ به https://
+echo | openssl s_client -connect "$METABASE_DOMAIN:443" -servername "$METABASE_DOMAIN" 2>/dev/null \
+  | openssl x509 -noout -subject -dates
+
+# ۸۰۸۰ همان تونل است و باید هنوز اینترنت را رد کند.
 curl -sS --max-time 5 "http://$DOMAIN:8080/" ; echo "  <- انتظار: شکست اتصال"
+
+# محدودیت ورود عمل می‌کند: انتظار ۲۰۰ و سپس ۴۲۹.
+for i in $(seq 20); do
+  curl -so /dev/null -w '%{http_code}\n' -X POST "https://$METABASE_DOMAIN/api/session"
+done | sort | uniq -c
 ```
 
 <div dir="rtl">
@@ -1444,7 +1480,9 @@ WebSocket از nginx عبور نمی‌کند.
 صفحه را یک دقیقه بی‌کار بگذارید. سوکت باید زنده بماند؛ این همان بررسی
 `idleTimeout: 30` است.
 
-به Metabase از راه تونل و از رایانهٔ خودتان برسید، نه از اینترنت:
+سپس `https://$METABASE_DOMAIN` را باز کنید و جادوگر راه‌اندازی Metabase در بخش ۱۶
+را کامل کنید. تونل به‌عنوان مسیر پشتیبان باقی می‌ماند و همان چیزی است که اگر روزی
+گواهی یا DNS نام تحلیل داده خراب شد باید از آن استفاده کنید:
 
 </div>
 
