@@ -45,12 +45,16 @@ on a third-party messenger.
 
 Three properties define the whole design:
 
-**It is an intranet application.** nginx refuses every request that does not come
-from `192.168.0.0/16` or loopback, and the API refuses it a second time on its
-own. There is no runtime dependency on the public internet: the font is
-self-hosted, no CDN is contacted, and the entire stack runs from Docker images
-you can pull once and keep. The single exception is documented in §10 — message
-attachments live in an S3 bucket, and that bucket is reached over the network.
+**It was designed as an intranet application**, and `compose.yml` still runs that
+way: the API's `ALLOWED_IP_RANGES` refuses anything off `192.168.0.0/16`. The
+public deployment in `compose.prod.yml` moves that boundary rather than removing
+it — nginx terminates TLS for one domain and is the only thing published, and the
+API still refuses any request that did not arrive through it. What that no longer
+buys is the assumption that everyone who can reach the login page belongs here;
+§17 sets out what changes with it. The rest holds: the font is self-hosted, no CDN
+is contacted at runtime, and the stack runs from images you can pull once and
+keep. The exceptions are documented in §10 — attachments live in an S3 bucket —
+and the API reference page, which loads Scalar from a CDN in the reader's browser.
 
 **Roles are enforced twice.** Every access rule lives in exactly one file —
 [`packages/shared/src/policy.ts`](../packages/shared/src/policy.ts) — as a pure
@@ -230,8 +234,8 @@ secure-chatbox/
 ├── e2e/                    Playwright — 8 specs, 72 tests
 ├── infra/
 │   ├── nginx/nginx.conf
-│   ├── nginx/conf.d/app.conf        Port 80 — web, API, WebSocket
-│   ├── nginx/conf.d/metabase.conf   Port 8080 — analytics
+│   ├── nginx/templates/app.conf.template        Port 80 — web, API, WebSocket
+│   ├── nginx/templates/metabase.conf.template   Port 8080 — analytics
 │   └── metabase/init.sql            The read-only role and its grants
 ├── .github/workflows/ci.yml
 ├── .github/actions/setup/action.yml
@@ -393,25 +397,25 @@ attacker and the data.
 
 ### 6.1 Network — nginx
 
-[`infra/nginx/conf.d/app.conf`](../infra/nginx/conf.d/app.conf) opens with:
+[`infra/nginx/templates/app.conf.template`](../infra/nginx/templates/app.conf.template)
+is rendered at container start with `${DOMAIN}` substituted in, and is the whole
+front door. Port 80 serves exactly one thing — the ACME challenge path, so
+certificates can renew — and redirects everything else to 443. Port 443
+terminates TLS, sets HSTS, and proxies to `web` and `api` by service name.
 
-```nginx
-allow 192.168.0.0/16;
-allow 127.0.0.1;
-deny  all;
-```
+In `compose.prod.yml` nginx is the only service that publishes a port to the
+internet; `api`, `web`, `db` and `metabase` are reachable on the internal network
+and by nothing else. Analytics is published to `127.0.0.1` only, which is not the
+same thing as published — reaching it means an SSH tunnel to the host.
 
-Order matters — nginx evaluates allow/deny top to bottom and stops at the first
-match, so `deny all` must come last. From any address outside the campus LAN the
-response is **403**, before a single byte reaches the application. In
-`compose.prod.yml` nginx is the only service that publishes a port at all;
-`api`, `web`, `db` and `metabase` are reachable by service name on an internal
-network and by nothing else.
+The login and registration endpoints carry a `limit_req` budget of 30 per minute
+per address. It is a speed bump on credential stuffing rather than a lock: the
+API has no per-account lockout, and a campus behind one NAT shares one budget.
 
 ### 6.2 Network — the API, again
 
 `hono/ip-restriction`, applied to every route in
-[`apps/api/src/app.ts:35`](../apps/api/src/app.ts#L35), enforces
+[`apps/api/src/app.ts:21`](../apps/api/src/app.ts#L21), enforces
 `ALLOWED_IP_RANGES` independently. In production that value is the compose
 network's own subnet (`172.28.0.0/16`, pinned in the network's IPAM config so
 Docker cannot hand out something else) plus loopback for the container's own
@@ -498,15 +502,19 @@ prove it is the same one.
 ### 6.6 CSRF
 
 `hono/csrf` with `origin: env.CORS_ORIGINS`, at
-[`apps/api/src/app.ts:52`](../apps/api/src/app.ts#L52).
+[`apps/api/src/app.ts:25`](../apps/api/src/app.ts#L25).
 
-In production `CORS_ORIGINS` is **empty**, and that is not an oversight. nginx
-makes the app and the API one origin, so a same-origin request is not a CORS
-request at all. The CSRF guard passes a request on `Sec-Fetch-Site: same-origin`
-alone — which is exactly what the browser sends here — and refuses every
-cross-site form or multipart post, because the origin list matches nothing.
-`PUBLIC_ORIGIN` exists only to also admit browsers too old to send
-`Sec-Fetch-Site`.
+nginx makes the app and the API one origin, so a same-origin request is not a
+CORS request at all, and the CSRF guard passes it on `Sec-Fetch-Site:
+same-origin` alone — which is exactly what the browser sends here. The origin
+list is the fallback for browsers too old to send that header, and the refusal
+for every cross-site form or multipart post.
+
+In production it is `https://$DOMAIN`, derived from `DOMAIN` in
+`compose.prod.yml`. It has to be the exact scheme and host the browser puts in
+`Origin`; get it wrong and the failure is a confusing one, because every `GET`
+keeps working and only writes are refused. Set `PUBLIC_ORIGIN` explicitly if the
+site is reached by some name other than `DOMAIN`.
 
 ### 6.7 Authorization
 
@@ -1183,16 +1191,41 @@ explicitly, so it is unaffected. This only bites in the native SQL editor.
 
 ## 17. Production deployment — the full runbook
 
-One command brings up seven services. First read the checklist below; the command
-will not run without it.
+One command brings up eight services behind TLS on a public domain. First read
+the checklist below; the command will not run without it.
+
+### What "public" changes
+
+This platform was built for a campus LAN, and two of its defences were the
+network itself. On the open internet they are gone, and what is left is worth
+being explicit about:
+
+- **Registration is open.** Anyone who can reach the domain can create an
+  account with any university id they type. On a LAN that was bounded by who
+  could plug into the network. It no longer is. Decide how you are closing it —
+  an invite code, a domain-restricted email confirmation, or an admin who
+  approves each account — before you announce the address to anyone.
+- **The login endpoint is reachable by everyone.** nginx rate-limits it to 30
+  requests per minute per address, which slows a script down but is not a lock:
+  there is no per-account lockout, and everyone behind one NAT shares the
+  budget. Watch `429`s in the access log after launch.
+- **`/api/docs` is public**, and describes every endpoint. It names no secret
+  and guards nothing that authorization does not already guard, but it is a map.
+  To close it, wrap the `app.route(DOCS_PATH, docsRoutes)` call in `app.ts` in
+  `if (!isProduction)`.
+- **Analytics is not published.** Metabase can read message bodies, so its port
+  is bound to `127.0.0.1` and reached over an SSH tunnel. Do not "temporarily"
+  publish it.
 
 ### Prerequisites
 
-- A Linux server on the campus network with a **fixed** address in
-  `192.168.0.0/16`
-- Docker and the Compose plugin
-- Port 80 free (and 8080 if you want analytics)
+- A Linux server with a **public** IP, Docker, and the Compose plugin
+- A domain name whose `A` record points at that IP, already propagated
+- Ports **80 and 443** reachable from the internet
 - An S3 bucket, private, with credentials
+
+Port 80 is not optional even though nothing is served on it: Let's Encrypt
+proves you control the domain by fetching a file over plain HTTP.
 
 ### Step 1 — Real secrets
 
@@ -1202,7 +1235,7 @@ are not a starting point; they are a public value in a public file.
 ```bash
 cp .env.example .env
 
-# Generate four secrets. Write them into .env, replacing the placeholders.
+# Generate five secrets. Write them into .env, replacing the placeholders.
 openssl rand -base64 48   # JWT_ACCESS_SECRET
 openssl rand -base64 48   # JWT_REFRESH_SECRET  (must differ from the above)
 openssl rand -base64 24   # POSTGRES_PASSWORD
@@ -1214,7 +1247,27 @@ openssl rand -base64 32   # METABASE_ENCRYPTION_KEY
 immediately and by name if any is missing — rather than starting a platform whose
 tokens anyone can forge.
 
-### Step 2 — The bucket
+### Step 2 — The domain
+
+```dotenv
+DOMAIN=chat.example.com
+LETSENCRYPT_EMAIL=you@example.com
+```
+
+`DOMAIN` is the one value the whole deployment turns on. nginx renders its
+certificate paths and `server_name` from it, and the API derives `CORS_ORIGINS`
+— which is also the CSRF origin check — as `https://$DOMAIN`. If a browser
+reaches the site by any other name, every `GET` will work and every `POST` will
+fail; set `PUBLIC_ORIGIN` explicitly in that case.
+
+Confirm DNS before going further. Issuance fails, with a rate limit attached, if
+the name does not already resolve to this machine:
+
+```bash
+dig +short A "$DOMAIN"          # must print this server's public IP
+```
+
+### Step 3 — The bucket
 
 ```dotenv
 S3_BUCKET=chatbox-attachments
@@ -1229,33 +1282,45 @@ The bucket must exist and must stay private. The API never makes it public; it
 hands each browser a signed URL that expires, which only works if anonymous reads
 are refused.
 
-### Step 3 — Cookies and origin
+### Step 4 — The first certificate
 
-```dotenv
-COOKIE_SECURE=false      # true ONLY if you terminate TLS
-HTTP_PORT=80
-PUBLIC_ORIGIN=           # e.g. http://chat.university.local, if you need it
+nginx will not start without a certificate, so it cannot be the thing that
+serves the challenge for its own first one. Issue it with a standalone certbot
+while port 80 is still free — once, by hand:
+
+```bash
+docker run --rm -p 80:80 \
+  -v secure-chatbox-prod_letsencrypt:/etc/letsencrypt \
+  -v secure-chatbox-prod_certbot-webroot:/var/www/certbot \
+  certbot/certbot certonly --standalone \
+    -d "$DOMAIN" \
+    --email "$LETSENCRYPT_EMAIL" \
+    --agree-tos --no-eff-email
 ```
 
-`COOKIE_SECURE=true` without TLS is the single most common way to make a
-deployment look broken: login succeeds, and the very next request is
-unauthenticated, because the browser accepted a `Secure` cookie it will never send
-back over plain HTTP.
+The volume names carry the `secure-chatbox-prod` prefix from `name:` at the top
+of `compose.prod.yml` — that is what makes this the same volume the stack will
+mount. Add `--dry-run` first if you want to rehearse without spending one of
+Let's Encrypt's five-per-week issuances for a name.
 
-### Step 4 — The allow list
+Renewal is different and automatic: the `certbot` service wakes every 12 hours
+and renews over the webroot, and nginx keeps `/.well-known/acme-challenge/`
+unredirected on port 80 for exactly that.
 
-Check that `infra/nginx/conf.d/app.conf` matches the campus network. It ships
-with:
+Those are two different authenticators, and the first issuance is what gets
+written into `/etc/letsencrypt/renewal/$DOMAIN.conf`. The renew loop passes
+`--webroot` explicitly to override it — if that override ever failed to take,
+renewal would try to bind port 80, find nginx already there, and quietly fail
+until the certificate expired. Prove it does not, once, after step 5:
 
-```nginx
-allow 192.168.0.0/16;
-allow 127.0.0.1;
-deny  all;
+```bash
+docker compose -f compose.prod.yml exec certbot \
+  certbot renew --webroot -w /var/www/certbot --dry-run
 ```
 
-If the university uses `10.x.x.x`, change it here. This is the front door;
-`ALLOWED_IP_RANGES` inside the API is the second lock and stays at the compose
-subnet.
+`--dry-run` uses the staging CA and counts against no limit. Do not skip it; a
+renewal that fails silently is a site that goes down in 90 days for a reason
+nobody will remember.
 
 ### Step 5 — Bring it up
 
@@ -1280,8 +1345,9 @@ What happens, in order:
    back, and that ordering is the whole difference between analytics that can
    read a message body and analytics that cannot.
 4. **`api`**, **`web`** and **`metabase`** start.
-5. **`nginx`** starts and publishes 80 and 8080. It is the only service that
-   publishes anything.
+5. **`nginx`** renders its templates against `DOMAIN`, publishes 80 and 443, and
+   binds analytics to loopback only.
+6. **`certbot`** begins its renewal loop.
 
 ### Step 6 — Create the first accounts
 
@@ -1289,8 +1355,8 @@ The seed refuses to run under `NODE_ENV=production`, which is intentional — a
 production database should not contain an account whose password is written in a
 public repository.
 
-Register the first administrator through the interface at `http://<server>/register`,
-then promote them:
+Register the first administrator through the interface at
+`https://$DOMAIN/register`, then promote them:
 
 ```bash
 docker compose -f compose.prod.yml exec db \
@@ -1304,21 +1370,31 @@ course groups from the interface.
 ### Step 7 — Verify
 
 ```bash
-# From a machine on the campus LAN
-curl -i http://<server>/api/health          # 200
-curl -i http://<server>/                    # 200, the Persian interface
+curl -sI "https://$DOMAIN/api/health"        # 200
+curl -sI "http://$DOMAIN/"                   # 301 to https://
+curl -s  "https://$DOMAIN/api/health/db"     # {"status":"ok",…}
 
-# From anywhere else
-curl -i http://<server>/                    # 403
+# The certificate is real, and for the right name.
+echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" 2>/dev/null \
+  | openssl x509 -noout -subject -issuer -dates
+
+# Analytics must NOT answer from outside.
+curl -sS --max-time 5 "http://$DOMAIN:8080/" ; echo "  <- expect a connection failure"
 ```
 
-Then, in a browser on the LAN: register, sign in, send a message, open a second
-browser profile, watch it arrive. In DevTools → Network → WS, the socket should
-show status **101** — if it is stuck on `transport=polling`, the WebSocket upgrade
-is not getting through nginx.
+Then, in a browser: register, sign in, send a message, open a second browser
+profile, watch it arrive. In DevTools → Network → WS, the socket should show
+status **101** on a `wss://` URL — if it is stuck on `transport=polling`, the
+WebSocket upgrade is not getting through nginx.
 
 Leave the page idle for a minute. The socket must survive; that is the
 `idleTimeout: 30` check.
+
+Reach Metabase over a tunnel from your own machine, never over the internet:
+
+```bash
+ssh -N -L 8080:127.0.0.1:8080 user@your-server   # then open http://localhost:8080
+```
 
 ---
 
@@ -1396,7 +1472,7 @@ UPDATE users SET is_active = false WHERE university_id = '…';
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Login succeeds, then everything is 401**          | `COOKIE_SECURE=true` on a plain-HTTP deployment. The browser accepted a `Secure` cookie it will never send back. Set it to `false`.                                                                 |
 | **`The API refuses to start`, mentioning secrets**  | `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` are equal, or shorter than 32 characters.                                                                                                              |
-| **403 from a machine that should be allowed**       | The address is outside `192.168.0.0/16`. Fix `infra/nginx/conf.d/app.conf`. Note Docker's default bridge is `172.17.0.0/16` and is _not_ inside `192.168.0.0/16`.                                   |
+| **403 from a machine that should be allowed**       | The address is outside `192.168.0.0/16`. Fix `infra/nginx/templates/app.conf.template`. Note Docker's default bridge is `172.17.0.0/16` and is _not_ inside `192.168.0.0/16`.                       |
 | **Messages need a refresh to appear**               | The WebSocket is not connected. DevTools → Network → WS: status must be **101**. If it is stuck on `transport=polling`, nginx is not forwarding `Upgrade`/`Connection`.                             |
 | **The socket drops every ten seconds**              | `idleTimeout` is missing from the Bun serve object. It must be ≥ 30.                                                                                                                                |
 | **`ECONNREFUSED` on any `db:` command**             | The Postgres container is not running. `bun run db:up`. The named volume survives — no data is lost.                                                                                                |
@@ -1472,15 +1548,15 @@ to a revised ERD and UML.
 
 ## Where to look next
 
-| Question                                     | File                                                                                  |
-| -------------------------------------------- | ------------------------------------------------------------------------------------- |
-| What are the exact access rules?             | [`packages/shared/src/policy.ts`](../packages/shared/src/policy.ts)                   |
-| What does a request body have to look like?  | [`packages/shared/src/schemas/`](../packages/shared/src/schemas/)                     |
-| What can the client receive over the socket? | [`packages/shared/src/types/socket.ts`](../packages/shared/src/types/socket.ts)       |
-| What columns exist?                          | [`packages/database/prisma/schema.prisma`](../packages/database/prisma/schema.prisma) |
-| What is in the demo data?                    | [`packages/database/prisma/seed.ts`](../packages/database/prisma/seed.ts)             |
-| How is the API wired together?               | [`apps/api/src/app.ts`](../apps/api/src/app.ts)                                       |
-| How does the socket authenticate?            | [`apps/api/src/socket/gateway.ts`](../apps/api/src/socket/gateway.ts)                 |
-| What does production actually run?           | [`compose.prod.yml`](../compose.prod.yml)                                             |
-| Who is allowed in?                           | [`infra/nginx/conf.d/app.conf`](../infra/nginx/conf.d/app.conf)                       |
-| What can analytics read?                     | [`infra/metabase/init.sql`](../infra/metabase/init.sql)                               |
+| Question                                     | File                                                                                    |
+| -------------------------------------------- | --------------------------------------------------------------------------------------- |
+| What are the exact access rules?             | [`packages/shared/src/policy.ts`](../packages/shared/src/policy.ts)                     |
+| What does a request body have to look like?  | [`packages/shared/src/schemas/`](../packages/shared/src/schemas/)                       |
+| What can the client receive over the socket? | [`packages/shared/src/types/socket.ts`](../packages/shared/src/types/socket.ts)         |
+| What columns exist?                          | [`packages/database/prisma/schema.prisma`](../packages/database/prisma/schema.prisma)   |
+| What is in the demo data?                    | [`packages/database/prisma/seed.ts`](../packages/database/prisma/seed.ts)               |
+| How is the API wired together?               | [`apps/api/src/app.ts`](../apps/api/src/app.ts)                                         |
+| How does the socket authenticate?            | [`apps/api/src/socket/gateway.ts`](../apps/api/src/socket/gateway.ts)                   |
+| What does production actually run?           | [`compose.prod.yml`](../compose.prod.yml)                                               |
+| Who is allowed in?                           | [`infra/nginx/templates/app.conf.template`](../infra/nginx/templates/app.conf.template) |
+| What can analytics read?                     | [`infra/metabase/init.sql`](../infra/metabase/init.sql)                                 |

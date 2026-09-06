@@ -1,12 +1,25 @@
+# Analytics, deliberately not published to the internet.
+#
+# The compose file binds this port to 127.0.0.1 on the host, so the only way in
+# is from the server itself — in practice an SSH tunnel:
+#
+#   ssh -N -L 8080:127.0.0.1:8080 user@your-server
+#
+# Metabase holds every message body in the database it can query. It has its own
+# login, but it is not the app's login, it is not behind the app's TLS, and it is
+# not something to put on a public port because it was convenient.
 server {
     listen      8080;
     server_name _;
 
-    allow 192.168.0.0/16;
+    # Traffic arrives from the compose bridge gateway, having already passed the
+    # host's 127.0.0.1 binding. This is the second lock, not the first.
+    allow 172.28.0.0/16;
     allow 127.0.0.1;
     deny  all;
 
     add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options        SAMEORIGIN  always;
     add_header Referrer-Policy        same-origin always;
 
     client_max_body_size 100m;
@@ -18,7 +31,6 @@ server {
         proxy_pass $metabase_upstream;
 
         proxy_http_version 1.1;
-
         proxy_set_header Upgrade    $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
 
