@@ -42,7 +42,7 @@ class AuthService {
     if (existing) {
       throw Errors.conflict(
         existing.universityId === input.universityId
-          ? 'این شناسهٔ دانشگاهی قبلاً ثبت شده است.'
+          ? 'این شماره دانشجویی قبلاً ثبت شده است.'
           : 'این شمارهٔ تلفن قبلاً ثبت شده است.'
       );
     }

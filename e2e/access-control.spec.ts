@@ -42,7 +42,7 @@ test.describe('what a student may create', () => {
     expect(await refusal(response)).toEqual({
       status: 403,
       code: 'FORBIDDEN',
-      message: 'ساخت گروه درسی تنها از عهدهٔ استادان برمی‌آید.',
+      message: 'تنها اساتید امکان ساخت گروه درسی را دارند.',
     });
 
     expect(await student.api.listChats()).toHaveLength(0);
@@ -71,7 +71,9 @@ test.describe('conversations you are not part of', () => {
     await outsider.page.goto(`/chats/${chat.id}`);
 
     await expect(outsider.page.getByText('این گفت‌وگو در دسترس نیست')).toBeVisible();
-    await expect(outsider.page.getByText('یا حذف شده است، یا شما عضو آن نیستید.')).toBeVisible();
+    await expect(
+      outsider.page.getByText('این گروه یا کلاً پاک شده، یا تو عضوش نیستی.')
+    ).toBeVisible();
     await expect(
       outsider.page.getByRole('button', { name: 'بازگشت به فهرست گفت‌وگوها' })
     ).toBeVisible();
@@ -102,9 +104,10 @@ test.describe('a read-only chat', () => {
     await expect(toggle).toHaveAttribute('aria-pressed', 'false');
     await toggle.click();
 
-    await expect(
-      professor.page.getByRole('button', { name: 'فقط‌خواندنی', exact: true })
-    ).toHaveAttribute('aria-pressed', 'true');
+    await expect(professor.page.getByRole('button', { name: 'بسته', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
 
     await attendee.page.goto(`/chats/${chat.id}`);
 
@@ -162,9 +165,9 @@ test.describe('moderating a course group', () => {
     });
     await bubble.getByRole('button', { name: `گزینه‌های پیام ${professor.account.name}` }).click();
 
-    await expect(attendee.page.getByRole('menuitem', { name: 'پاسخ' })).toBeVisible();
+    await expect(attendee.page.getByRole('menuitem', { name: 'ریپلای' })).toBeVisible();
     await expect(attendee.page.getByRole('menuitem', { name: 'حذف پیام' })).toBeHidden();
-    await expect(attendee.page.getByRole('menuitem', { name: 'سنجاق کردن' })).toBeHidden();
+    await expect(attendee.page.getByRole('menuitem', { name: 'پین‌ کردن' })).toBeHidden();
 
     const deleted = await attendee.api
       .raw()

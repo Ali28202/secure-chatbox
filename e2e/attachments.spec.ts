@@ -135,7 +135,7 @@ test.describe('what the server refuses to trust', () => {
       student.page.getByText('محتوای فایل با نوع اعلام‌شدهٔ آن هم‌خوانی ندارد.')
     ).toBeVisible();
 
-    await expect(student.page.getByText('هنوز پیامی در این گفت‌وگو نیست')).toBeVisible();
+    await expect(student.page.getByText('هنوز پیامی اینجا نیست')).toBeVisible();
   });
 
   test('refuses an unlisted file type before it is ever uploaded', async ({

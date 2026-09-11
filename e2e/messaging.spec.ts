@@ -9,7 +9,7 @@ test.describe('realtime delivery', () => {
     const chat = await student.api.createDirectChat(peer.account.id);
 
     await student.page.goto(`/chats/${chat.id}`);
-    await expect(student.page.getByText('هنوز پیامی در این گفت‌وگو نیست')).toBeVisible();
+    await expect(student.page.getByText('هنوز پیامی اینجا نیست')).toBeVisible();
 
     await peer.api.sendMessage(chat.id, 'سلام، تمرین این هفته را فرستادم.');
 
@@ -78,7 +78,7 @@ test.describe('sending', () => {
     await composer.type('خط دوم');
 
     await expect(composer).toHaveValue('خط اول\nخط دوم');
-    await expect(student.page.getByText('هنوز پیامی در این گفت‌وگو نیست')).toBeVisible();
+    await expect(student.page.getByText('هنوز پیامی اینجا نیست')).toBeVisible();
   });
 
   test('quotes the message being answered, on both sides', async ({ student, newSession }) => {
@@ -93,9 +93,9 @@ test.describe('sending', () => {
       hasText: 'سؤالی دربارهٔ فصل سوم دارید؟',
     });
     await original.getByRole('button', { name: `گزینه‌های پیام ${peer.account.name}` }).click();
-    await student.page.getByRole('menuitem', { name: 'پاسخ' }).click();
+    await student.page.getByRole('menuitem', { name: 'ریپلای' }).click();
 
-    await expect(student.page.getByText(`پاسخ به ${peer.account.name}`)).toBeVisible();
+    await expect(student.page.getByText(`ریپلای به ${peer.account.name}`)).toBeVisible();
 
     await student.page.getByLabel('متن پیام').fill('بله، دربارهٔ صفحهٔ ۴۲');
     await student.page.getByRole('button', { name: 'ارسال پیام' }).click();
@@ -147,10 +147,10 @@ test.describe('pinning', () => {
       hasText: 'امتحان میان‌ترم: ۲۵ آبان',
     });
     await bubble.getByRole('button', { name: `گزینه‌های پیام ${professor.account.name}` }).click();
-    await professor.page.getByRole('menuitem', { name: 'سنجاق کردن' }).click();
+    await professor.page.getByRole('menuitem', { name: 'پین‌ کردن' }).click();
 
     await expect(
-      attendee.page.getByText(`پیام سنجاق‌شده از ${professor.account.name}`)
+      attendee.page.getByText(`پیام پین‌شده از ${professor.account.name}`)
     ).toBeVisible();
   });
 });

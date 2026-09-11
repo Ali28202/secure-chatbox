@@ -13,7 +13,7 @@ test.describe('signing in', () => {
     const account = await createAccount('STUDENT');
 
     await page.goto('/login');
-    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(account.universityId);
+    await page.getByLabel('شماره دانشجویی یا شمارهٔ تلفن').fill(account.universityId);
     await page.getByLabel('گذرواژه').fill(account.password);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
@@ -26,7 +26,7 @@ test.describe('signing in', () => {
     const account = await createAccount('STUDENT');
 
     await page.goto('/login');
-    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(account.universityId);
+    await page.getByLabel('شماره دانشجویی یا شمارهٔ تلفن').fill(account.universityId);
     await page.getByLabel('گذرواژه').fill(account.password);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
     await expect(page).toHaveURL('/chats');
@@ -48,7 +48,7 @@ test.describe('signing in', () => {
     const account = await createAccount('STUDENT');
 
     await page.goto('/login');
-    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(account.phoneNumber);
+    await page.getByLabel('شماره دانشجویی یا شمارهٔ تلفن').fill(account.phoneNumber);
     await page.getByLabel('گذرواژه').fill(account.password);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
@@ -62,7 +62,7 @@ test.describe('signing in', () => {
     );
 
     await page.goto('/login');
-    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(persian);
+    await page.getByLabel('شماره دانشجویی یا شمارهٔ تلفن').fill(persian);
     await page.getByLabel('گذرواژه').fill(account.password);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
@@ -82,7 +82,7 @@ test.describe('signing in', () => {
     const account = await createAccount('STUDENT');
 
     await page.goto('/login');
-    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(account.universityId);
+    await page.getByLabel('شماره دانشجویی یا شمارهٔ تلفن').fill(account.universityId);
     await page.getByLabel('گذرواژه').fill('WrongPassword@1404');
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
@@ -92,7 +92,7 @@ test.describe('signing in', () => {
 
   test('says the same thing about an account that does not exist', async ({ page }) => {
     await page.goto('/login');
-    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill('400000000');
+    await page.getByLabel('شماره دانشجویی یا شمارهٔ تلفن').fill('400000000');
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
@@ -107,7 +107,7 @@ test.describe('route protection', () => {
     await page.goto('/chats');
     await expect(page).toHaveURL('/login?next=%2Fchats');
 
-    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(account.universityId);
+    await page.getByLabel('شماره دانشجویی یا شمارهٔ تلفن').fill(account.universityId);
     await page.getByLabel('گذرواژه').fill(account.password);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
@@ -118,7 +118,7 @@ test.describe('route protection', () => {
     const account = await createAccount('STUDENT');
 
     await page.goto('/login?next=https%3A%2F%2Fevil.example%2Fsteal');
-    await page.getByLabel('شناسهٔ دانشگاهی یا شمارهٔ تلفن').fill(account.universityId);
+    await page.getByLabel('شماره دانشجویی یا شمارهٔ تلفن').fill(account.universityId);
     await page.getByLabel('گذرواژه').fill(account.password);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
@@ -158,7 +158,7 @@ test.describe('registering', () => {
 
     await page.goto('/register');
     await page.getByLabel('نام و نام خانوادگی').fill('دانشجوی تازه‌وارد');
-    await page.getByLabel('شناسهٔ دانشگاهی').fill(universityId);
+    await page.getByLabel('شماره دانشجویی').fill(universityId);
     await page.getByLabel('شمارهٔ تلفن همراه').fill(freshPhoneNumber());
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'ساخت حساب کاربری' }).click();
@@ -180,12 +180,12 @@ test.describe('registering', () => {
 
     await page.goto('/register');
     await page.getByLabel('نام و نام خانوادگی').fill('همنام تکراری');
-    await page.getByLabel('شناسهٔ دانشگاهی').fill(existing.universityId);
+    await page.getByLabel('شماره دانشجویی').fill(existing.universityId);
     await page.getByLabel('شمارهٔ تلفن همراه').fill(freshPhoneNumber());
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'ساخت حساب کاربری' }).click();
 
-    await expect(page.getByText('این شناسهٔ دانشگاهی قبلاً ثبت شده است.')).toBeVisible();
+    await expect(page.getByText('این شماره دانشجویی قبلاً ثبت شده است.')).toBeVisible();
     await expect(page).toHaveURL('/register');
   });
 
@@ -194,7 +194,7 @@ test.describe('registering', () => {
 
     await page.goto('/register');
     await page.getByLabel('نام و نام خانوادگی').fill('شمارهٔ تکراری');
-    await page.getByLabel('شناسهٔ دانشگاهی').fill(`40${Date.now().toString(36)}`);
+    await page.getByLabel('شماره دانشجویی').fill(`40${Date.now().toString(36)}`);
     await page.getByLabel('شمارهٔ تلفن همراه').fill(existing.phoneNumber);
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'ساخت حساب کاربری' }).click();

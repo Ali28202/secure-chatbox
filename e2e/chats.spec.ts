@@ -42,7 +42,7 @@ test.describe('starting a direct conversation', () => {
 
   test('shows an empty list to someone with no conversations yet', async ({ student }) => {
     await student.page.goto('/chats');
-    await expect(student.page.getByText('هنوز گفت‌وگویی ندارید')).toBeVisible();
+    await expect(student.page.getByText('هنوز گفت‌وگویی نداری')).toBeVisible();
   });
 });
 
