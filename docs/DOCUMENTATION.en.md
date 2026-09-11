@@ -1066,7 +1066,8 @@ longer exists.
 
 Three **parallel** jobs, so a pull request gets three independent verdicts. A type
 error and a failing test are different problems, and finding both in one run is
-faster than finding the second one tomorrow.
+faster than finding the second one tomorrow. On a push to `main` two more jobs
+follow them — see [Continuous deployment](#continuous-deployment) below.
 
 | Job            | Steps                                                                                                                                              |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1096,6 +1097,47 @@ YAML anchors to share them with. It:
 - writes `.env` **from `.env.example`**, substituting two freshly generated JWT
   secrets — which means the example file is exercised on every pull request;
 - generates the Prisma client, which is a build product and is not committed.
+
+### Continuous deployment
+
+Two further jobs run **only** on a push to `main`, and only after all three
+verdicts above are green. A pull request never touches the server.
+
+| Job        | What it does                                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------- |
+| **build**  | Matrix over `api` and `web`. Builds each image and pushes it to GHCR tagged with the commit SHA and `latest`. |
+| **deploy** | Copies `compose.prod.yml` and `infra/` to the server over SSH, then runs `infra/deploy.sh` there.             |
+
+**Images are built on the runner, not on the server.** The server has 3.8 GB of
+RAM and no swap; a Next.js build next to a live Postgres is how you OOM-kill your
+own database. It also means the server needs no credentials for this private
+repository — it is handed images, never source.
+
+`deploy` sets its own `concurrency` group with `cancel-in-progress: false`. The
+workflow-level group cancels superseded runs, which is right for a typecheck and
+badly wrong for a deploy: a push landing mid-deploy would leave the stack half
+recreated. Deploys queue instead.
+
+The registry credential the server uses to pull is that run's `GITHUB_TOKEN`,
+piped over the SSH session and logged out again in an `if: always()` step. It
+expires with the job, so nothing long-lived is left on the box.
+
+Host key verification is pinned from the `SSH_KNOWN_HOSTS` secret rather than
+disabled with `StrictHostKeyChecking=no`. Turning that check off is exactly the
+attack it exists to stop.
+
+#### Required secrets
+
+| Secret            | Value                                          |
+| ----------------- | ---------------------------------------------- |
+| `SSH_HOST`        | The server's IP or hostname                    |
+| `SSH_USER`        | The user CI logs in as                         |
+| `SSH_PORT`        | Optional; defaults to `22`                     |
+| `SSH_PRIVATE_KEY` | A **dedicated** deploy key, not a personal one |
+| `SSH_KNOWN_HOSTS` | Output of `ssh-keyscan -p <port> <host>`       |
+
+Optional repository **variable** `DEPLOY_DIR` overrides the directory on the
+server; it defaults to `secure-chatbox` under the login user's home.
 
 ---
 
@@ -1458,10 +1500,60 @@ Back up `.env` too — separately, and not into the repository. The JWT secrets 
 
 ### Deploying an update
 
+**Merge to `main`.** That is the whole procedure. CI lints, typechecks, runs the
+end-to-end suite, builds both images, and deploys — see §15. `migrate` reruns as
+part of every deploy and applies anything new.
+
+To deploy by hand — a rollback, or a build CI could not finish — run the same
+script CI runs, from the deploy directory on the server:
+
 ```bash
-git pull
-bun run prod:up      # rebuilds the images; `migrate` reruns and applies anything new
+cd ~/secure-chatbox
+API_IMAGE=ghcr.io/<owner>/secure-chatbox-api:<sha> \
+WEB_IMAGE=ghcr.io/<owner>/secure-chatbox-web:<sha> \
+  ./infra/deploy.sh
 ```
+
+Any pushed SHA works, so rolling back is deploying an older one. The script
+records the last build that passed its health check in `.deploy-state` and
+returns to it automatically if a new one does not answer within four minutes, so
+a bad deploy self-reverts rather than leaving the site down.
+
+`bun run prod:up` still exists and still builds locally. Do not run it on the
+server: it needs Bun, which is not installed there, and it would build a
+Next.js image on a 3.8 GB box with no swap while Postgres is live.
+
+### Connecting to the database
+
+Postgres publishes no port — there is nothing on the host to connect to, by
+design. Two ways in.
+
+**A shell, on the server:**
+
+```bash
+ssh you@your-server
+cd ~/secure-chatbox
+docker compose -f compose.prod.yml exec db psql -U chatbox -d chatbox
+```
+
+**A GUI on your own machine** (TablePlus, DBeaver, pgAdmin, DataGrip) — tunnel to
+the container's address on the compose bridge. The host can route to it; the
+internet cannot:
+
+```bash
+DB_IP=$(ssh you@your-server \
+  "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' chatbox-prod-db")
+
+ssh -N -L 5432:"$DB_IP":5432 you@your-server
+```
+
+Leave that running and point the client at `127.0.0.1:5432`, database `chatbox`,
+user `POSTGRES_USER`, password `POSTGRES_PASSWORD` from `.env`. Resolve `DB_IP`
+each time rather than hard-coding it — it is reassigned when the container is
+recreated.
+
+For read-only work prefer `metabase_ro` over `POSTGRES_USER`: same connection,
+but it cannot read message bodies or password hashes and cannot write. See §16.
 
 ### Rotating the JWT secrets
 

@@ -42,3 +42,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 e2e/.artifacts/
 
 apps/api/storage/
+
+# Written by infra/deploy.sh on the server: the last build that passed health.
+.deploy-state

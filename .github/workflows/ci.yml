@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -90,3 +91,123 @@ jobs:
           name: playwright-report
           path: e2e/.artifacts/
           retention-days: 7
+
+  build:
+    name: Build ${{ matrix.image }} image
+    needs: [lint, typecheck, e2e]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image: api
+            dockerfile: apps/api/Dockerfile
+            build-args: ''
+          - image: web
+            dockerfile: apps/web/Dockerfile
+            build-args: |
+              NEXT_PUBLIC_API_URL=
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Resolve the image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.image }}" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          build-args: ${{ matrix.build-args }}
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  deploy:
+    name: Deploy to production
+    needs: [build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Authorise the runner to reach the server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Pinned, not StrictHostKeyChecking=no. Without this the first
+          # connection would trust whatever answers, which is the whole attack.
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Ship compose file, nginx config and deploy script
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || 'secure-chatbox' }}
+        run: |
+          tar czf - compose.prod.yml infra/ \
+            | ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+                "mkdir -p '$DEPLOY_DIR' && tar xzf - -C '$DEPLOY_DIR'"
+
+      - name: Deploy
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || 'secure-chatbox' }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          SHA: ${{ github.sha }}
+        run: |
+          PREFIX="ghcr.io/${GITHUB_REPOSITORY,,}"
+          SSH="ssh -i $HOME/.ssh/deploy_key -p $SSH_PORT $SSH_USER@$SSH_HOST"
+
+          # The registry credential is this run's token: it expires when the job
+          # ends, so nothing long-lived is left sitting on the server.
+          echo "$GHCR_TOKEN" | $SSH \
+            "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+
+          $SSH "cd '$DEPLOY_DIR' \
+                && chmod +x infra/deploy.sh \
+                && API_IMAGE='$PREFIX-api:$SHA' \
+                   WEB_IMAGE='$PREFIX-web:$SHA' \
+                   ./infra/deploy.sh"
+
+      - name: Drop the registry credential
+        if: always()
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            'docker logout ghcr.io' || true
