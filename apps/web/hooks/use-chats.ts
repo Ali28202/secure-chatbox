@@ -17,6 +17,8 @@ import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 
 export const chatsQueryKey = ['chats'] as const;
+/** Active and archived are two lists, so they are two cache entries. */
+export const chatsListKey = (archived: boolean) => ['chats', { archived }] as const;
 export const chatQueryKey = (chatId: string) => ['chats', chatId] as const;
 
 function byRecency(a: ChatListItemDto, b: ChatListItemDto): number {
@@ -35,7 +37,7 @@ export function applyChatActivity(
 ): void {
   let known = false;
 
-  queryClient.setQueryData<ChatListItemDto[]>(chatsQueryKey, (chats) => {
+  queryClient.setQueryData<ChatListItemDto[]>(chatsListKey(false), (chats) => {
     if (!chats) return chats;
 
     const next = chats.map((chat) => {
@@ -56,7 +58,7 @@ export function applyChatActivity(
 }
 
 export function refreshChatPreview(queryClient: QueryClient, message: MessageDto): void {
-  queryClient.setQueryData<ChatListItemDto[]>(chatsQueryKey, (chats) =>
+  queryClient.setQueryData<ChatListItemDto[]>(chatsListKey(false), (chats) =>
     chats?.map((chat) =>
       chat.lastMessage?.id === message.id ? { ...chat, lastMessage: message } : chat
     )
@@ -97,7 +99,7 @@ export function applyReadReceipt(
   receipt: ReadReceipt,
   viewerId: string
 ): void {
-  queryClient.setQueryData<ChatListItemDto[]>(chatsQueryKey, (chats) =>
+  queryClient.setQueryData<ChatListItemDto[]>(chatsListKey(false), (chats) =>
     chats?.map((chat) => (chat.id === receipt.chatId ? withReceipt(chat, receipt, viewerId) : chat))
   );
 
@@ -117,17 +119,18 @@ export function applyMarkRead(
     viewerId
   );
 
-  queryClient.setQueryData<ChatListItemDto[]>(chatsQueryKey, (chats) =>
+  queryClient.setQueryData<ChatListItemDto[]>(chatsListKey(false), (chats) =>
     chats?.map((chat) =>
       chat.id === result.chatId ? { ...chat, unreadCount: result.unreadCount } : chat
     )
   );
 }
 
-export function useChats() {
+export function useChats(archived = false) {
   return useQuery({
-    queryKey: chatsQueryKey,
-    queryFn: async () => (await api.get<ChatListItemDto[]>('/chats')).data,
+    queryKey: chatsListKey(archived),
+    queryFn: async () =>
+      (await api.get<ChatListItemDto[]>('/chats', { params: { archived } })).data,
   });
 }
 

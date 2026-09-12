@@ -1,4 +1,10 @@
-import type { GlobalRole } from '@repo/shared';
+import type { AccountStatus, GlobalRole } from '@repo/shared';
+
+export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
+  PENDING: 'در انتظار تأیید',
+  APPROVED: 'تأییدشده',
+  REJECTED: 'ردشده',
+};
 
 export const ROLE_LABELS: Record<GlobalRole, string> = {
   STUDENT: 'دانشجو',

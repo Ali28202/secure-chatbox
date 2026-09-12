@@ -5,6 +5,9 @@ import type {
   ChatListItemDto,
   ChatMemberDto,
   MessageDto,
+  MessageReactionDto,
+  SessionDto,
+  AdminUserDto,
   UserDto,
   UserSummaryDto,
 } from '@repo/shared';
@@ -20,6 +23,7 @@ export const userSummarySelect = {
 export const userSelect = {
   ...userSummarySelect,
   phoneNumber: true,
+  status: true,
   isActive: true,
   deviceId: true,
   lastSeen: true,
@@ -42,9 +46,52 @@ export function toUserDto(user: UserRow): UserDto {
   return {
     ...toUserSummaryDto(user),
     phoneNumber: user.phoneNumber,
+    status: user.status,
     isActive: user.isActive,
     lastSeen: user.lastSeen?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),
+  };
+}
+
+export const adminUserSelect = {
+  ...userSelect,
+  reviewedAt: true,
+  _count: { select: { memberships: true } },
+} satisfies Prisma.UserSelect;
+
+export type AdminUserRow = Prisma.UserGetPayload<{ select: typeof adminUserSelect }>;
+
+export function toAdminUserDto(user: AdminUserRow): AdminUserDto {
+  return {
+    ...toUserDto(user),
+    reviewedAt: user.reviewedAt?.toISOString() ?? null,
+    chatCount: user._count.memberships,
+  };
+}
+
+export const sessionSelect = {
+  id: true,
+  deviceId: true,
+  userAgent: true,
+  ipAddress: true,
+  createdAt: true,
+  lastUsedAt: true,
+  expiresAt: true,
+} satisfies Prisma.SessionSelect;
+
+export type SessionRow = Prisma.SessionGetPayload<{ select: typeof sessionSelect }>;
+
+export function toSessionDto(session: SessionRow, currentSessionId: string): SessionDto {
+  return {
+    id: session.id,
+    userAgent: session.userAgent,
+    ipAddress: session.ipAddress,
+    createdAt: session.createdAt.toISOString(),
+    lastUsedAt: session.lastUsedAt.toISOString(),
+    expiresAt: session.expiresAt.toISOString(),
+    // Marked here rather than left to the client, so "this is the one you are
+    // using" cannot disagree between the list and the button that ends it.
+    isCurrent: session.id === currentSessionId,
   };
 }
 
@@ -96,6 +143,7 @@ export const messageSelect = {
   sender: { select: userSummarySelect },
   replyTo: { select: replyPreviewSelect },
   attachments: { select: attachmentSelect, orderBy: { id: 'asc' } },
+  reactions: { select: { emoji: true, userId: true }, orderBy: { createdAt: 'asc' } },
 } satisfies Prisma.MessageSelect;
 
 export type MessageRow = Prisma.MessageGetPayload<{ select: typeof messageSelect }>;
@@ -107,6 +155,19 @@ function toAttachmentDto(attachment: MessageRow['attachments'][number]): Attachm
     fileType: attachment.fileType,
     fileSize: attachment.fileSize,
   };
+}
+
+/** Rows in, one entry per emoji out, in first-reacted order. */
+function toReactionDtos(rows: MessageRow['reactions']): MessageReactionDto[] {
+  const byEmoji = new Map<string, string[]>();
+
+  for (const { emoji, userId } of rows) {
+    const userIds = byEmoji.get(emoji);
+    if (userIds) userIds.push(userId);
+    else byEmoji.set(emoji, [userId]);
+  }
+
+  return [...byEmoji].map(([emoji, userIds]) => ({ emoji, userIds }));
 }
 
 export function toMessageDto(message: MessageRow): MessageDto {
@@ -128,6 +189,9 @@ export function toMessageDto(message: MessageRow): MessageDto {
         }
       : null,
     attachments: message.isDeleted ? [] : message.attachments.map(toAttachmentDto),
+    // A tombstone carries no reactions: the text is gone, so what they referred
+    // to is gone with it.
+    reactions: message.isDeleted ? [] : toReactionDtos(message.reactions),
     createdAt: message.createdAt.toISOString(),
   };
 }
@@ -137,6 +201,7 @@ export const chatSelect = {
   type: true,
   title: true,
   isReadOnly: true,
+  archivedAt: true,
   creatorId: true,
   lastMessageAt: true,
   createdAt: true,
@@ -150,6 +215,7 @@ export function toChatDto(chat: ChatRow): ChatDto {
     type: chat.type,
     title: chat.title,
     isReadOnly: chat.isReadOnly,
+    archivedAt: chat.archivedAt?.toISOString() ?? null,
     creatorId: chat.creatorId,
     lastMessageAt: chat.lastMessageAt?.toISOString() ?? null,
     createdAt: chat.createdAt.toISOString(),

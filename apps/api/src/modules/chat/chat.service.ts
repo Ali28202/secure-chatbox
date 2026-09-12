@@ -1,5 +1,6 @@
 import { prisma } from '@repo/database';
 import {
+  canArchiveChat,
   canLeaveChat,
   canManageMembers,
   canMuteMember,
@@ -11,6 +12,7 @@ import {
   type ChatListItemDto,
   type ChatMemberDto,
   type CreateChatInput,
+  type ListChatsQuery,
   type UpdateChatInput,
   type UpdateMemberInput,
 } from '@repo/shared';
@@ -38,9 +40,11 @@ const NOT_ROSTER_MANAGER = 'تغییر اعضا تنها از عهدهٔ است�
 const CREATOR_PROTECTED = 'سازندهٔ گفت‌وگو را نمی‌توان تغییر داد یا حذف کرد.';
 
 class ChatService {
-  async getUserChats(userId: string): Promise<ChatListItemDto[]> {
+  async getUserChats(userId: string, query: ListChatsQuery): Promise<ChatListItemDto[]> {
     const chats = await prisma.chat.findMany({
-      where: { members: { some: { userId } } },
+      // Archived conversations are a separate view, never mixed in: a retired
+      // group would otherwise keep a place in the list for good.
+      where: { members: { some: { userId } }, archivedAt: query.archived ? { not: null } : null },
       select: chatListSelect,
       orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
     });
@@ -167,11 +171,20 @@ class ChatService {
       throw Errors.forbidden(chat.type === 'DIRECT' ? DIRECT_IMMUTABLE : NOT_CHAT_ADMIN);
     }
 
+    // Archiving is not renaming. It takes the conversation away from everyone in
+    // it, so it carries the roster permission rather than the title one.
+    if (input.isArchived !== undefined && !canArchiveChat(chat, actor)) {
+      throw Errors.forbidden(NOT_ROSTER_MANAGER);
+    }
+
     const updated = await prisma.chat.update({
       where: { id: chat.id },
       data: {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.isReadOnly !== undefined ? { isReadOnly: input.isReadOnly } : {}),
+        ...(input.isArchived === undefined
+          ? {}
+          : { archivedAt: input.isArchived ? new Date() : null }),
       },
       select: chatSelect,
     });

@@ -3,6 +3,7 @@ import {
   addMemberSchema,
   canCreateChat,
   createChatSchema,
+  listChatsQuerySchema,
   updateChatSchema,
   updateMemberSchema,
 } from '@repo/shared';
@@ -65,7 +66,9 @@ export const chatRoutes = new Hono<AppEnv>();
 
 chatRoutes.use('*', requireAuth);
 
-chatRoutes.get('/', async (c) => c.json(await chatService.getUserChats(c.get('user').id)));
+chatRoutes.get('/', zValidator('query', listChatsQuerySchema, onValidationError), async (c) =>
+  c.json(await chatService.getUserChats(c.get('user').id, c.req.valid('query')))
+);
 
 chatRoutes.post('/', zValidator('json', createChatSchema, onValidationError), async (c) => {
   const user = c.get('user');

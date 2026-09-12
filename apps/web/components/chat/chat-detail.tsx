@@ -2,6 +2,8 @@
 
 import { toPersianDigits, type MessageDto } from '@repo/shared';
 import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
   ArrowRightIcon,
   LockIcon,
   Loader2Icon,
@@ -14,6 +16,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { ChatMembersDialog } from '@/components/chat/chat-members-dialog';
 import { MessageComposer } from '@/components/chat/message-composer';
+import { TypingIndicator } from '@/components/chat/typing-indicator';
 import { MessageList } from '@/components/chat/message-list';
 import { PresenceDot, PresenceLabel } from '@/components/chat/presence-indicator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -33,6 +36,34 @@ import {
 } from '@/lib/chat';
 import { getInitials } from '@/lib/labels';
 import { ROUTES } from '@/lib/routes';
+
+function ArchiveToggle({ chatId, isArchived }: { chatId: string; isArchived: boolean }) {
+  const updateChat = useUpdateChat(chatId);
+
+  return (
+    <Button
+      variant={isArchived ? 'default' : 'outline'}
+      size="sm"
+      className="gap-1.5"
+      aria-pressed={isArchived}
+      disabled={updateChat.isPending}
+      title={
+        isArchived
+          ? 'این گفت‌وگو آرشیو شده و کسی نمی‌تونه پیام بده. برای برگردوندنش کلیک کن.'
+          : 'گفت‌وگو رو آرشیو کن: از فهرست بیرون می‌ره و کسی نمی‌تونه پیام بده، ولی هیچ پیامی پاک نمی‌شه.'
+      }
+      onClick={() =>
+        updateChat.mutate(
+          { isArchived: !isArchived },
+          { onError: (error) => toast.error(getApiErrorMessage(error)) }
+        )
+      }
+    >
+      {isArchived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
+      {isArchived ? 'خروج از آرشیو' : 'آرشیو'}
+    </Button>
+  );
+}
 
 function ReadOnlyToggle({ chatId, isReadOnly }: { chatId: string; isReadOnly: boolean }) {
   const updateChat = useUpdateChat(chatId);
@@ -151,10 +182,19 @@ export function ChatDetail({ chatId }: { chatId: string }) {
           </p>
         </div>
 
-        {permissions.canUpdateChat ? (
+        {chat.data.archivedAt !== null && <Badge variant="secondary">آرشیو</Badge>}
+
+        {permissions.canArchiveChat && chat.data.type !== 'DIRECT' && (
+          <ArchiveToggle chatId={chatId} isArchived={chat.data.archivedAt !== null} />
+        )}
+
+        {/* An archived conversation is closed to everyone, so offering a
+            read-only switch on top of it would be two words for one state. */}
+        {permissions.canUpdateChat && chat.data.archivedAt === null ? (
           <ReadOnlyToggle chatId={chatId} isReadOnly={chat.data.isReadOnly} />
         ) : (
-          chat.data.isReadOnly && <Badge variant="outline">بسته</Badge>
+          chat.data.isReadOnly &&
+          chat.data.archivedAt === null && <Badge variant="outline">بسته</Badge>
         )}
 
         {chat.data.type !== 'DIRECT' && (
@@ -177,6 +217,8 @@ export function ChatDetail({ chatId }: { chatId: string }) {
         permissions={permissions}
         onReply={setReplyTo}
       />
+
+      <TypingIndicator chatId={chatId} members={chat.data.members} />
 
       <MessageComposer
         chatId={chatId}

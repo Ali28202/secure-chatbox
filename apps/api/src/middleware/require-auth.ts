@@ -14,8 +14,9 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   }
 
   try {
-    const { user } = await authService.verifyToken(token);
+    const { user, sessionId } = await authService.verifyToken(token);
     c.set('user', user);
+    c.set('sessionId', sessionId);
   } catch (error) {
     if (!(error instanceof AppError) || error.status !== 401) {
       clearAuthCookies(c);

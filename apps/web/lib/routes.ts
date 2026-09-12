@@ -4,6 +4,7 @@ export const ROUTES = {
   register: '/register',
   chats: '/chats',
   chat: (chatId: string) => `/chats/${chatId}`,
+  admin: '/admin',
 } as const;
 
 export const PUBLIC_ROUTES: string[] = [ROUTES.home, ROUTES.login, ROUTES.register];

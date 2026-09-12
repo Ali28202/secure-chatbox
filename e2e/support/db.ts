@@ -87,7 +87,13 @@ function passwordHash(): string {
 
 export async function createAccount(
   role: GlobalRole,
-  overrides: { name?: string; universityId?: string; phoneNumber?: string; isActive?: boolean } = {}
+  overrides: {
+    name?: string;
+    universityId?: string;
+    phoneNumber?: string;
+    isActive?: boolean;
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  } = {}
 ): Promise<Account> {
   const tag = uniqueTag();
   const prefix = role === 'STUDENT' ? '4' : '9';
@@ -98,9 +104,21 @@ export async function createAccount(
 
   await withDb(async (client) => {
     await client.query(
-      `INSERT INTO users (id, university_id, phone_number, password_hash, name, role, is_active, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6::"GlobalRole", $7, NOW(), NOW())`,
-      [id, universityId, phoneNumber, passwordHash(), name, role, overrides.isActive ?? true]
+      // APPROVED unless a test asks otherwise: a fixture account exists to sign
+      // in with, and the column's PENDING default would make every test fail at
+      // the login step instead of testing what it meant to.
+      `INSERT INTO users (id, university_id, phone_number, password_hash, name, role, is_active, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6::"GlobalRole", $7, $8::"AccountStatus", NOW(), NOW())`,
+      [
+        id,
+        universityId,
+        phoneNumber,
+        passwordHash(),
+        name,
+        role,
+        overrides.isActive ?? true,
+        overrides.status ?? 'APPROVED',
+      ]
     );
   });
 

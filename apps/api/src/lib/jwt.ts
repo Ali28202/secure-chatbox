@@ -22,6 +22,8 @@ export interface AuthTokenPayload extends JWTPayload {
   sub: string;
   role: GlobalRole;
   did: string;
+  /** Session id. The row it names is what makes this token revocable. */
+  sid: string;
   typ: TokenType;
   iat: number;
   exp: number;
@@ -31,6 +33,7 @@ export interface TokenSubject {
   id: string;
   role: GlobalRole;
   deviceId: string;
+  sessionId: string;
 }
 
 export function signToken(type: TokenType, subject: TokenSubject): Promise<string> {
@@ -40,6 +43,7 @@ export function signToken(type: TokenType, subject: TokenSubject): Promise<strin
     sub: subject.id,
     role: subject.role,
     did: subject.deviceId,
+    sid: subject.sessionId,
     typ: type,
     iat: issuedAt,
     exp: issuedAt + TTLS[type],
@@ -70,7 +74,8 @@ export async function verifyToken(type: TokenType, token: string): Promise<AuthT
     payload.typ !== type ||
     typeof payload.sub !== 'string' ||
     typeof payload.role !== 'string' ||
-    typeof payload.did !== 'string'
+    typeof payload.did !== 'string' ||
+    typeof payload.sid !== 'string'
   ) {
     throw Errors.unauthorized('نشست شما معتبر نیست یا منقضی شده است. دوباره وارد شوید.');
   }

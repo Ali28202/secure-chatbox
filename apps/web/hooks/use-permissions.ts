@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  canArchiveChat,
   canCreateChat,
   canDeleteMessage,
   canManageMembers,
@@ -25,6 +26,7 @@ export interface ChatPermissions {
   canPin: boolean;
   canManageMembers: boolean;
   canUpdateChat: boolean;
+  canArchiveChat: boolean;
   canDelete: (senderId: string) => boolean;
   canUpdateMember: (member: ChatMemberDto) => boolean;
   canMuteMember: (member: ChatMemberDto) => boolean;
@@ -45,6 +47,7 @@ export function useChatPermissions(chat: ChatListItemDto | undefined): ChatPermi
         canPin: false,
         canManageMembers: false,
         canUpdateChat: false,
+        canArchiveChat: false,
         canDelete: () => false,
         canUpdateMember: () => false,
         canMuteMember: () => false,
@@ -61,6 +64,7 @@ export function useChatPermissions(chat: ChatListItemDto | undefined): ChatPermi
       canPin: canPinMessage(membership),
       canManageMembers: canManageMembers(chat, membership),
       canUpdateChat: canUpdateChat(chat, membership),
+      canArchiveChat: canArchiveChat(chat, membership),
       canDelete: (senderId: string) => canDeleteMessage(membership, senderId),
       canUpdateMember: (member: ChatMemberDto) => canUpdateMember(chat, membership, member),
       canMuteMember: (member: ChatMemberDto) => canMuteMember(chat, membership, member),

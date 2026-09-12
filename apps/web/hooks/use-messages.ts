@@ -185,6 +185,17 @@ export function useSetPinned(chatId: string) {
   });
 }
 
+export function useToggleReaction(chatId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) =>
+      (await api.put<MessageDto>(`/chats/${chatId}/messages/${messageId}/reactions`, { emoji }))
+        .data,
+    onSuccess: (message) => applyUpdatedMessage(queryClient, message),
+  });
+}
+
 export function useMarkRead(chatId: string, viewerId: string) {
   const queryClient = useQueryClient();
 

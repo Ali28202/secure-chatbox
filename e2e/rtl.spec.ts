@@ -57,7 +57,7 @@ test.describe('the document', () => {
 });
 
 test.describe('the layout', () => {
-  test('mirrors: your messages on the left, theirs on the right', async ({
+  test('puts your messages on the right and theirs on the left', async ({
     student,
     newSession,
   }) => {
@@ -77,8 +77,8 @@ test.describe('the layout', () => {
     const own = (await student.page.getByText('پیام دانشجو').boundingBox())!;
     const theirs = (await student.page.getByText('پیام استاد').boundingBox())!;
 
-    expect(own.x + own.width / 2).toBeLessThan(middle);
-    expect(theirs.x + theirs.width / 2).toBeGreaterThan(middle);
+    expect(own.x + own.width / 2).toBeGreaterThan(middle);
+    expect(theirs.x + theirs.width / 2).toBeLessThan(middle);
   });
 
   test('keeps a menu in the same direction as the page it belongs to', async ({ student }) => {

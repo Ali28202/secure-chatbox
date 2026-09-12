@@ -39,10 +39,19 @@ export const updateChatSchema = z
   .object({
     title: chatTitleSchema.optional(),
     isReadOnly: z.boolean().optional(),
+    isArchived: z.boolean().optional(),
   })
-  .refine((input) => input.title !== undefined || input.isReadOnly !== undefined, {
-    error: 'تغییری برای اعمال مشخص نشده است.',
-  });
+  .refine(
+    (input) =>
+      input.title !== undefined || input.isReadOnly !== undefined || input.isArchived !== undefined,
+    { error: 'تغییری برای اعمال مشخص نشده است.' }
+  );
+
+export const listChatsQuerySchema = z.object({
+  // Archived conversations are a separate view, not a flag rendered inline: a
+  // retired group would otherwise sit in the list forever competing for a place.
+  archived: z.stringbool().default(false),
+});
 
 export const updateMemberSchema = z
   .object({
@@ -57,4 +66,5 @@ export type CreateChatInput = z.infer<typeof createChatSchema>;
 export type CreateChatPayload = z.input<typeof createChatSchema>;
 export type AddMemberInput = z.infer<typeof addMemberSchema>;
 export type UpdateChatInput = z.infer<typeof updateChatSchema>;
+export type ListChatsQuery = z.infer<typeof listChatsQuerySchema>;
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;

@@ -4,6 +4,7 @@ import {
   markReadSchema,
   pinMessageSchema,
   sendMessageSchema,
+  toggleReactionSchema,
   UPLOAD,
   uploadMessageSchema,
   type UploadMessageInput,
@@ -61,6 +62,20 @@ messageRoutes.patch(
         c.get('membership'),
         c.req.param('messageId'),
         c.req.valid('json').isPinned
+      )
+    )
+);
+
+messageRoutes.put(
+  '/:messageId/reactions',
+  zValidator('json', toggleReactionSchema, onValidationError),
+  async (c) =>
+    c.json(
+      await messageService.toggleReaction(
+        c.get('chat'),
+        c.get('membership'),
+        c.req.param('messageId'),
+        c.req.valid('json').emoji
       )
     )
 );

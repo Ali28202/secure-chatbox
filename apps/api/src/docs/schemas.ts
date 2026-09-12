@@ -2,18 +2,24 @@ import {
   CHAT_ROLES,
   CHAT_TYPES,
   ERROR_CODES,
+  ACCOUNT_STATUSES,
   GLOBAL_ROLES,
   addMemberSchema,
   createChatSchema,
+  listChatsQuerySchema,
+  searchMessagesQuerySchema,
   listMessagesQuerySchema,
   loginSchema,
   markReadSchema,
   pinMessageSchema,
+  toggleReactionSchema,
   registerSchema,
   sendMessageSchema,
   updateChatSchema,
   updateMemberSchema,
   uploadMessageSchema,
+  adminUpdateUserSchema,
+  adminUserQuerySchema,
   userSearchSchema,
   type ApiErrorBody,
   type AttachmentDto,
@@ -23,6 +29,13 @@ import {
   type FieldIssue,
   type MarkReadResultDto,
   type MessageDto,
+  type MessageReactionDto,
+  type MessageSearchHitDto,
+  type MessageSearchResultsDto,
+  type SessionDto,
+  type SessionsDto,
+  type AdminUserDto,
+  type AdminUsersDto,
   type MessagePageDto,
   type MessageReplyDto,
   type PinnedMessagesDto,
@@ -53,6 +66,10 @@ const userDto = userSummaryDto.extend({
     .meta({ example: '09351230001' })
     .nullable()
     .meta({ description: 'Null for accounts that predate the phone-number identifier.' }),
+  status: z.enum(ACCOUNT_STATUSES).meta({
+    description:
+      'Registration is open, so an account starts as PENDING — a request, not access. Separate from `isActive`, which switches off an account that was already approved.',
+  }),
   isActive: z.boolean(),
   lastSeen: dateTime.nullable(),
   createdAt: dateTime,
@@ -78,9 +95,39 @@ const chatDto = z.object({
     .nullable()
     .meta({ description: 'Null for direct chats, which are titled from the other member.' }),
   isReadOnly: z.boolean(),
+  archivedAt: dateTime.nullable().meta({
+    description:
+      'When the conversation was retired. Non-null means nobody may post, admins included, and it is served only by `GET /api/chats?archived=true`. Soft on purpose: the transcript and its attachments survive.',
+  }),
   creatorId: uuid(USER_ID),
   lastMessageAt: dateTime.nullable(),
   createdAt: dateTime,
+});
+
+const sessionDto = z.object({
+  id: uuid('01930b8e-5c21-7a3e-9d4f-2b7c6e1a0f55'),
+  userAgent: z.string().nullable().meta({
+    description: 'Truncated, never parsed. A label so someone can tell their own sessions apart.',
+  }),
+  ipAddress: z.string().nullable(),
+  createdAt: dateTime,
+  lastUsedAt: dateTime,
+  expiresAt: dateTime,
+  isCurrent: z.boolean().meta({
+    description: 'Decided by the server, so the list and the button that ends it cannot disagree.',
+  }),
+});
+
+const sessionsDto = z.object({ sessions: z.array(sessionDto) });
+
+const adminUserDto = userDto.extend({
+  reviewedAt: dateTime.nullable(),
+  chatCount: z.number().int().meta({ description: 'How many conversations they belong to.' }),
+});
+
+const adminUsersDto = z.object({
+  users: z.array(adminUserDto),
+  total: z.number().int().meta({ description: 'Matching the filter, before the limit.' }),
 });
 
 const attachmentDto = z.object({
@@ -101,6 +148,16 @@ const messageReplyDto = z.object({
   }),
 });
 
+const messageReactionDto = z.object({
+  emoji: z
+    .string()
+    .meta({ example: '👍', description: 'One of a fixed set — see REACTION_EMOJIS.' }),
+  userIds: z.array(uuid(USER_ID)).meta({
+    description:
+      'Who reacted. Not a count, and not "did I react": one payload is broadcast to the whole room, so the reader resolves both from this list.',
+  }),
+});
+
 const messageDto = z.object({
   id: uuid(MESSAGE_ID),
   chatId: uuid(CHAT_ID),
@@ -117,6 +174,7 @@ const messageDto = z.object({
   replyToId: uuid(MESSAGE_ID).nullable(),
   replyTo: messageReplyDto.nullable(),
   attachments: z.array(attachmentDto),
+  reactions: z.array(messageReactionDto),
   createdAt: dateTime,
 });
 
@@ -124,6 +182,17 @@ const chatListItemDto = chatDto.extend({
   members: z.array(chatMemberDto),
   lastMessage: messageDto.nullable(),
   unreadCount: z.number().int().meta({ example: 3 }),
+});
+
+const messageSearchHitDto = z.object({
+  message: messageDto,
+  chatId: uuid(CHAT_ID),
+  chatTitle: z.string().nullable().meta({ example: 'مبانی برنامه‌نویسی — گروه ۲' }),
+  chatType: z.enum(CHAT_TYPES),
+});
+
+const messageSearchResultsDto = z.object({
+  hits: z.array(messageSearchHitDto),
 });
 
 const messagePageDto = z.object({
@@ -197,11 +266,13 @@ export const SCHEMA_NAMES = {
   CreateChatRequest: createChatSchema,
   UpdateChatRequest: updateChatSchema,
   AddMemberRequest: addMemberSchema,
+  AdminUpdateUserRequest: adminUpdateUserSchema,
   UpdateMemberRequest: updateMemberSchema,
   SendMessageRequest: sendMessageSchema,
   UploadMessageFields: uploadMessageSchema,
   MarkReadRequest: markReadSchema,
   PinMessageRequest: pinMessageSchema,
+  ToggleReactionRequest: toggleReactionSchema,
   EchoRequest: echoSchema,
 
   // Responses.
@@ -211,7 +282,14 @@ export const SCHEMA_NAMES = {
   ChatListItemDto: chatListItemDto,
   ChatMemberDto: chatMemberDto,
   AttachmentDto: attachmentDto,
+  AdminUserDto: adminUserDto,
+  AdminUsersDto: adminUsersDto,
+  SessionDto: sessionDto,
+  SessionsDto: sessionsDto,
   MessageReplyDto: messageReplyDto,
+  MessageReactionDto: messageReactionDto,
+  MessageSearchHitDto: messageSearchHitDto,
+  MessageSearchResultsDto: messageSearchResultsDto,
   MessageDto: messageDto,
   MessagePageDto: messagePageDto,
   PinnedMessagesDto: pinnedMessagesDto,
@@ -236,7 +314,10 @@ export function ref(name: SchemaName): { $ref: string } {
 }
 
 const QUERY_SCHEMAS = {
+  ListChatsQuery: listChatsQuerySchema,
+  SearchMessagesQuery: searchMessagesQuerySchema,
   UserSearchQuery: userSearchSchema,
+  AdminUserQuery: adminUserQuerySchema,
   ListMessagesQuery: listMessagesQuerySchema,
 } as const;
 
@@ -306,9 +387,22 @@ export type UserDtoParity = Assert<Exact<z.infer<typeof userDto>, UserDto>>;
 export type ChatMemberDtoParity = Assert<Exact<z.infer<typeof chatMemberDto>, ChatMemberDto>>;
 export type ChatDtoParity = Assert<Exact<z.infer<typeof chatDto>, ChatDto>>;
 export type ChatListItemDtoParity = Assert<Exact<z.infer<typeof chatListItemDto>, ChatListItemDto>>;
+export type AdminUserDtoParity = Assert<Exact<z.infer<typeof adminUserDto>, AdminUserDto>>;
+export type AdminUsersDtoParity = Assert<Exact<z.infer<typeof adminUsersDto>, AdminUsersDto>>;
+export type SessionDtoParity = Assert<Exact<z.infer<typeof sessionDto>, SessionDto>>;
+export type SessionsDtoParity = Assert<Exact<z.infer<typeof sessionsDto>, SessionsDto>>;
 export type AttachmentDtoParity = Assert<Exact<z.infer<typeof attachmentDto>, AttachmentDto>>;
 export type MessageReplyDtoParity = Assert<Exact<z.infer<typeof messageReplyDto>, MessageReplyDto>>;
+export type MessageReactionDtoParity = Assert<
+  Exact<z.infer<typeof messageReactionDto>, MessageReactionDto>
+>;
 export type MessageDtoParity = Assert<Exact<z.infer<typeof messageDto>, MessageDto>>;
+export type MessageSearchHitDtoParity = Assert<
+  Exact<z.infer<typeof messageSearchHitDto>, MessageSearchHitDto>
+>;
+export type MessageSearchResultsDtoParity = Assert<
+  Exact<z.infer<typeof messageSearchResultsDto>, MessageSearchResultsDto>
+>;
 export type MessagePageDtoParity = Assert<Exact<z.infer<typeof messagePageDto>, MessagePageDto>>;
 export type PinnedMessagesParity = Assert<
   Exact<z.infer<typeof pinnedMessagesDto>, PinnedMessagesDto>

@@ -48,6 +48,24 @@ const pathParam = (name: string, description: string) => ({
 
 const CHAT_ID_PARAM = pathParam('chatId', 'The conversation.');
 const MESSAGE_ID_PARAM = pathParam('messageId', 'A message in this conversation.');
+const SESSION_ID_PARAM = pathParam('sessionId', 'One of the caller’s sessions.');
+
+const ARCHIVED_PARAM = queryParameters('ListChatsQuery', {
+  archived: 'Return the archived conversations instead of the active ones.',
+});
+
+const USER_ID_PARAM = pathParam('userId', 'The account being reviewed.');
+
+const ADMIN_USER_PARAMS = queryParameters('AdminUserQuery', {
+  status: 'Only accounts in this state.',
+  search: 'Matches name or student number.',
+  limit: 'How many to return.',
+});
+
+const SEARCH_PARAMS = queryParameters('SearchMessagesQuery', {
+  q: 'What to look for. Matched as a substring, case-insensitively.',
+  limit: 'How many hits to return.',
+});
 
 const PAGINATION_PARAMS = queryParameters('ListMessagesQuery', {
   before: 'Cursor: return the page of messages older than this id. Omit for the newest page.',
@@ -175,7 +193,7 @@ An account holds **one device at a time**. Signing in here revokes the previous 
       operationId: 'logout',
       summary: 'Sign out',
       description:
-        'Clears the cookies, which is the whole of logout. Refresh tokens are stateless by design, so one already copied out of the browser stays valid until it expires; the mitigation is the short access-token TTL and rotation on every refresh.',
+        'Clears the cookies and revokes the session row, so a refresh token already copied out of the browser stops working immediately rather than at expiry. Revoking is best-effort — an expired session is still a successful logout.',
       security: [],
       responses: { 200: json('The cookies were cleared.', 'SuccessResult') },
     },
@@ -209,13 +227,127 @@ An account holds **one device at a time**. Signing in here revokes the previous 
     },
   },
 
+  '/api/auth/sessions': {
+    get: {
+      tags: ['Auth'],
+      operationId: 'listSessions',
+      summary: 'Your active sign-ins',
+      description:
+        'Every session that is neither revoked nor expired, most recently used first. The device id is never returned — it is the session\u2019s secret half, not a label.',
+      responses: {
+        200: json('Active sessions.', 'SessionsDto'),
+        ...AUTH_ERRORS,
+      },
+    },
+    delete: {
+      tags: ['Auth'],
+      operationId: 'revokeOtherSessions',
+      summary: 'Sign out everywhere else',
+      description:
+        'Revokes every session except the one making the call, and disconnects their sockets. This is the answer to a stolen refresh token: without a row to revoke it would stay valid until it expired.',
+      responses: {
+        200: json('How many were ended.', 'SuccessResult'),
+        ...AUTH_ERRORS,
+      },
+    },
+  },
+
+  '/api/auth/sessions/{sessionId}': {
+    delete: {
+      tags: ['Auth'],
+      operationId: 'revokeSession',
+      summary: 'End one sign-in',
+      description:
+        'Scoped to the caller in the query itself, so guessing another person\u2019s session id finds nothing. Ending the session you are using also clears your cookies.',
+      parameters: [SESSION_ID_PARAM],
+      responses: {
+        200: json('Ended.', 'SuccessResult'),
+        404: error('No such session for this caller, or it had already ended.'),
+        ...AUTH_ERRORS,
+      },
+    },
+  },
+
+  '/api/admin/users': {
+    get: {
+      tags: ['Admin'],
+      operationId: 'adminListUsers',
+      summary: 'Everyone, for review',
+      description:
+        'Global ADMIN only — not professors, and not chat-level admins. Pending accounts sort first: the list exists to be worked through.',
+      parameters: ADMIN_USER_PARAMS,
+      responses: {
+        200: json('Matching accounts.', 'AdminUsersDto'),
+        403: error('Only a system administrator may use this section.'),
+        ...AUTH_ERRORS,
+        ...VALIDATION_ERROR,
+      },
+    },
+  },
+
+  '/api/admin/users/pending-count': {
+    get: {
+      tags: ['Admin'],
+      operationId: 'adminPendingCount',
+      summary: 'How many are waiting',
+      description: 'For the badge on the admin link, so it can be polled cheaply.',
+      responses: {
+        200: json('The number of accounts awaiting review.', 'SuccessResult'),
+        403: error('Only a system administrator may use this section.'),
+        ...AUTH_ERRORS,
+      },
+    },
+  },
+
+  '/api/admin/users/{userId}': {
+    patch: {
+      tags: ['Admin'],
+      operationId: 'adminUpdateUser',
+      summary: 'Approve, reject, change a role, or disable',
+      description:
+        'Refuses to act on the caller: an admin who could demote or disable themselves could leave the deployment with no administrator, and nothing inside the app could undo it. Rejecting or disabling also revokes every session and drops the sockets, because otherwise the decision would not take effect until a token expired.',
+      parameters: [USER_ID_PARAM],
+      requestBody: {
+        required: true,
+        content: { 'application/json': { schema: ref('AdminUpdateUserRequest') } },
+      },
+      responses: {
+        200: json('The account, as it now stands.', 'AdminUserDto'),
+        403: error('Only a system administrator may use this section, and never on themselves.'),
+        404: error('No such user.'),
+        ...AUTH_ERRORS,
+        ...VALIDATION_ERROR,
+      },
+    },
+  },
+
+  '/api/search': {
+    get: {
+      tags: ['Messages'],
+      operationId: 'searchMessages',
+      summary: 'Search your conversations',
+      description:
+        'Substring search across every chat the caller belongs to, newest first. Deleted messages are excluded — their text is already gone. Backed by a trigram GIN index rather than a `tsvector`: Postgres ships no Persian text-search configuration, and `simple` treats `کتاب` and `کتاب‌ها` as unrelated words, so a stem search would miss every inflected form.',
+      parameters: SEARCH_PARAMS,
+      responses: {
+        200: json(
+          'Matching messages, each with the conversation it came from.',
+          'MessageSearchResultsDto'
+        ),
+        ...AUTH_ERRORS,
+        ...VALIDATION_ERROR,
+      },
+    },
+  },
+
   '/api/chats': {
     get: {
       tags: ['Chats'],
       operationId: 'listChats',
       summary: 'The caller’s conversations',
       description:
-        'Everything the sidebar needs in one call: members, the last message, and an unread count per chat.',
+        'Everything the sidebar needs in one call: members, the last message, and an unread count per chat. Archived conversations are excluded unless asked for — they are a separate view, not a flag rendered inline.',
+      parameters: ARCHIVED_PARAM,
       responses: {
         200: jsonArray('Conversations, most recently active first.', 'ChatListItemDto'),
         ...AUTH_ERRORS,
@@ -447,6 +579,27 @@ At most ${UPLOAD.maxFilesPerMessage} files, ${UPLOAD.maxFileBytes / 1024 / 1024}
     },
   },
 
+  '/api/chats/{chatId}/messages/{messageId}/reactions': {
+    put: {
+      tags: ['Messages'],
+      operationId: 'toggleMessageReaction',
+      summary: 'React, or take the reaction back',
+      description:
+        'One call toggles. `PUT` rather than `POST`/`DELETE` because the emoji is part of the primary key, so the write is a single delete-or-create and a retry lands in the same place. Any member may react — reacting is not moderation.',
+      parameters: [CHAT_ID_PARAM, MESSAGE_ID_PARAM],
+      requestBody: {
+        required: true,
+        content: { 'application/json': { schema: ref('ToggleReactionRequest') } },
+      },
+      responses: {
+        200: json('The message, with its reactions recounted.', 'MessageDto'),
+        404: error('No such chat for this caller, or that message is not in it.'),
+        ...AUTH_ERRORS,
+        ...VALIDATION_ERROR,
+      },
+    },
+  },
+
   '/api/chats/{chatId}/messages/{messageId}': {
     delete: {
       tags: ['Messages'],
@@ -530,6 +683,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       { name: 'Chats', description: 'Conversations and their membership.' },
       { name: 'Messages', description: 'Sending, reading, pinning and deleting.' },
       { name: 'Attachments', description: 'Downloads, and nothing else.' },
+      { name: 'Admin', description: 'Account review, for system administrators only.' },
       { name: 'Health', description: 'Liveness and readiness probes.' },
     ],
     security: [{ accessCookie: [] }],

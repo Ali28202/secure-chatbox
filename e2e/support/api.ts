@@ -6,6 +6,8 @@ import type {
   ChatType,
   MarkReadResultDto,
   MessageDto,
+  MessageSearchResultsDto,
+  SessionsDto,
   UserDto,
 } from '@repo/shared';
 import type { APIRequestContext, APIResponse } from '@playwright/test';
@@ -65,7 +67,7 @@ export class Api {
 
   async updateChat(
     chatId: string,
-    patch: { title?: string; isReadOnly?: boolean }
+    patch: { title?: string; isReadOnly?: boolean; isArchived?: boolean }
   ): Promise<ChatDto> {
     return this.json(
       await this.request.patch(`${API_URL}/api/chats/${chatId}`, { data: patch }),
@@ -92,6 +94,26 @@ export class Api {
     return this.json(
       await this.request.patch(`${API_URL}/api/chats/${chatId}/members/${userId}`, { data: patch }),
       'update member'
+    );
+  }
+
+  async search(q: string): Promise<MessageSearchResultsDto> {
+    return this.json(
+      await this.request.get(`${API_URL}/api/search`, { params: { q } }),
+      'search messages'
+    );
+  }
+
+  async listSessions(): Promise<SessionsDto> {
+    return this.json(await this.request.get(`${API_URL}/api/auth/sessions`), 'list sessions');
+  }
+
+  async toggleReaction(chatId: string, messageId: string, emoji: string): Promise<MessageDto> {
+    return this.json(
+      await this.request.put(`${API_URL}/api/chats/${chatId}/messages/${messageId}/reactions`, {
+        data: { emoji },
+      }),
+      'toggle reaction'
     );
   }
 

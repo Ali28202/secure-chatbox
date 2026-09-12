@@ -318,8 +318,12 @@ async function main(): Promise<void> {
         role: user.role,
         phoneNumber: user.phoneNumber,
         isActive: true,
+        // Seeded accounts are fixtures, not applicants. Leaving them on the
+        // PENDING default would make a freshly seeded database one nobody can
+        // sign in to — including the admin who would have to approve them.
+        status: 'APPROVED',
       },
-      create: { ...user, passwordHash },
+      create: { ...user, passwordHash, status: 'APPROVED' },
       select: { id: true },
     });
 

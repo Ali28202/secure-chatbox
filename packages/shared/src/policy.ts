@@ -7,6 +7,13 @@ export interface PolicyUser {
 export interface PolicyChat {
   type: ChatType;
   isReadOnly: boolean;
+  /**
+   * A timestamp, not a boolean, and a union because these rules run on both
+   * sides: the API hands in a Prisma row where this is a `Date`, the browser
+   * hands in the DTO where it is an ISO string. Keeping one field name in both
+   * shapes is what lets a single pure function serve both without an adapter.
+   */
+  archivedAt: Date | string | null;
   creatorId: string;
 }
 export interface PolicyMember {
@@ -25,15 +32,21 @@ export function canCreateChat(user: PolicyUser, type: ChatType): boolean {
   return type === 'COURSE_GROUP' ? isFaculty(user) : true;
 }
 
-export type SendBlock = 'MUTED' | 'READ_ONLY';
+export type SendBlock = 'MUTED' | 'READ_ONLY' | 'ARCHIVED';
 
 export const SEND_BLOCK_MESSAGES: Record<SendBlock, string> = {
   MUTED: 'شما در این گفت‌وگو بی‌صدا شده‌اید و نمی‌توانید پیام بفرستید.',
   READ_ONLY: 'این گفت‌وگو فقط‌خواندنی است.',
+  ARCHIVED: 'این گفت‌وگو آرشیو شده است. برای فرستادن پیام باید از آرشیو خارج شود.',
 };
 
 export function sendBlock(chat: PolicyChat, member: PolicyMember): SendBlock | null {
   if (member.isMuted) return 'MUTED';
+
+  // Ahead of the read-only check, and it has no admin exemption: read-only is a
+  // rule about who may speak, archiving is a statement that the conversation is
+  // over. An admin who wants to speak again restores it first.
+  if (chat.archivedAt !== null) return 'ARCHIVED';
 
   if (chat.isReadOnly && member.role !== 'ADMIN') return 'READ_ONLY';
 
@@ -103,6 +116,15 @@ export function canMuteMember(
   target: PolicyMember
 ): boolean {
   return canUpdateMember(chat, actor, target) && target.role !== 'ADMIN';
+}
+
+/**
+ * Archiving hides the conversation for everyone in it, so it is gated like the
+ * roster rather than like the title: faculty, or the person who made it. An
+ * admin a student promoted cannot retire someone else's group.
+ */
+export function canArchiveChat(chat: PolicyChat, member: PolicyMember): boolean {
+  return canManageMembers(chat, member);
 }
 
 export function canLeaveChat(

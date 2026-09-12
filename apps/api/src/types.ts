@@ -3,6 +3,8 @@ import type { ChatMemberRow, ChatRow, UserRow } from './lib/mappers';
 export interface AppEnv {
   Variables: {
     user: UserRow;
+    /** Which sign-in this request belongs to. Set by `requireAuth`. */
+    sessionId: string;
   };
 }
 

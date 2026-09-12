@@ -1,6 +1,12 @@
 'use client';
 
-import type { MessageDto, PresenceChange, ReadReceipt } from '@repo/shared';
+import {
+  TYPING_EXPIRY_MS,
+  type MessageDto,
+  type PresenceChange,
+  type ReadReceipt,
+  type TypingChange,
+} from '@repo/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
@@ -14,6 +20,7 @@ import {
 } from '@/hooks/use-messages';
 import { disconnectSocket, getSocket, installAuthRecovery } from '@/lib/socket';
 import { usePresenceStore } from '@/stores/presence-store';
+import { useTypingStore } from '@/stores/typing-store';
 
 /** The chat a `/chats/<id>` path is showing, or null anywhere else. */
 function chatIdFromPath(pathname: string): string | null {
@@ -48,11 +55,40 @@ export function RealtimeBridge() {
 
     const onChatUpdated = (chatId: string) => applyChatUpdate(queryClient, chatId);
 
+    // Expiry lives here, not in the store and not on the server. A tab closed
+    // mid-word never sends `typing:stop`, so the indicator has to time itself
+    // out; the sender re-announces on a heartbeat to keep it alive.
+    const typing = useTypingStore.getState();
+    const typingTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+    const onTyping = ({ chatId, userId, isTyping }: TypingChange) => {
+      const key = `${chatId}:${userId}`;
+
+      const pending = typingTimers.get(key);
+      if (pending !== undefined) clearTimeout(pending);
+
+      if (!isTyping) {
+        typingTimers.delete(key);
+        typing.set(chatId, userId, false);
+        return;
+      }
+
+      typing.set(chatId, userId, true);
+      typingTimers.set(
+        key,
+        setTimeout(() => {
+          typingTimers.delete(key);
+          useTypingStore.getState().set(chatId, userId, false);
+        }, TYPING_EXPIRY_MS)
+      );
+    };
+
     const onSync = (userIds: string[]) => presence.merge(userIds);
     const onPresence = ({ userId, isOnline }: PresenceChange) => presence.set(userId, isOnline);
 
     const onReconnect = () => {
       presence.clear();
+      useTypingStore.getState().clear();
       void queryClient.invalidateQueries({ queryKey: chatsQueryKey });
       void queryClient.invalidateQueries({ queryKey: messagesRootKey });
     };
@@ -64,6 +100,7 @@ export function RealtimeBridge() {
     socket.on('receipt:read', onReceipt);
     socket.on('presence:sync', onSync);
     socket.on('presence:changed', onPresence);
+    socket.on('typing:changed', onTyping);
     socket.io.on('reconnect', onReconnect);
 
     const removeAuthRecovery = installAuthRecovery(socket);
@@ -78,10 +115,15 @@ export function RealtimeBridge() {
       socket.off('receipt:read', onReceipt);
       socket.off('presence:sync', onSync);
       socket.off('presence:changed', onPresence);
+      socket.off('typing:changed', onTyping);
       socket.io.off('reconnect', onReconnect);
       removeAuthRecovery();
 
+      for (const timer of typingTimers.values()) clearTimeout(timer);
+      typingTimers.clear();
+
       usePresenceStore.getState().clear();
+      useTypingStore.getState().clear();
       disconnectSocket();
     };
   }, [queryClient, viewer.id]);

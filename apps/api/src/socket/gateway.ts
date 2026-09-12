@@ -76,6 +76,15 @@ class SocketGateway {
     return this.connections.has(userId);
   }
 
+  /** Every socket this person has open, on any device. */
+  async disconnectUser(userId: string): Promise<void> {
+    const io = this.io;
+    if (!io) return;
+
+    const sockets = await io.in(socketRooms.user(userId)).fetchSockets();
+    for (const socket of sockets) socket.disconnect(true);
+  }
+
   async disconnectDevice(userId: string, deviceId: string): Promise<void> {
     const io = this.io;
     if (!io) return;
@@ -111,6 +120,14 @@ class SocketGateway {
 
     socket.on('chat:join', (chatId: string) => {
       void this.onChatJoin(socket, chatId);
+    });
+
+    socket.on('typing:start', (chatId: string) => {
+      this.onTyping(socket, chatId, true);
+    });
+
+    socket.on('typing:stop', (chatId: string) => {
+      this.onTyping(socket, chatId, false);
     });
 
     const sockets = this.connections.get(userId);
@@ -160,6 +177,21 @@ class SocketGateway {
     void prisma.user
       .update({ where: { id: userId }, data: { lastSeen: new Date() } })
       .catch((error: unknown) => console.error('failed to stamp lastSeen', error));
+  }
+
+  /**
+   * Relayed, never stored. The room check is the authorization: a socket is
+   * only ever in `chat:<id>` if `onConnection` or `onChatJoin` put it there
+   * after reading the membership row, so a client that invents a chat id gets
+   * nothing. Without it, anyone could announce themselves into any chat.
+   */
+  private onTyping(socket: AppSocket, chatId: string, isTyping: boolean): void {
+    if (typeof chatId !== 'string') return;
+
+    const room = socketRooms.chat(chatId);
+    if (!socket.rooms.has(room)) return;
+
+    socket.to(room).emit('typing:changed', { chatId, userId: socket.data.userId, isTyping });
   }
 
   private async onChatJoin(socket: AppSocket, chatId: string): Promise<void> {

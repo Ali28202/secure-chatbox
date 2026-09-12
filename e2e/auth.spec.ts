@@ -153,7 +153,7 @@ test.describe('route protection', () => {
 test.describe('registering', () => {
   const freshPhoneNumber = () => `09${Date.now().toString().slice(-9)}`;
 
-  test('creates a student account and signs them straight in', async ({ page }) => {
+  test('creates a student account, and leaves it waiting for approval', async ({ page }) => {
     const universityId = `40${Date.now().toString(36)}`;
 
     await page.goto('/register');
@@ -163,16 +163,42 @@ test.describe('registering', () => {
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'ساخت حساب کاربری' }).click();
 
-    await expect(page).toHaveURL('/chats');
+    // Registration is a request now, not an entry: it no longer signs anyone in.
+    await expect(page.getByText('درخواستت ثبت شد')).toBeVisible();
+    await expect(page).toHaveURL('/register');
 
-    const role = await withDb(async (client) => {
-      const { rows } = await client.query<{ role: string }>(
-        'SELECT role FROM users WHERE university_id = $1',
+    const account = await withDb(async (client) => {
+      const { rows } = await client.query<{ role: string; status: string }>(
+        'SELECT role, status FROM users WHERE university_id = $1',
         [universityId]
       );
-      return rows[0]?.role;
+      return rows[0];
     });
-    expect(role).toBe('STUDENT');
+    expect(account?.role).toBe('STUDENT');
+    expect(account?.status).toBe('PENDING');
+  });
+
+  test('a pending account is refused at the login form, and told why', async ({ page }) => {
+    const pending = await createAccount('STUDENT', { status: 'PENDING' });
+
+    await page.goto('/login');
+    await page.getByLabel('شماره دانشجویی یا شمارهٔ تلفن').fill(pending.universityId);
+    await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
+    await page.getByRole('button', { name: 'ورود به سامانه' }).click();
+
+    await expect(page.getByText('هنوز تأیید نشده است', { exact: false })).toBeVisible();
+    await expect(page).toHaveURL('/login');
+  });
+
+  test('a rejected account is refused too, with a different reason', async ({ page }) => {
+    const rejected = await createAccount('STUDENT', { status: 'REJECTED' });
+
+    await page.goto('/login');
+    await page.getByLabel('شماره دانشجویی یا شمارهٔ تلفن').fill(rejected.universityId);
+    await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
+    await page.getByRole('button', { name: 'ورود به سامانه' }).click();
+
+    await expect(page.getByText('پذیرفته نشده است', { exact: false })).toBeVisible();
   });
 
   test('reports a taken university ID under the field that caused it', async ({ page }) => {

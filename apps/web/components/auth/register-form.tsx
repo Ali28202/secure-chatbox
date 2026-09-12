@@ -2,9 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LIMITS, registerSchema, toPersianDigits, type RegisterFormValues } from '@repo/shared';
-import { Loader2Icon } from 'lucide-react';
+import { ClockIcon, Loader2Icon } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { FormError } from '@/components/auth/form-error';
 import { Button } from '@/components/ui/button';
@@ -18,7 +17,6 @@ import { useRegister } from '@/hooks/use-auth';
 const FIELDS = ['name', 'universityId', 'phoneNumber', 'password'] as const;
 
 export function RegisterForm() {
-  const router = useRouter();
   const register = useRegister();
 
   const form = useForm<RegisterFormValues>({
@@ -30,7 +28,6 @@ export function RegisterForm() {
 
   const onSubmit = form.handleSubmit((values) => {
     register.mutate(values, {
-      onSuccess: () => router.replace(ROUTES.chats),
       onError: (error) => {
         if (!applyApiFieldIssues(error, form.setError, FIELDS)) {
           form.setError('root', { message: getApiErrorMessage(error) });
@@ -38,6 +35,25 @@ export function RegisterForm() {
       },
     });
   });
+
+  // Registering is now a request, not an entry. Saying so here is the whole
+  // difference between "it worked, wait" and "it failed" — which is what the
+  // 403 from an auto-login would have looked like.
+  if (register.isSuccess) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-10 text-center">
+        <ClockIcon className="size-8 text-muted-foreground" />
+        <p className="font-medium">درخواستت ثبت شد</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          حسابت ساخته شد ولی تا وقتی مدیر سامانه تأییدش نکنه نمی‌تونی وارد بشی. بعد از تأیید با همین
+          شماره دانشجویی و گذرواژه وارد شو.
+        </p>
+        <Button variant="outline" size="sm" render={<Link href={ROUTES.login} />}>
+          رفتن به صفحهٔ ورود
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={onSubmit} noValidate>

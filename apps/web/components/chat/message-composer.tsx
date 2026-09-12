@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useSendMessage } from '@/hooks/use-messages';
+import { useTypingAnnouncer } from '@/hooks/use-typing';
 import { getApiErrorMessage } from '@/lib/api';
 import { getAttachmentSummary } from '@/lib/chat';
 
@@ -100,6 +101,7 @@ export function MessageComposer({
   const [content, setContent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const send = useSendMessage(chatId);
+  const typing = useTypingAnnouncer(chatId);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -141,6 +143,7 @@ export function MessageComposer({
           setContent('');
           setFiles([]);
           onCancelReply();
+          typing.stop();
         },
         onError: (error) => toast.error(getApiErrorMessage(error)),
       }
@@ -223,7 +226,14 @@ export function MessageComposer({
         <Textarea
           ref={textareaRef}
           value={content}
-          onChange={(event) => setContent(event.target.value)}
+          onChange={(event) => {
+            setContent(event.target.value);
+            // An empty box is not someone typing — clearing the draft should
+            // take the indicator down rather than leave it to time out.
+            if (event.target.value) typing.announce();
+            else typing.stop();
+          }}
+          onBlur={typing.stop}
           onKeyDown={handleKeyDown}
           maxLength={LIMITS.messageContent.max}
           rows={1}

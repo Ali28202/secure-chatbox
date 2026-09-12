@@ -1,3 +1,4 @@
+import { API_URL } from './support/env';
 import { expect, test } from './support/fixtures';
 
 test.describe('realtime delivery', () => {
@@ -89,6 +90,11 @@ test.describe('sending', () => {
     await student.page.goto(`/chats/${chat.id}`);
     await peer.page.goto(`/chats/${chat.id}`);
 
+    // Both windows must be in the room before either relies on the other
+    // receiving anything: `goto` resolves long before the socket joins.
+    await expect(student.page.getByText('سؤالی دربارهٔ فصل سوم دارید؟')).toBeVisible();
+    await expect(peer.page.getByText('سؤالی دربارهٔ فصل سوم دارید؟')).toBeVisible();
+
     const original = student.page.locator('[data-slot="message"]', {
       hasText: 'سؤالی دربارهٔ فصل سوم دارید؟',
     });
@@ -112,6 +118,9 @@ test.describe('deleting', () => {
 
     await student.page.goto(`/chats/${chat.id}`);
     await peer.page.goto(`/chats/${chat.id}`);
+
+    await expect(student.page.getByText('هنوز پیامی اینجا نیست')).toBeVisible();
+    await expect(peer.page.getByText('هنوز پیامی اینجا نیست')).toBeVisible();
 
     await student.page.getByLabel('متن پیام').fill('این را اشتباه فرستادم');
     await student.page.getByRole('button', { name: 'ارسال پیام' }).click();
@@ -143,6 +152,9 @@ test.describe('pinning', () => {
     await professor.page.goto(`/chats/${chat.id}`);
     await attendee.page.goto(`/chats/${chat.id}`);
 
+    await expect(professor.page.getByText('امتحان میان‌ترم: ۲۵ آبان')).toBeVisible();
+    await expect(attendee.page.getByText('امتحان میان‌ترم: ۲۵ آبان')).toBeVisible();
+
     const bubble = professor.page.locator('[data-slot="message"]', {
       hasText: 'امتحان میان‌ترم: ۲۵ آبان',
     });
@@ -152,5 +164,143 @@ test.describe('pinning', () => {
     await expect(
       attendee.page.getByText(`پیام پین‌شده از ${professor.account.name}`)
     ).toBeVisible();
+  });
+});
+
+test.describe('the typing indicator', () => {
+  test('appears for the other person while you type, and clears when you send', async ({
+    student,
+    newSession,
+  }) => {
+    const peer = await newSession('STUDENT');
+    const chat = await student.api.createDirectChat(peer.account.id);
+
+    await student.page.goto(`/chats/${chat.id}`);
+    await peer.page.goto(`/chats/${chat.id}`);
+
+    // Both sides have to be in the room before anything is announced into it.
+    await expect(student.page.getByText('هنوز پیامی اینجا نیست')).toBeVisible();
+    await expect(peer.page.getByText('هنوز پیامی اینجا نیست')).toBeVisible();
+
+    await student.page.getByLabel('متن پیام').fill('دارم می‌نویسم');
+
+    await expect(peer.page.getByText(`${student.account.name} در حال نوشتن است…`)).toBeVisible();
+
+    // Your own typing is never announced back to you.
+    await expect(student.page.getByRole('status').filter({ hasText: 'در حال نوشتن' })).toHaveCount(
+      0
+    );
+
+    await student.page.getByRole('button', { name: 'ارسال پیام' }).click();
+
+    await expect(peer.page.getByText('دارم می‌نویسم')).toBeVisible();
+    await expect(peer.page.getByText('در حال نوشتن')).toBeHidden();
+  });
+
+  test('clears by itself when the other tab goes away mid-word', async ({
+    student,
+    newSession,
+  }) => {
+    const peer = await newSession('STUDENT');
+    const chat = await student.api.createDirectChat(peer.account.id);
+
+    await student.page.goto(`/chats/${chat.id}`);
+    await peer.page.goto(`/chats/${chat.id}`);
+
+    await expect(student.page.getByText('هنوز پیامی اینجا نیست')).toBeVisible();
+    await expect(peer.page.getByText('هنوز پیامی اینجا نیست')).toBeVisible();
+
+    await student.page.getByLabel('متن پیام').fill('نیمه‌کاره');
+    await expect(peer.page.getByText('در حال نوشتن')).toBeVisible();
+
+    // No `typing:stop` is ever sent — the receiver's own expiry has to do it.
+    await student.page.close();
+
+    await expect(peer.page.getByText('در حال نوشتن')).toBeHidden({ timeout: 15_000 });
+  });
+});
+
+test.describe('reactions', () => {
+  test('a reaction lands in the other window, and clicking again takes it back', async ({
+    student,
+    newSession,
+  }) => {
+    const peer = await newSession('STUDENT');
+    const chat = await student.api.createDirectChat(peer.account.id);
+    await peer.api.sendMessage(chat.id, 'این را بخوان');
+
+    await student.page.goto(`/chats/${chat.id}`);
+    await peer.page.goto(`/chats/${chat.id}`);
+
+    await expect(student.page.getByText('این را بخوان')).toBeVisible();
+    await expect(peer.page.getByText('این را بخوان')).toBeVisible();
+
+    const bubble = student.page.locator('[data-slot="message"]', { hasText: 'این را بخوان' });
+    await bubble.getByRole('button', { name: `واکنش به پیام ${peer.account.name}` }).click();
+    await student.page.getByRole('menuitem', { name: '👍' }).click();
+
+    // The count is a list of ids on the wire, so both windows have to agree.
+    await expect(student.page.getByRole('button', { name: '👍 — ۱ نفر' })).toBeVisible();
+    await expect(peer.page.getByRole('button', { name: '👍 — ۱ نفر' })).toBeVisible();
+
+    await expect(student.page.getByRole('button', { name: '👍 — ۱ نفر' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    // Same tally, but it is not *their* reaction.
+    await expect(peer.page.getByRole('button', { name: '👍 — ۱ نفر' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    );
+
+    await student.page.getByRole('button', { name: '👍 — ۱ نفر' }).click();
+    await expect(peer.page.getByRole('button', { name: /👍/ })).toHaveCount(0);
+  });
+
+  test('two people on the same emoji count as two, not two rows', async ({
+    student,
+    newSession,
+  }) => {
+    const peer = await newSession('STUDENT');
+    const chat = await student.api.createDirectChat(peer.account.id);
+    const message = await peer.api.sendMessage(chat.id, 'نظرتان چیست؟');
+
+    await student.api.toggleReaction(chat.id, message.id, '🎉');
+    await peer.api.toggleReaction(chat.id, message.id, '🎉');
+
+    await student.page.goto(`/chats/${chat.id}`);
+
+    await expect(student.page.getByRole('button', { name: '🎉 — ۲ نفر' })).toBeVisible();
+    await expect(student.page.getByRole('button', { name: /🎉/ })).toHaveCount(1);
+  });
+
+  test('is refused on a deleted message', async ({ student, newSession }) => {
+    const peer = await newSession('STUDENT');
+    const chat = await student.api.createDirectChat(peer.account.id);
+    const message = await student.api.sendMessage(chat.id, 'اشتباه بود');
+
+    await student.api.raw().delete(`${API_URL}/api/chats/${chat.id}/messages/${message.id}`, {
+      data: {},
+    });
+
+    const response = await peer.api
+      .raw()
+      .put(`${API_URL}/api/chats/${chat.id}/messages/${message.id}/reactions`, {
+        data: { emoji: '👍' },
+      });
+    expect(response.status()).toBe(422);
+  });
+
+  test('refuses an emoji that is not on the list', async ({ student, newSession }) => {
+    const peer = await newSession('STUDENT');
+    const chat = await student.api.createDirectChat(peer.account.id);
+    const message = await peer.api.sendMessage(chat.id, 'سلام');
+
+    const response = await student.api
+      .raw()
+      .put(`${API_URL}/api/chats/${chat.id}/messages/${message.id}/reactions`, {
+        data: { emoji: '💀' },
+      });
+    expect(response.status()).toBe(422);
   });
 });

@@ -11,6 +11,7 @@ import {
   Trash2Icon,
 } from 'lucide-react';
 import { MessageAttachments } from '@/components/chat/message-attachments';
+import { MessageReactions } from '@/components/chat/message-reactions';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -106,7 +107,11 @@ export function MessageBubble({
       data-message-id={message.id}
       className={cn(
         'group flex w-full items-end gap-2',
-        isOwn ? 'flex-row-reverse justify-start' : 'justify-start'
+        // The page is `dir="rtl"`, so a plain row already starts on the right.
+        // Your own messages take that side and the other person's are reversed
+        // onto the left — the arrangement asked for, rather than the mirrored
+        // one an RTL layout produces on its own.
+        isOwn ? 'justify-start' : 'flex-row-reverse justify-start'
       )}
     >
       {!isOwn && (
@@ -180,6 +185,17 @@ export function MessageBubble({
             {readState && <ReadTicks {...readState} />}
           </span>
         </div>
+
+        {/* Outside the bubble: a reaction belongs to the message but is not part
+            of what was said, and inside it would invert on the sender's colour. */}
+        {canAct && (
+          <MessageReactions
+            chatId={message.chatId}
+            messageId={message.id}
+            reactions={message.reactions}
+            senderName={message.sender.name}
+          />
+        )}
       </div>
 
       {canAct && (

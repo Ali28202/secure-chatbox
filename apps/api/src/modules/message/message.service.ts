@@ -8,6 +8,8 @@ import {
   type MarkReadInput,
   type MarkReadResultDto,
   type MessageDto,
+  type MessageSearchHitDto,
+  type SearchMessagesQuery,
   type MessagePageDto,
   type SendMessageInput,
   type UploadMessageInput,
@@ -221,6 +223,86 @@ class MessageService {
     socketGateway.emitToChat(chat.id, 'message:updated', dto);
 
     return dto;
+  }
+
+  /**
+   * Adds the reaction, or takes it back if it is already there.
+   *
+   * Anyone who can read the chat may react — there is no `canReact`. Reacting
+   * is not moderation and does not change what anyone else sees beyond a tally,
+   * so gating it on ADMIN would be ceremony. Being able to *read* the message
+   * is the whole permission, and `requireChatMember` has already settled that.
+   */
+  async toggleReaction(
+    chat: ChatRow,
+    member: ChatMemberRow,
+    messageId: string,
+    emoji: string
+  ): Promise<MessageDto> {
+    const message = await prisma.message.findFirst({
+      where: { id: messageId, chatId: chat.id },
+      select: { id: true, isDeleted: true },
+    });
+
+    if (!message) {
+      throw Errors.notFound(MESSAGE_NOT_FOUND);
+    }
+
+    if (message.isDeleted) {
+      throw Errors.validation(
+        [{ path: 'emoji', message: 'به پیام حذف‌شده نمی‌توان واکنش داد.' }],
+        'به پیام حذف‌شده نمی‌توان واکنش داد.'
+      );
+    }
+
+    // The emoji is part of the primary key, so the toggle is one delete or one
+    // create — never a read followed by a write that a second tab could race.
+    const removed = await prisma.messageReaction.deleteMany({
+      where: { messageId, userId: member.user.id, emoji },
+    });
+
+    if (removed.count === 0) {
+      await prisma.messageReaction.create({
+        data: { messageId, userId: member.user.id, emoji },
+      });
+    }
+
+    const dto = await this.requireMessage(chat.id, messageId);
+
+    socketGateway.emitToChat(chat.id, 'message:updated', dto);
+
+    return dto;
+  }
+
+  /**
+   * Searches every conversation the caller is in, and nothing else.
+   *
+   * The membership filter is the whole security of this endpoint: it is the one
+   * place in the app where a query fans out across chats, so `members: { some:
+   * { userId } }` is what stops it becoming a way to read the whole database by
+   * guessing words. Tombstones are excluded — their content is already gone.
+   *
+   * `contains` compiles to `ILIKE '%…%'`, which the trigram GIN index on
+   * `messages.content` turns into a bitmap index scan.
+   */
+  async searchMessages(userId: string, query: SearchMessagesQuery): Promise<MessageSearchHitDto[]> {
+    const rows = await prisma.message.findMany({
+      where: {
+        isDeleted: false,
+        content: { contains: query.q, mode: 'insensitive' },
+        chat: { members: { some: { userId } } },
+      },
+      select: { ...messageSelect, chat: { select: { id: true, title: true, type: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: query.limit,
+    });
+
+    return rows.map(({ chat, ...message }) => ({
+      message: toMessageDto(message),
+      chatId: chat.id,
+      chatTitle: chat.title,
+      chatType: chat.type,
+    }));
   }
 
   async getPinnedMessages(chatId: string): Promise<MessageDto[]> {

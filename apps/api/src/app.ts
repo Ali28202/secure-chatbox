@@ -9,6 +9,8 @@ import { ipRestrictionMiddleware } from './middleware/ip-restriction';
 import { attachmentRoutes } from './modules/attachment/attachment.routes';
 import { authRoutes } from './modules/auth/auth.routes';
 import { chatRoutes } from './modules/chat/chat.routes';
+import { adminRoutes } from './modules/admin/admin.routes';
+import { searchRoutes } from './modules/message/search.routes';
 import { userRoutes } from './modules/user/user.routes';
 import { docsRoutes } from './routes/docs';
 import { healthRoutes } from './routes/health';
@@ -33,6 +35,8 @@ app.route('/api/health', healthRoutes);
 app.route('/api/auth', authRoutes);
 app.route('/api/chats', chatRoutes);
 app.route('/api/users', userRoutes);
+app.route('/api/search', searchRoutes);
+app.route('/api/admin', adminRoutes);
 app.route('/api/attachments', attachmentRoutes);
 
 app.route(DOCS_PATH, docsRoutes);
