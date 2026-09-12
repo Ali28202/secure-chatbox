@@ -1,6 +1,7 @@
 'use client';
 
 import type {
+  AddMemberInput,
   ChatListItemDto,
   ChatDto,
   ChatMemberDto,
@@ -166,6 +167,27 @@ export function useUpdateMember(chatId: string) {
   return useMutation({
     mutationFn: async ({ userId, ...input }: UpdateMemberInput & { userId: string }) =>
       (await api.patch<ChatMemberDto>(`/chats/${chatId}/members/${userId}`, input)).data,
+    onSuccess: () => applyChatUpdate(queryClient, chatId),
+  });
+}
+
+export function useAddMember(chatId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: AddMemberInput) =>
+      (await api.post<ChatMemberDto>(`/chats/${chatId}/members`, input)).data,
+    onSuccess: () => applyChatUpdate(queryClient, chatId),
+  });
+}
+
+export function useRemoveMember(chatId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      await api.delete(`/chats/${chatId}/members/${userId}`);
+    },
     onSuccess: () => applyChatUpdate(queryClient, chatId),
   });
 }

@@ -5,6 +5,7 @@ import {
   canMuteMember,
   canUpdateChat,
   canUpdateMember,
+  isChatCreator,
   type AddMemberInput,
   type ChatDto,
   type ChatListItemDto,
@@ -30,6 +31,11 @@ import { socketGateway } from '../../socket/gateway';
 const CHAT_NOT_FOUND = 'این گفت‌وگو وجود ندارد یا به آن دسترسی ندارید.';
 const NOT_CHAT_ADMIN = 'فقط مدیر گفت‌وگو می‌تواند این کار را انجام دهد.';
 const DIRECT_IMMUTABLE = 'اعضای گفت‌وگوی خصوصی قابل تغییر نیستند.';
+// Distinct from NOT_CHAT_ADMIN on purpose: the person reading this *is* an
+// admin of the chat, so being told they are not one would send them looking
+// for the wrong thing.
+const NOT_ROSTER_MANAGER = 'تغییر اعضا تنها از عهدهٔ استادان و سازندهٔ گفت‌وگو برمی‌آید.';
+const CREATOR_PROTECTED = 'سازندهٔ گفت‌وگو را نمی‌توان تغییر داد یا حذف کرد.';
 
 class ChatService {
   async getUserChats(userId: string): Promise<ChatListItemDto[]> {
@@ -86,7 +92,7 @@ class ChatService {
     input: AddMemberInput
   ): Promise<ChatMemberDto> {
     if (!canManageMembers(chat, actor)) {
-      throw Errors.forbidden(chat.type === 'DIRECT' ? DIRECT_IMMUTABLE : NOT_CHAT_ADMIN);
+      throw Errors.forbidden(chat.type === 'DIRECT' ? DIRECT_IMMUTABLE : NOT_ROSTER_MANAGER);
     }
 
     const user = await prisma.user.findUnique({
@@ -135,8 +141,16 @@ class ChatService {
             : 'پیش از ترک گفت‌وگو باید مدیریت آن را به عضو دیگری بسپارید.'
         );
       }
+    } else if (chat.type === 'DIRECT') {
+      throw Errors.forbidden(DIRECT_IMMUTABLE);
+    } else if (isChatCreator(chat, userId)) {
+      // Checked before the roster permission, and in the same order as
+      // updateMember, so that both routes give one answer for one situation.
+      // Removing the creator is otherwise a way around the demotion guard:
+      // drop them from the roster and the chat has no protected admin left.
+      throw Errors.forbidden(CREATOR_PROTECTED);
     } else if (!canManageMembers(chat, actor)) {
-      throw Errors.forbidden(chat.type === 'DIRECT' ? DIRECT_IMMUTABLE : NOT_CHAT_ADMIN);
+      throw Errors.forbidden(NOT_ROSTER_MANAGER);
     }
 
     const deleted = await prisma.chatMember.deleteMany({ where: { chatId: chat.id, userId } });
@@ -188,7 +202,9 @@ class ChatService {
           ? DIRECT_IMMUTABLE
           : actor.user.id === userId
             ? 'نمی‌توانید عضویت خودتان را تغییر دهید.'
-            : NOT_CHAT_ADMIN
+            : isChatCreator(chat, userId)
+              ? CREATOR_PROTECTED
+              : NOT_ROSTER_MANAGER
       );
     }
 

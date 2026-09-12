@@ -521,17 +521,30 @@ site is reached by some name other than `DOMAIN`.
 [`packages/shared/src/policy.ts`](../packages/shared/src/policy.ts) — every rule,
 once, as a pure function:
 
-| Function                                      | Rule                                                                                                                                      |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `canCreateChat(user, type)`                   | `COURSE_GROUP` requires PROFESSOR or ADMIN; direct chats and custom groups are open to everyone                                           |
-| `sendBlock(chat, member)`                     | Returns `'MUTED'`, `'READ_ONLY'`, or `null`. **Mute is checked first** — a muted admin is muted                                           |
-| `canDeleteMessage(member, senderId)`          | Your own, always; anyone else's only as chat ADMIN                                                                                        |
-| `canPinMessage(member)`                       | Chat ADMIN only. No "your own message" case — pinning changes what the whole chat sees                                                    |
-| `canUpdateChat(chat, member)`                 | Chat ADMIN, and never in a `DIRECT` chat                                                                                                  |
-| `canManageMembers(chat, member)`              | Same                                                                                                                                      |
-| `canUpdateMember(chat, actor, target)`        | Never yourself — an admin who could demote themselves could leave a group with no admin at all, which nothing inside the app could repair |
-| `canMuteMember(chat, actor, target)`          | The above, plus: an admin is never muted. Co-admins can remove each other; they cannot gag each other                                     |
-| `canLeaveChat(chat, member, otherAdminCount)` | Anyone, except the last admin — who must appoint a successor first                                                                        |
+| Function                                      | Rule                                                                                                                                                                     |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `canCreateChat(user, type)`                   | `COURSE_GROUP` requires PROFESSOR or ADMIN; direct chats and custom groups are open to everyone                                                                          |
+| `sendBlock(chat, member)`                     | Returns `'MUTED'`, `'READ_ONLY'`, or `null`. **Mute is checked first** — a muted admin is muted                                                                          |
+| `canDeleteMessage(member, senderId)`          | Your own, always; anyone else's only as chat ADMIN                                                                                                                       |
+| `canPinMessage(member)`                       | Chat ADMIN only. No "your own message" case — pinning changes what the whole chat sees                                                                                   |
+| `canUpdateChat(chat, member)`                 | Chat ADMIN, and never in a `DIRECT` chat                                                                                                                                 |
+| `isChatCreator(chat, userId)`                 | Whoever made the chat. Their admin seat is permanent                                                                                                                     |
+| `canManageMembers(chat, member)`              | Chat ADMIN **and** either faculty or the creator. Two locks: running the chat is not enough to widen who can read it                                                     |
+| `canUpdateMember(chat, actor, target)`        | The above, minus yourself — an admin who could demote themselves could leave a group with no admin at all — and minus the creator, who nobody may demote, mute or remove |
+| `canMuteMember(chat, actor, target)`          | The above, plus: an admin is never muted. Co-admins can remove each other; they cannot gag each other                                                                    |
+| `canLeaveChat(chat, member, otherAdminCount)` | Anyone, except the last admin — who must appoint a successor first                                                                                                       |
+
+`canManageMembers` asks two different questions, which is why it is no longer
+the same rule as `canUpdateChat`. Being the chat's ADMIN says you may moderate
+it. Changing the roster is also gated on _who you are_, because a new member can
+read everything said before they arrived — so a student promoted to admin in
+someone else's group can pin and delete, but cannot quietly widen the audience.
+Faculty may manage any chat they administer; a student only the one they made.
+
+The creator's seat is protected for a plainer reason: without it, promotion is a
+loaded gun. You add a co-admin to share the work and they can demote you out of
+your own group, or remove you from it — which is why `removeMember` checks the
+creator before it checks the roster permission, so both routes give one answer.
 
 Direct chats are excluded from every administration rule. Both participants are
 `ADMIN` (there is no hierarchy between two people), so a rule that only asked

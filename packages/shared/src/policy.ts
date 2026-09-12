@@ -10,7 +10,9 @@ export interface PolicyChat {
   creatorId: string;
 }
 export interface PolicyMember {
-  user: { id: string };
+  /** `role` here is the *global* role, not the chat one below. Managing members
+   * asks about both: whether you are staff, and whether you run this chat. */
+  user: { id: string; role: GlobalRole };
   role: ChatRole;
   isMuted: boolean;
 }
@@ -54,17 +56,45 @@ export function canUpdateChat(chat: PolicyChat, member: PolicyMember): boolean {
   return chat.type !== 'DIRECT' && member.role === 'ADMIN';
 }
 
-/** Adding someone, removing someone else, or changing what they may do. */
-export function canManageMembers(chat: PolicyChat, member: PolicyMember): boolean {
-  return chat.type !== 'DIRECT' && member.role === 'ADMIN';
+/** The person who made the chat. Their admin seat is permanent — see below. */
+export function isChatCreator(chat: PolicyChat, userId: string): boolean {
+  return chat.creatorId === userId;
 }
 
+/**
+ * Adding someone, removing someone else, or changing what they may do.
+ *
+ * Two locks, not one. Running the chat (`ADMIN`) is necessary but not enough:
+ * the roster is also gated on *who you are*. Faculty may manage any chat they
+ * administer; a student may manage only the one they made themselves. So a
+ * student promoted to admin in someone else's group can moderate messages but
+ * cannot quietly widen the audience — which is the part that leaks history,
+ * because a new member can read everything said before they arrived.
+ */
+export function canManageMembers(chat: PolicyChat, member: PolicyMember): boolean {
+  if (chat.type === 'DIRECT') return false;
+  if (member.role !== 'ADMIN') return false;
+
+  return isFaculty(member.user) || isChatCreator(chat, member.user.id);
+}
+
+/**
+ * Nobody may demote, mute or remove the creator — not even another admin.
+ *
+ * Without this the admin bit is a loaded gun pointed at whoever fired first:
+ * you promote someone to share the work, and they can immediately demote you
+ * out of your own group. Promotion should never be irreversible for the person
+ * granting it.
+ */
 export function canUpdateMember(
   chat: PolicyChat,
   actor: PolicyMember,
   target: PolicyMember
 ): boolean {
-  return canManageMembers(chat, actor) && actor.user.id !== target.user.id;
+  if (!canManageMembers(chat, actor)) return false;
+  if (actor.user.id === target.user.id) return false;
+
+  return !isChatCreator(chat, target.user.id);
 }
 
 export function canMuteMember(

@@ -162,6 +162,7 @@ export function ChatDetail({ chatId }: { chatId: string }) {
             chatId={chatId}
             members={chat.data.members}
             viewerId={user.id}
+            creatorId={chat.data.creatorId}
             permissions={permissions}
           />
         )}

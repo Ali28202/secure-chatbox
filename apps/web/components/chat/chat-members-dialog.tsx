@@ -1,17 +1,22 @@
 'use client';
 
-import { toPersianDigits, type ChatMemberDto } from '@repo/shared';
+import { toPersianDigits, type ChatMemberDto, type UserSummaryDto } from '@repo/shared';
 import {
   MoreVerticalIcon,
   ShieldIcon,
   ShieldOffIcon,
+  UserMinusIcon,
+  UserPlusIcon,
   UsersIcon,
   Volume2Icon,
   VolumeOffIcon,
 } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { PresenceDot } from '@/components/chat/presence-indicator';
+import { UserPicker } from '@/components/chat/user-picker';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -27,7 +32,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useUpdateMember } from '@/hooks/use-chats';
+import { useAddMember, useRemoveMember, useUpdateMember } from '@/hooks/use-chats';
 import type { ChatPermissions } from '@/hooks/use-permissions';
 import { getApiErrorMessage } from '@/lib/api';
 import { getInitials, ROLE_LABELS } from '@/lib/labels';
@@ -36,24 +41,54 @@ export function ChatMembersDialog({
   chatId,
   members,
   viewerId,
+  creatorId,
   permissions,
 }: {
   chatId: string;
   members: ChatMemberDto[];
   viewerId: string;
+  creatorId: string;
   permissions: ChatPermissions;
 }) {
   const updateMember = useUpdateMember(chatId);
+  const addMember = useAddMember(chatId);
+  const removeMember = useRemoveMember(chatId);
+  const [isPicking, setIsPicking] = useState(false);
+
+  const memberIds = members.map((member) => member.user.id);
+  const busy = updateMember.isPending || addMember.isPending || removeMember.isPending;
+
+  function fail(error: unknown) {
+    toast.error(getApiErrorMessage(error));
+  }
 
   function change(member: ChatMemberDto, input: { role?: 'ADMIN' | 'MEMBER'; isMuted?: boolean }) {
-    updateMember.mutate(
-      { userId: member.user.id, ...input },
-      { onError: (error) => toast.error(getApiErrorMessage(error)) }
+    updateMember.mutate({ userId: member.user.id, ...input }, { onError: fail });
+  }
+
+  function add(user: UserSummaryDto) {
+    // The picker lists the whole directory, existing members included, so it
+    // marks them as selected rather than hiding them. Clicking one is a no-op.
+    if (memberIds.includes(user.id)) return;
+
+    addMember.mutate(
+      { userId: user.id, role: 'MEMBER' },
+      {
+        onError: fail,
+        onSuccess: () => toast.success(`${user.name} به گروه اضافه شد.`),
+      }
     );
   }
 
+  function remove(member: ChatMemberDto) {
+    removeMember.mutate(member.user.id, {
+      onError: fail,
+      onSuccess: () => toast.success(`${member.user.name} از گروه حذف شد.`),
+    });
+  }
+
   return (
-    <Dialog>
+    <Dialog onOpenChange={() => setIsPicking(false)}>
       <DialogTrigger render={<Button variant="outline" size="sm" className="gap-2" />}>
         <UsersIcon />
         {toPersianDigits(members.length)} عضو
@@ -63,13 +98,15 @@ export function ChatMembersDialog({
         <DialogHeader>
           <DialogTitle>اعضای گفت‌وگو</DialogTitle>
           <DialogDescription>
-            همه کسایی که تو این لیستن، می‌تونن پیام‌های این چت رو بخونن.
+            همه کسایی که تو این لیستن، می‌تونن پیام‌های این چت رو بخونن — از جمله اون‌هایی که قبل از
+            اضافه‌شدنشون فرستاده شده.
           </DialogDescription>
         </DialogHeader>
 
-        <ul className="max-h-80 space-y-1 overflow-y-auto">
+        <ul className="max-h-72 space-y-1 overflow-y-auto">
           {members.map((member) => {
             const isAdmin = member.role === 'ADMIN';
+            const isCreator = member.user.id === creatorId;
 
             return (
               <li key={member.user.id} className="flex items-center gap-3 rounded-lg px-1 py-1.5">
@@ -95,6 +132,14 @@ export function ChatMembersDialog({
                   </p>
                 </div>
 
+                {/* Says out loud why this row has no menu: the creator's seat is
+                    permanent, so there is nothing to offer here. */}
+                {isCreator && (
+                  <Badge variant="outline" className="shrink-0">
+                    سازنده
+                  </Badge>
+                )}
+
                 {member.isMuted && (
                   <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
                     <VolumeOffIcon className="size-3.5" />
@@ -109,7 +154,7 @@ export function ChatMembersDialog({
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          disabled={updateMember.isPending}
+                          disabled={busy}
                           aria-label={`مدیریت عضویت ${member.user.name}`}
                         />
                       }
@@ -133,6 +178,11 @@ export function ChatMembersDialog({
                           {member.isMuted ? 'رفع بی‌صدا' : 'بی‌صدا کردن'}
                         </DropdownMenuItem>
                       )}
+
+                      <DropdownMenuItem variant="destructive" onClick={() => remove(member)}>
+                        <UserMinusIcon />
+                        حذف از گروه
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
@@ -140,6 +190,32 @@ export function ChatMembersDialog({
             );
           })}
         </ul>
+
+        {permissions.canManageMembers &&
+          (isPicking ? (
+            <div className="flex flex-col gap-3 border-t pt-3">
+              <UserPicker
+                selected={memberIds}
+                onSelect={add}
+                multiple
+                emptyHint="کسی با این مشخصات پیدا نشد."
+              />
+              <Button variant="ghost" size="sm" onClick={() => setIsPicking(false)}>
+                بستن فهرست
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2 border-t"
+              disabled={busy}
+              onClick={() => setIsPicking(true)}
+            >
+              <UserPlusIcon />
+              افزودن عضو
+            </Button>
+          ))}
       </DialogContent>
     </Dialog>
   );

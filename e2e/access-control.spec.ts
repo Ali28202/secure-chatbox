@@ -269,3 +269,161 @@ test.describe('managing members', () => {
     expect(added.status()).toBe(403);
   });
 });
+
+test.describe('who may change the roster', () => {
+  test('a student may grow the group they made themselves', async ({ student, newSession }) => {
+    const classmate = await newSession('STUDENT');
+    const latecomer = await newSession('STUDENT');
+    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه پروژه', [
+      classmate.account.id,
+    ]);
+
+    await student.api.addMember(chat.id, latecomer.account.id);
+
+    await student.page.goto(`/chats/${chat.id}`);
+    await expect(student.page.getByRole('button', { name: '۳ عضو' })).toBeVisible();
+  });
+
+  test('and may do it from the members dialog, not only the API', async ({
+    student,
+    newSession,
+  }) => {
+    const latecomer = await newSession('STUDENT');
+    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه کارگاه');
+
+    await student.page.goto(`/chats/${chat.id}`);
+    await student.page.getByRole('button', { name: '۱ عضو' }).click();
+
+    const dialog = student.page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'افزودن عضو' }).click();
+    await dialog.getByLabel('جست‌وجوی کاربران').fill(latecomer.account.universityId);
+    await dialog.getByRole('button', { name: latecomer.account.name }).click();
+
+    // Assert inside the dialog: it is modal, so while it is open the trigger
+    // button behind it is out of the accessibility tree entirely.
+    await expect(
+      dialog.getByRole('button', { name: `مدیریت عضویت ${latecomer.account.name}` })
+    ).toBeVisible();
+
+    await expect
+      .poll(() => getMembership(chat.id, latecomer.account.id).then((row) => row?.role), {
+        message: 'expected the latecomer to have a membership row',
+      })
+      .toBe('MEMBER');
+  });
+
+  test('an admin who did not make the group cannot, even as an admin', async ({
+    student,
+    newSession,
+  }) => {
+    const deputy = await newSession('STUDENT');
+    const outsider = await newSession('STUDENT');
+    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه درس‌خوانی', [
+      deputy.account.id,
+    ]);
+
+    await student.api.updateMember(chat.id, deputy.account.id, { role: 'ADMIN' });
+
+    // Being the chat admin is not the whole story: widening the audience is
+    // also gated on being faculty or the creator, because every new member can
+    // read the entire history.
+    const added = await deputy.api
+      .raw()
+      .post(`${API_URL}/api/chats/${chat.id}/members`, { data: { userId: outsider.account.id } });
+    expect(await refusal(added)).toEqual({
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'تغییر اعضا تنها از عهدهٔ استادان و سازندهٔ گفت‌وگو برمی‌آید.',
+    });
+  });
+
+  test('a professor may manage a group a student made, once made admin', async ({
+    student,
+    professor,
+    newSession,
+  }) => {
+    const latecomer = await newSession('STUDENT');
+    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه مشترک', [
+      professor.account.id,
+    ]);
+
+    await student.api.updateMember(chat.id, professor.account.id, { role: 'ADMIN' });
+    await professor.api.addMember(chat.id, latecomer.account.id);
+
+    await professor.page.goto(`/chats/${chat.id}`);
+    await expect(professor.page.getByRole('button', { name: '۳ عضو' })).toBeVisible();
+  });
+});
+
+test.describe('the creator’s seat', () => {
+  test('cannot be taken away by an admin they promoted themselves', async ({
+    student,
+    newSession,
+  }) => {
+    const deputy = await newSession('STUDENT');
+    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه کنفرانس', [deputy.account.id]);
+
+    await student.api.updateMember(chat.id, deputy.account.id, { role: 'ADMIN' });
+
+    const demoted = await deputy.api
+      .raw()
+      .patch(`${API_URL}/api/chats/${chat.id}/members/${student.account.id}`, {
+        data: { role: 'MEMBER' },
+      });
+    expect(await refusal(demoted)).toEqual({
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'سازندهٔ گفت‌وگو را نمی‌توان تغییر داد یا حذف کرد.',
+    });
+
+    // Nor by the back door: removing them would strip the protected admin too.
+    const removed = await deputy.api
+      .raw()
+      .delete(`${API_URL}/api/chats/${chat.id}/members/${student.account.id}`, { data: {} });
+    expect(await refusal(removed)).toEqual({
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'سازندهٔ گفت‌وگو را نمی‌توان تغییر داد یا حذف کرد.',
+    });
+
+    await expect
+      .poll(() => getMembership(chat.id, student.account.id).then((row) => row?.role), {
+        message: 'expected the creator to still be an admin',
+      })
+      .toBe('ADMIN');
+  });
+
+  test('not even a professor may demote the student who made the group', async ({
+    student,
+    professor,
+  }) => {
+    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه پژوهش', [
+      professor.account.id,
+    ]);
+
+    await student.api.updateMember(chat.id, professor.account.id, { role: 'ADMIN' });
+
+    const demoted = await professor.api
+      .raw()
+      .patch(`${API_URL}/api/chats/${chat.id}/members/${student.account.id}`, {
+        data: { role: 'MEMBER' },
+      });
+    expect(demoted.status()).toBe(403);
+  });
+
+  test('offers no management menu in the members dialog', async ({ student, newSession }) => {
+    const deputy = await newSession('STUDENT');
+    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه آزمایش', [deputy.account.id]);
+
+    await student.api.updateMember(chat.id, deputy.account.id, { role: 'ADMIN' });
+
+    await deputy.page.goto(`/chats/${chat.id}`);
+    await deputy.page.getByRole('button', { name: '۲ عضو' }).click();
+
+    const dialog = deputy.page.getByRole('dialog');
+    await expect(dialog.getByText('سازنده')).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: `مدیریت عضویت ${student.account.name}` })
+    ).toBeHidden();
+  });
+});
