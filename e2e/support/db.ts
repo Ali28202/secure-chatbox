@@ -139,36 +139,6 @@ export async function getMembership(
   });
 }
 
-export async function getAttachments(messageId: string): Promise<
-  {
-    fileName: string;
-    fileType: string;
-    fileSize: number;
-    s3Bucket: string;
-    s3ObjectKey: string;
-  }[]
-> {
-  return withDb(async (client) => {
-    const { rows } = await client.query<{
-      file_name: string;
-      file_type: string;
-      file_size: number;
-      s3_bucket: string;
-      s3_object_key: string;
-    }>(
-      'SELECT file_name, file_type, file_size, s3_bucket, s3_object_key FROM attachments WHERE message_id = $1',
-      [messageId]
-    );
-    return rows.map((row) => ({
-      fileName: row.file_name,
-      fileType: row.file_type,
-      fileSize: Number(row.file_size),
-      s3Bucket: row.s3_bucket,
-      s3ObjectKey: row.s3_object_key,
-    }));
-  });
-}
-
 export async function getReceiptStatus(messageId: string, userId: string): Promise<string | null> {
   return withDb(async (client) => {
     const { rows } = await client.query<{ status: string }>(

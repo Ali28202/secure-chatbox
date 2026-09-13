@@ -83,20 +83,13 @@ export const PASSWORD_HASH_FILE = join(ARTIFACT_DIR, 'password-hash.txt');
 
 export const E2E_PASSWORD = 'E2ePass@1404';
 
-export const E2E_S3_BUCKET = process.env.E2E_S3_BUCKET ?? 'chatbox-e2e';
-export const E2E_S3_ENDPOINT = process.env.E2E_S3_ENDPOINT ?? 'http://127.0.0.1:9000';
+// The API refuses to start without S3 settings, so it still gets some — but
+// the suite no longer runs a bucket and no spec uploads anything. Uploads would
+// fail against these, which is fine: nothing exercises them.
+const E2E_S3_BUCKET = process.env.E2E_S3_BUCKET ?? 'chatbox-e2e';
+const E2E_S3_ENDPOINT = process.env.E2E_S3_ENDPOINT ?? 'http://127.0.0.1:9000';
 const E2E_S3_ACCESS_KEY_ID = process.env.E2E_S3_ACCESS_KEY_ID ?? 'minioadmin';
 const E2E_S3_SECRET_ACCESS_KEY = process.env.E2E_S3_SECRET_ACCESS_KEY ?? 'minioadmin';
-
-export function s3ClientConfig(): Record<string, string> {
-  return {
-    accessKeyId: E2E_S3_ACCESS_KEY_ID,
-    secretAccessKey: E2E_S3_SECRET_ACCESS_KEY,
-    bucket: E2E_S3_BUCKET,
-    endpoint: E2E_S3_ENDPOINT,
-    region: 'us-east-1',
-  };
-}
 
 export function apiServerEnv(): Record<string, string> {
   return {

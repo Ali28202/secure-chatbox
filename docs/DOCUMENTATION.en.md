@@ -912,13 +912,16 @@ that path.
 
 | Command                   | What it does                             |
 | ------------------------- | ---------------------------------------- |
-| `bun run test:s3:up`      | A MinIO bucket for the attachment specs  |
-| `bun run test:e2e`        | 72 Playwright tests in a real Chromium   |
+| `bun run test:e2e`        | 122 Playwright tests in a real Chromium  |
 | `bun run test:e2e:ui`     | Playwright's interactive runner          |
 | `bun run test:e2e:report` | Open the last report                     |
-| `bun run test:s3:down`    | Stop MinIO                               |
 | `bun run typecheck:e2e`   | The suite has its own tsconfig (DOM lib) |
 | `bun run lint:e2e`        | And its own lint step                    |
+
+The suite needs Postgres and nothing else. It used to need a bucket as well —
+the attachment and avatar specs uploaded real files — but a suite that cannot
+run without a second service running is a suite that gets skipped, so those
+specs were removed. Storage is exercised by hand instead.
 
 ### Analytics
 
@@ -1031,33 +1034,40 @@ place where all of them are true at once.
 
 ### End-to-end — Playwright
 
-**72 tests across 8 specs**, in a real Chromium.
+**110 tests across 12 specs**, in a real Chromium.
 
 ```bash
 bun run db:up          # Postgres must be running
-bun run test:s3:up     # A bucket, for the attachment specs
 bun run test:e2e
-bun run test:s3:down
 ```
 
-| Spec                     | Tests | Covers                                                             |
-| ------------------------ | ----- | ------------------------------------------------------------------ |
-| `auth.spec.ts`           | 16    | Register, login by both identifiers, refresh, logout, cookie flags |
-| `access-control.spec.ts` | 11    | Every policy rule, from the browser                                |
-| `messaging.spec.ts`      | 8     | Send, reply, delete, pin, realtime across two contexts             |
-| `chats.spec.ts`          | 9     | Creation, direct deduplication, member management                  |
-| `attachments.spec.ts`    | 8     | Real uploads to MinIO, signed downloads, rejections                |
-| `device.spec.ts`         | 7     | One-device eviction, `DEVICE_MISMATCH`, socket closure             |
-| `receipts.spec.ts`       | 6     | Delivered/read transitions, unread badges                          |
-| `rtl.spec.ts`            | 7     | `dir="rtl"`, Persian digits, the font actually loading             |
+| Spec                      | Tests | Covers                                                              |
+| ------------------------- | ----- | ------------------------------------------------------------------- |
+| `auth.spec.ts`            | 18    | Register, approval gate, login by both identifiers, refresh, logout |
+| `access-control.spec.ts`  | 18    | Every policy rule, from the browser                                 |
+| `messaging.spec.ts`       | 14    | Send, reply, delete, pin, reactions, typing, realtime across tabs   |
+| `admin.spec.ts`           | 12    | The panel, system-admin powers, role changes, deactivation          |
+| `chats.spec.ts`           | 9     | Creation, direct deduplication, member management                   |
+| `group-lifecycle.spec.ts` | 7     | Soft delete, the confirmation, the roster notes in the transcript   |
+| `device.spec.ts`          | 7     | One-device eviction, `DEVICE_MISMATCH`, socket closure              |
+| `rtl.spec.ts`             | 7     | `dir="rtl"`, Persian digits, the font actually loading              |
+| `receipts.spec.ts`        | 6     | Delivered/read transitions, unread badges                           |
+| `search.spec.ts`          | 5     | Trigram matching, membership scoping, deleted messages              |
+| `sessions.spec.ts`        | 4     | Listing, revoking, logout, one person's session is theirs alone     |
+| `archive.spec.ts`         | 3     | Archiving, restoring, and what it closes                            |
 
 The suite provisions almost everything itself: it creates its own `chatbox_e2e`
 database, runs migrations into it, and starts both servers on ports 3100 and 3101
-so it never collides with a development session. The only two things it cannot
-provide are Postgres and the bucket.
+so it never collides with a development session. The one thing it cannot provide
+is Postgres.
 
-Point it at a different bucket with `E2E_S3_BUCKET`, `E2E_S3_ENDPOINT`,
-`E2E_S3_ACCESS_KEY_ID`, `E2E_S3_SECRET_ACCESS_KEY`.
+**Storage is not covered here.** There were specs that uploaded real files —
+attachments and avatars — and they needed a live S3-compatible bucket beside the
+database. A suite that will not run unless a second service happens to be up is
+a suite people stop running, and its failures stop meaning anything. Those specs
+were removed; uploads are checked by hand instead. The trade is deliberate and
+it is a real gap: nothing automated exercises `storeUploads`, `storeAvatar` or
+the signed-download path.
 
 Traces and screenshots are recorded on failure only, and land in
 `e2e/.artifacts/`.
@@ -1082,17 +1092,11 @@ error and a failing test are different problems, and finding both in one run is
 faster than finding the second one tomorrow. On a push to `main` two more jobs
 follow them — see [Continuous deployment](#continuous-deployment) below.
 
-| Job            | Steps                                                                                                                                              |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Lint**       | `bun run lint` + `bun run lint:e2e`                                                                                                                |
-| **Typecheck**  | `bun run typecheck` + `bun run typecheck:e2e`                                                                                                      |
-| **End-to-end** | Postgres service container, a MinIO step, Chromium with `--with-deps`, then `bun run test:e2e`. The report is uploaded on failure and kept 7 days. |
-
-The e2e job starts MinIO as a **step** rather than a `services:` entry because
-that image needs a command — `minio server /data` — and a service container can
-only set `options`, never the command. The directory made first _is_ the bucket:
-MinIO reads the top level of its data directory as the bucket list, which saves
-pulling a second image just to run `mc mb`.
+| Job            | Steps                                                                                                                                  |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Lint**       | `bun run lint` + `bun run lint:e2e`                                                                                                    |
+| **Typecheck**  | `bun run typecheck` + `bun run typecheck:e2e`                                                                                          |
+| **End-to-end** | A Postgres service container, Chromium with `--with-deps`, then `bun run test:e2e`. The report is uploaded on failure and kept 7 days. |
 
 The shared setup lives in
 [`.github/actions/setup/action.yml`](../.github/actions/setup/action.yml) —

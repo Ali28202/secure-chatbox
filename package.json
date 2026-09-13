@@ -17,8 +17,6 @@
     "test:e2e:report": "playwright show-report e2e/.artifacts/report",
     "typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json",
     "lint:e2e": "eslint e2e",
-    "test:s3:up": "docker run -d --rm --name chatbox-e2e-s3 -p 9000:9000 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin --entrypoint sh minio/minio:RELEASE.2025-09-07T16-13-09Z -c 'mkdir -p /data/chatbox-e2e && exec minio server /data'",
-    "test:s3:down": "docker rm -f chatbox-e2e-s3",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "db:generate": "bun --filter='@repo/database' db:generate",
