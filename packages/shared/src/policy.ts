@@ -28,6 +28,18 @@ export function isFaculty(user: PolicyUser): boolean {
   return user.role === 'PROFESSOR' || user.role === 'ADMIN';
 }
 
+/**
+ * The platform's operator, not a chat's moderator.
+ *
+ * Every rule below lets them through. The one line they do not cross is a
+ * `DIRECT` conversation: two people writing to each other are peers, there is
+ * nothing there to administer, and the difference between running a university's
+ * groups and reading its private correspondence is the whole point.
+ */
+export function isSystemAdmin(user: PolicyUser): boolean {
+  return user.role === 'ADMIN';
+}
+
 export function canCreateChat(user: PolicyUser, type: ChatType): boolean {
   return type === 'COURSE_GROUP' ? isFaculty(user) : true;
 }
@@ -41,12 +53,14 @@ export const SEND_BLOCK_MESSAGES: Record<SendBlock, string> = {
 };
 
 export function sendBlock(chat: PolicyChat, member: PolicyMember): SendBlock | null {
-  if (member.isMuted) return 'MUTED';
-
-  // Ahead of the read-only check, and it has no admin exemption: read-only is a
-  // rule about who may speak, archiving is a statement that the conversation is
-  // over. An admin who wants to speak again restores it first.
+  // Archiving comes first even for the operator: it is a statement that the
+  // conversation is over rather than a permission, it applies to everyone, and
+  // undoing it is one click away in the same menu.
   if (chat.archivedAt !== null) return 'ARCHIVED';
+
+  if (isSystemAdmin(member.user)) return null;
+
+  if (member.isMuted) return 'MUTED';
 
   if (chat.isReadOnly && member.role !== 'ADMIN') return 'READ_ONLY';
 
@@ -58,15 +72,17 @@ export function canSendMessage(chat: PolicyChat, member: PolicyMember): boolean 
 }
 
 export function canDeleteMessage(member: PolicyMember, senderId: string): boolean {
-  return member.user.id === senderId || member.role === 'ADMIN';
+  return member.user.id === senderId || member.role === 'ADMIN' || isSystemAdmin(member.user);
 }
 
 export function canPinMessage(member: PolicyMember): boolean {
-  return member.role === 'ADMIN';
+  return member.role === 'ADMIN' || isSystemAdmin(member.user);
 }
 
 export function canUpdateChat(chat: PolicyChat, member: PolicyMember): boolean {
-  return chat.type !== 'DIRECT' && member.role === 'ADMIN';
+  if (chat.type === 'DIRECT') return false;
+
+  return member.role === 'ADMIN' || isSystemAdmin(member.user);
 }
 
 /** The person who made the chat. Their admin seat is permanent — see below. */
@@ -86,6 +102,7 @@ export function isChatCreator(chat: PolicyChat, userId: string): boolean {
  */
 export function canManageMembers(chat: PolicyChat, member: PolicyMember): boolean {
   if (chat.type === 'DIRECT') return false;
+  if (isSystemAdmin(member.user)) return true;
   if (member.role !== 'ADMIN') return false;
 
   return isFaculty(member.user) || isChatCreator(chat, member.user.id);
@@ -105,7 +122,14 @@ export function canUpdateMember(
   target: PolicyMember
 ): boolean {
   if (!canManageMembers(chat, actor)) return false;
+
+  // Still never yourself, operator or not: an admin who could demote themselves
+  // could leave a group with nobody able to run it.
   if (actor.user.id === target.user.id) return false;
+
+  // The creator's seat is protected from the chat's own admins, not from the
+  // platform's. Someone has to be able to put a group right.
+  if (isSystemAdmin(actor.user)) return true;
 
   return !isChatCreator(chat, target.user.id);
 }
@@ -115,7 +139,9 @@ export function canMuteMember(
   actor: PolicyMember,
   target: PolicyMember
 ): boolean {
-  return canUpdateMember(chat, actor, target) && target.role !== 'ADMIN';
+  if (!canUpdateMember(chat, actor, target)) return false;
+
+  return isSystemAdmin(actor.user) || target.role !== 'ADMIN';
 }
 
 /**
@@ -124,6 +150,11 @@ export function canMuteMember(
  * admin a student promoted cannot retire someone else's group.
  */
 export function canArchiveChat(chat: PolicyChat, member: PolicyMember): boolean {
+  return canManageMembers(chat, member);
+}
+
+/** Same gate as archiving: it takes the conversation away from everyone in it. */
+export function canDeleteChat(chat: PolicyChat, member: PolicyMember): boolean {
   return canManageMembers(chat, member);
 }
 

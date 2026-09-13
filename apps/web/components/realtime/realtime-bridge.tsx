@@ -8,10 +8,10 @@ import {
   type TypingChange,
 } from '@repo/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { useCurrentUser } from '@/hooks/use-auth';
-import { applyChatUpdate, applyReadReceipt, chatsQueryKey } from '@/hooks/use-chats';
+import { applyChatUpdate, applyReadReceipt, chatQueryKey, chatsQueryKey } from '@/hooks/use-chats';
 import {
   applyDeletedMessage,
   applyIncomingMessage,
@@ -19,6 +19,7 @@ import {
   messagesRootKey,
 } from '@/hooks/use-messages';
 import { disconnectSocket, getSocket, installAuthRecovery } from '@/lib/socket';
+import { ROUTES } from '@/lib/routes';
 import { usePresenceStore } from '@/stores/presence-store';
 import { useTypingStore } from '@/stores/typing-store';
 
@@ -32,6 +33,7 @@ export function RealtimeBridge() {
   const queryClient = useQueryClient();
   const viewer = useCurrentUser();
   const pathname = usePathname();
+  const router = useRouter();
 
   const openChatRef = useRef<string | null>(null);
 
@@ -54,6 +56,15 @@ export function RealtimeBridge() {
     const onReceipt = (receipt: ReadReceipt) => applyReadReceipt(queryClient, receipt, viewer.id);
 
     const onChatUpdated = (chatId: string) => applyChatUpdate(queryClient, chatId);
+
+    // Someone else deleted it. Drop the cached conversation and, if it is the
+    // one on screen, leave — otherwise the page sits on a chat that is gone.
+    const onChatDeleted = (chatId: string) => {
+      queryClient.removeQueries({ queryKey: chatQueryKey(chatId) });
+      void queryClient.invalidateQueries({ queryKey: chatsQueryKey });
+
+      if (openChatRef.current === chatId) router.replace(ROUTES.chats);
+    };
 
     // Expiry lives here, not in the store and not on the server. A tab closed
     // mid-word never sends `typing:stop`, so the indicator has to time itself
@@ -97,6 +108,7 @@ export function RealtimeBridge() {
     socket.on('message:deleted', onDeleted);
     socket.on('message:updated', onUpdated);
     socket.on('chat:updated', onChatUpdated);
+    socket.on('chat:deleted', onChatDeleted);
     socket.on('receipt:read', onReceipt);
     socket.on('presence:sync', onSync);
     socket.on('presence:changed', onPresence);
@@ -112,6 +124,7 @@ export function RealtimeBridge() {
       socket.off('message:deleted', onDeleted);
       socket.off('message:updated', onUpdated);
       socket.off('chat:updated', onChatUpdated);
+      socket.off('chat:deleted', onChatDeleted);
       socket.off('receipt:read', onReceipt);
       socket.off('presence:sync', onSync);
       socket.off('presence:changed', onPresence);
@@ -126,7 +139,7 @@ export function RealtimeBridge() {
       useTypingStore.getState().clear();
       disconnectSocket();
     };
-  }, [queryClient, viewer.id]);
+  }, [queryClient, viewer.id, router]);
 
   return null;
 }

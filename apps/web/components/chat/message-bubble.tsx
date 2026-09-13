@@ -11,8 +11,8 @@ import {
   Trash2Icon,
 } from 'lucide-react';
 import { MessageAttachments } from '@/components/chat/message-attachments';
-import { MessageReactions } from '@/components/chat/message-reactions';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { AddReactionButton, MessageReactionList } from '@/components/chat/message-reactions';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -21,7 +21,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { getAttachmentSummary } from '@/lib/chat';
-import { getInitials } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
 function ReplyQuote({
@@ -108,22 +107,17 @@ export function MessageBubble({
       className={cn(
         'group flex w-full items-end gap-2',
         // The page is `dir="rtl"`, so a plain row already starts on the right.
-        // Your own messages take that side and the other person's are reversed
-        // onto the left — the arrangement asked for, rather than the mirrored
-        // one an RTL layout produces on its own.
+        // Your own messages take that side; the other person's row is reversed
+        // onto the left, which also puts their avatar on the outside.
+        //
+        // One row, not two: `items-end` is what glues the avatar to the bottom
+        // of the bubble, and it only does that while the bubble is the tallest
+        // thing in the row. Reactions therefore live *inside* the bubble.
         isOwn ? 'justify-start' : 'flex-row-reverse justify-start'
       )}
     >
       {!isOwn && (
-        <div className="w-8 shrink-0">
-          {showSender && (
-            <Avatar className="size-8">
-              <AvatarFallback className="text-[11px]">
-                {getInitials(message.sender.name)}
-              </AvatarFallback>
-            </Avatar>
-          )}
-        </div>
+        <div className="w-8 shrink-0">{showSender && <UserAvatar user={message.sender} />}</div>
       )}
 
       <div className={cn('flex max-w-[min(38rem,80%)] flex-col', isOwn && 'items-end')}>
@@ -184,56 +178,60 @@ export function MessageBubble({
 
             {readState && <ReadTicks {...readState} />}
           </span>
-        </div>
 
-        {/* Outside the bubble: a reaction belongs to the message but is not part
-            of what was said, and inside it would invert on the sender's colour. */}
-        {canAct && (
-          <MessageReactions
+          <MessageReactionList
             chatId={message.chatId}
             messageId={message.id}
             reactions={message.reactions}
-            senderName={message.sender.name}
+            isOwn={isOwn}
           />
-        )}
+        </div>
       </div>
 
       {canAct && (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`گزینه‌های پیام ${message.sender.name}`}
-                className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-sm:opacity-100 data-popup-open:opacity-100"
-              />
-            }
-          >
-            <MoreVerticalIcon />
-          </DropdownMenuTrigger>
+        <>
+          <AddReactionButton
+            chatId={message.chatId}
+            messageId={message.id}
+            senderName={message.sender.name}
+          />
 
-          <DropdownMenuContent align="start" className="w-40">
-            <DropdownMenuItem onClick={() => onReply(message)}>
-              <ReplyIcon />
-              ریپلای
-            </DropdownMenuItem>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`گزینه‌های پیام ${message.sender.name}`}
+                  className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-sm:opacity-100 data-popup-open:opacity-100"
+                />
+              }
+            >
+              <MoreVerticalIcon />
+            </DropdownMenuTrigger>
 
-            {canPin && (
-              <DropdownMenuItem onClick={() => onSetPinned(message, !message.isPinned)}>
-                {message.isPinned ? <PinOffIcon /> : <PinIcon />}
-                {message.isPinned ? 'برداشتن پین' : 'پین‌ کردن'}
+            <DropdownMenuContent align="start" className="w-40">
+              <DropdownMenuItem onClick={() => onReply(message)}>
+                <ReplyIcon />
+                ریپلای
               </DropdownMenuItem>
-            )}
 
-            {canDelete && (
-              <DropdownMenuItem variant="destructive" onClick={() => onDelete(message)}>
-                <Trash2Icon />
-                حذف پیام
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              {canPin && (
+                <DropdownMenuItem onClick={() => onSetPinned(message, !message.isPinned)}>
+                  {message.isPinned ? <PinOffIcon /> : <PinIcon />}
+                  {message.isPinned ? 'برداشتن پین' : 'پین‌ کردن'}
+                </DropdownMenuItem>
+              )}
+
+              {canDelete && (
+                <DropdownMenuItem variant="destructive" onClick={() => onDelete(message)}>
+                  <Trash2Icon />
+                  حذف پیام
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
       )}
     </div>
   );

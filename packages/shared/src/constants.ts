@@ -4,6 +4,15 @@ export type GlobalRole = (typeof GLOBAL_ROLES)[number];
 export const ACCOUNT_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const;
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 
+export const SYSTEM_EVENTS = ['MEMBER_ADDED', 'MEMBER_REMOVED'] as const;
+export type SystemEvent = (typeof SYSTEM_EVENTS)[number];
+
+export const AVATAR = {
+  maxBytes: 2 * 1024 * 1024,
+  /** Raster only: an SVG avatar is a script the browser would run. */
+  types: ['image/png', 'image/jpeg', 'image/webp'] as const,
+} as const;
+
 export const CHAT_TYPES = ['DIRECT', 'COURSE_GROUP', 'CUSTOM_GROUP'] as const;
 export type ChatType = (typeof CHAT_TYPES)[number];
 

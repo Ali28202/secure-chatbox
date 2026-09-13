@@ -44,6 +44,7 @@ export interface ServerToClientEvents {
   'presence:changed': (change: PresenceChange) => void;
   'receipt:read': (receipt: ReadReceipt) => void;
   'chat:updated': (chatId: string) => void;
+  'chat:deleted': (chatId: string) => void;
   'typing:changed': (change: TypingChange) => void;
 }
 

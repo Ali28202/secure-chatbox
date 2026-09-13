@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { PresenceDot } from '@/components/chat/presence-indicator';
 import { UserPicker } from '@/components/chat/user-picker';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,7 +35,7 @@ import {
 import { useAddMember, useRemoveMember, useUpdateMember } from '@/hooks/use-chats';
 import type { ChatPermissions } from '@/hooks/use-permissions';
 import { getApiErrorMessage } from '@/lib/api';
-import { getInitials, ROLE_LABELS } from '@/lib/labels';
+import { ROLE_LABELS } from '@/lib/labels';
 
 export function ChatMembersDialog({
   chatId,
@@ -111,11 +111,7 @@ export function ChatMembersDialog({
             return (
               <li key={member.user.id} className="flex items-center gap-3 rounded-lg px-1 py-1.5">
                 <div className="relative shrink-0">
-                  <Avatar className="size-8">
-                    <AvatarFallback className="text-xs">
-                      {getInitials(member.user.name)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar user={member.user} />
                   {member.user.id !== viewerId && <PresenceDot userId={member.user.id} />}
                 </div>
 

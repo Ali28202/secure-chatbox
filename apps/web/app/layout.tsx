@@ -19,9 +19,15 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
       lang="fa"
       dir="rtl"
       suppressHydrationWarning
-      className={`${vazirmatn.variable} h-full antialiased`}
+      // The document itself never scrolls. Regions do.
+      //
+      // A popup is portalled into `<body>`, so anything it overhangs extends the
+      // page's scroll area — the scrollbar appears, every centred column shifts
+      // by its width, and the whole layout jumps as menus open and close.
+      // Pinning the document to the viewport makes that impossible to happen.
+      className={`${vazirmatn.variable} h-full overflow-hidden antialiased`}
     >
-      <body className="flex min-h-full flex-col">
+      <body className="flex h-full flex-col overflow-hidden">
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

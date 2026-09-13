@@ -33,6 +33,15 @@ export function getChatPreview(chat: ChatListItemDto, viewerId: string): string 
   if (!message) return 'هنوز پیامی ارسال نشده است.';
   if (message.isDeleted) return 'این پیام حذف شده است.';
 
+  // A system note has no content, so the ordinary path would render a sender
+  // name followed by nothing. Say what actually happened instead.
+  if (message.systemEvent !== null) {
+    const target = message.systemTarget?.name ?? 'یک کاربر';
+    return message.systemEvent === 'MEMBER_ADDED'
+      ? `${target} به گروه اضافه شد`
+      : `${target} از گروه حذف شد`;
+  }
+
   const body =
     message.content ??
     (message.attachments.length > 0 ? getAttachmentSummary(message.attachments.length) : '');

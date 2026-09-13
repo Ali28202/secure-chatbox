@@ -21,12 +21,17 @@ const chatDetailRoutes = new Hono<ChatEnv>();
 chatDetailRoutes.use('*', requireChatMember);
 
 chatDetailRoutes.get('/', async (c) =>
-  c.json(await chatService.getChat(c.get('chatId'), c.get('user').id))
+  c.json(await chatService.getChat(c.get('chatId'), c.get('user')))
 );
 
 chatDetailRoutes.patch('/', zValidator('json', updateChatSchema, onValidationError), async (c) =>
   c.json(await chatService.updateChat(c.get('chat'), c.get('membership'), c.req.valid('json')))
 );
+
+chatDetailRoutes.delete('/', async (c) => {
+  await chatService.deleteChat(c.get('chat'), c.get('membership'));
+  return c.json({ success: true });
+});
 
 chatDetailRoutes.post(
   '/members',

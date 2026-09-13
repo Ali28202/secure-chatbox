@@ -5,13 +5,16 @@ import {
   ArchiveIcon,
   ArchiveRestoreIcon,
   ArrowRightIcon,
-  LockIcon,
   Loader2Icon,
+  LockIcon,
+  MoreVerticalIcon,
   PinIcon,
   SearchXIcon,
+  Trash2Icon,
   UnlockIcon,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { ChatMembersDialog } from '@/components/chat/chat-members-dialog';
@@ -22,10 +25,26 @@ import { PresenceDot, PresenceLabel } from '@/components/chat/presence-indicator
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { useCurrentUser } from '@/hooks/use-auth';
-import { useChat, useUpdateChat } from '@/hooks/use-chats';
+import { useChat, useDeleteChat, useUpdateChat } from '@/hooks/use-chats';
 import { usePinnedMessages } from '@/hooks/use-messages';
-import { useChatPermissions } from '@/hooks/use-permissions';
+import { useChatPermissions, type ChatPermissions } from '@/hooks/use-permissions';
 import { getApiErrorMessage } from '@/lib/api';
 import {
   CHAT_TYPE_LABELS,
@@ -37,59 +56,132 @@ import {
 import { getInitials } from '@/lib/labels';
 import { ROUTES } from '@/lib/routes';
 
-function ArchiveToggle({ chatId, isArchived }: { chatId: string; isArchived: boolean }) {
-  const updateChat = useUpdateChat(chatId);
+function DeleteChatDialog({
+  chatId,
+  title,
+  open,
+  onOpenChange,
+}: {
+  chatId: string;
+  title: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const router = useRouter();
+  const deleteChat = useDeleteChat(chatId);
 
   return (
-    <Button
-      variant={isArchived ? 'default' : 'outline'}
-      size="sm"
-      className="gap-1.5"
-      aria-pressed={isArchived}
-      disabled={updateChat.isPending}
-      title={
-        isArchived
-          ? 'این گفت‌وگو آرشیو شده و کسی نمی‌تونه پیام بده. برای برگردوندنش کلیک کن.'
-          : 'گفت‌وگو رو آرشیو کن: از فهرست بیرون می‌ره و کسی نمی‌تونه پیام بده، ولی هیچ پیامی پاک نمی‌شه.'
-      }
-      onClick={() =>
-        updateChat.mutate(
-          { isArchived: !isArchived },
-          { onError: (error) => toast.error(getApiErrorMessage(error)) }
-        )
-      }
-    >
-      {isArchived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
-      {isArchived ? 'خروج از آرشیو' : 'آرشیو'}
-    </Button>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>حذف «{title}»؟</DialogTitle>
+          <DialogDescription>
+            گفت‌وگو برای همهٔ اعضا ناپدید می‌شود و دیگر نمی‌توانند پیام‌هایش را ببینند. هیچ پیامی از
+            پایگاه داده پاک نمی‌شود، ولی از داخل برنامه راهی برای برگرداندنش نیست.
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogFooter>
+          <Button
+            variant="destructive"
+            disabled={deleteChat.isPending}
+            onClick={() =>
+              deleteChat.mutate(undefined, {
+                onError: (error) => toast.error(getApiErrorMessage(error)),
+                onSuccess: () => {
+                  toast.success(`«${title}» حذف شد.`);
+                  router.replace(ROUTES.chats);
+                },
+              })
+            }
+          >
+            {deleteChat.isPending && <Loader2Icon className="animate-spin" />}
+            بله، حذف کن
+          </Button>
+
+          <DialogClose render={<Button variant="outline" />}>انصراف</DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-function ReadOnlyToggle({ chatId, isReadOnly }: { chatId: string; isReadOnly: boolean }) {
+/**
+ * Everything that changes the conversation itself, in one menu.
+ *
+ * These were three buttons in the header competing with the member count for
+ * space. They are also the rare actions — you open a chat to read it, not to
+ * retire it — so they belong behind a control rather than in front of one.
+ */
+function ChatActionsMenu({
+  chatId,
+  title,
+  isArchived,
+  isReadOnly,
+  permissions,
+}: {
+  chatId: string;
+  title: string;
+  isArchived: boolean;
+  isReadOnly: boolean;
+  permissions: ChatPermissions;
+}) {
   const updateChat = useUpdateChat(chatId);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  function update(input: { isReadOnly?: boolean; isArchived?: boolean }) {
+    updateChat.mutate(input, { onError: (error) => toast.error(getApiErrorMessage(error)) });
+  }
 
   return (
-    <Button
-      variant={isReadOnly ? 'default' : 'outline'}
-      size="sm"
-      className="gap-1.5"
-      aria-pressed={isReadOnly}
-      disabled={updateChat.isPending}
-      title={
-        isReadOnly
-          ? 'فعلاً فقط مدیرها می‌تونن پیام بدن. برای باز کردن گروه کلیک کن.'
-          : 'الان همه می‌تونن پیام بدن. برای قفل کردن گروه کلیک کن.'
-      }
-      onClick={() =>
-        updateChat.mutate(
-          { isReadOnly: !isReadOnly },
-          { onError: (error) => toast.error(getApiErrorMessage(error)) }
-        )
-      }
-    >
-      {isReadOnly ? <LockIcon /> : <UnlockIcon />}
-      {isReadOnly ? 'بسته' : 'باز'}
-    </Button>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="تنظیمات گفت‌وگو"
+              disabled={updateChat.isPending}
+            />
+          }
+        >
+          <MoreVerticalIcon />
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent align="start" className="w-56">
+          {/* An archived conversation is closed to everyone already, so offering
+              a read-only switch on top of it would be two words for one state. */}
+          {permissions.canUpdateChat && !isArchived && (
+            <DropdownMenuItem onClick={() => update({ isReadOnly: !isReadOnly })}>
+              {isReadOnly ? <UnlockIcon /> : <LockIcon />}
+              {isReadOnly ? 'باز کردن گروه' : 'بستن گروه'}
+            </DropdownMenuItem>
+          )}
+
+          {permissions.canArchiveChat && (
+            <DropdownMenuItem onClick={() => update({ isArchived: !isArchived })}>
+              {isArchived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
+              {isArchived ? 'خروج از آرشیو' : 'آرشیو کردن'}
+            </DropdownMenuItem>
+          )}
+
+          {permissions.canDeleteChat && (
+            <DropdownMenuItem variant="destructive" onClick={() => setConfirmingDelete(true)}>
+              <Trash2Icon />
+              حذف گروه
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DeleteChatDialog
+        chatId={chatId}
+        title={title}
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+      />
+    </>
   );
 }
 
@@ -169,9 +261,15 @@ export function ChatDetail({ chatId }: { chatId: string }) {
         </Button>
 
         <div className="relative shrink-0">
-          <Avatar className="size-10">
-            <AvatarFallback className="text-sm">{getInitials(title)}</AvatarFallback>
-          </Avatar>
+          {/* A direct chat is a person and shows their picture; a group is not,
+              so it keeps the initials of its title. */}
+          {peer ? (
+            <UserAvatar user={peer} className="size-10" />
+          ) : (
+            <Avatar className="size-10">
+              <AvatarFallback className="text-sm">{getInitials(title)}</AvatarFallback>
+            </Avatar>
+          )}
           {peer && <PresenceDot userId={peer.id} />}
         </div>
 
@@ -182,20 +280,25 @@ export function ChatDetail({ chatId }: { chatId: string }) {
           </p>
         </div>
 
+        {/* State is still shown to everyone; only the switches moved into the
+            menu, and only for the people who may throw them. */}
         {chat.data.archivedAt !== null && <Badge variant="secondary">آرشیو</Badge>}
-
-        {permissions.canArchiveChat && chat.data.type !== 'DIRECT' && (
-          <ArchiveToggle chatId={chatId} isArchived={chat.data.archivedAt !== null} />
+        {chat.data.isReadOnly && chat.data.archivedAt === null && (
+          <Badge variant="outline">بسته</Badge>
         )}
 
-        {/* An archived conversation is closed to everyone, so offering a
-            read-only switch on top of it would be two words for one state. */}
-        {permissions.canUpdateChat && chat.data.archivedAt === null ? (
-          <ReadOnlyToggle chatId={chatId} isReadOnly={chat.data.isReadOnly} />
-        ) : (
-          chat.data.isReadOnly &&
-          chat.data.archivedAt === null && <Badge variant="outline">بسته</Badge>
-        )}
+        {chat.data.type !== 'DIRECT' &&
+          (permissions.canUpdateChat ||
+            permissions.canArchiveChat ||
+            permissions.canDeleteChat) && (
+            <ChatActionsMenu
+              chatId={chatId}
+              title={title}
+              isArchived={chat.data.archivedAt !== null}
+              isReadOnly={chat.data.isReadOnly}
+              permissions={permissions}
+            />
+          )}
 
         {chat.data.type !== 'DIRECT' && (
           <ChatMembersDialog

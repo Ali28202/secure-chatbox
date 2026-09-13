@@ -290,7 +290,10 @@ class MessageService {
       where: {
         isDeleted: false,
         content: { contains: query.q, mode: 'insensitive' },
-        chat: { members: { some: { userId } } },
+        // `deletedAt` as well as membership. Deleting a group hides it from
+        // every other read path, and search fanning out across chats is exactly
+        // where forgetting that turns "deleted" into "still findable".
+        chat: { deletedAt: null, members: { some: { userId } } },
       },
       select: { ...messageSelect, chat: { select: { id: true, title: true, type: true } } },
       orderBy: { createdAt: 'desc' },

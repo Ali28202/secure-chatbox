@@ -12,7 +12,8 @@ test.describe('archiving a group', () => {
     ]);
 
     await professor.page.goto(`/chats/${chat.id}`);
-    await professor.page.getByRole('button', { name: 'آرشیو', exact: true }).click();
+    await professor.page.getByRole('button', { name: 'تنظیمات گفت‌وگو' }).click();
+    await professor.page.getByRole('menuitem', { name: 'آرشیو کردن' }).click();
 
     // Closed to the admin who archived it too — archiving says the conversation
     // is over, which read-only does not.
@@ -30,7 +31,8 @@ test.describe('archiving a group', () => {
     await attendee.page.getByRole('tab', { name: 'آرشیو' }).click();
     await expect(attendee.page.getByText('ترم گذشته')).toBeVisible();
 
-    await professor.page.getByRole('button', { name: 'خروج از آرشیو' }).click();
+    await professor.page.getByRole('button', { name: 'تنظیمات گفت‌وگو' }).click();
+    await professor.page.getByRole('menuitem', { name: 'خروج از آرشیو' }).click();
     await expect(professor.page.getByLabel('متن پیام')).toBeVisible();
   });
 

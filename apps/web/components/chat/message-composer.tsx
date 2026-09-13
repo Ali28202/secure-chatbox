@@ -144,6 +144,9 @@ export function MessageComposer({
           setFiles([]);
           onCancelReply();
           typing.stop();
+          // Sending is not leaving: you are mid-conversation and the next
+          // message is usually already in your head.
+          textareaRef.current?.focus();
         },
         onError: (error) => toast.error(getApiErrorMessage(error)),
       }
@@ -239,7 +242,9 @@ export function MessageComposer({
           rows={1}
           placeholder={files.length > 0 ? 'توضیحی بنویسید… (اختیاری)' : 'پیام خود را بنویسید…'}
           aria-label="متن پیام"
-          disabled={send.isPending}
+          // Never disabled while a send is in flight. A disabled element loses
+          // focus, so Enter would throw you out of the box you are typing in —
+          // and there is no reason you cannot start the next message meanwhile.
           className="max-h-40 min-h-10 resize-none"
         />
 

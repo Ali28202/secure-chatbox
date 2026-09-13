@@ -164,6 +164,20 @@ export function useUpdateChat(chatId: string) {
   });
 }
 
+export function useDeleteChat(chatId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      await api.delete(`/chats/${chatId}`);
+    },
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: chatQueryKey(chatId) });
+      void queryClient.invalidateQueries({ queryKey: chatsQueryKey });
+    },
+  });
+}
+
 export function useUpdateMember(chatId: string) {
   const queryClient = useQueryClient();
 

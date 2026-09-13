@@ -4,6 +4,7 @@ import {
   ERROR_CODES,
   ACCOUNT_STATUSES,
   GLOBAL_ROLES,
+  SYSTEM_EVENTS,
   addMemberSchema,
   createChatSchema,
   listChatsQuerySchema,
@@ -58,6 +59,10 @@ const userSummaryDto = z.object({
   name: z.string().meta({ example: 'علی محلاتی' }),
   universityId: z.string().meta({ example: '40012301' }),
   role: z.enum(GLOBAL_ROLES),
+  hasAvatar: z.boolean().meta({
+    description:
+      'Whether `GET /api/users/{userId}/avatar` will redirect to an image. The object key is never exposed, and a signed URL would expire inside a cached response.',
+  }),
 });
 
 const userDto = userSummaryDto.extend({
@@ -95,6 +100,10 @@ const chatDto = z.object({
     .nullable()
     .meta({ description: 'Null for direct chats, which are titled from the other member.' }),
   isReadOnly: z.boolean(),
+  deletedAt: dateTime.nullable().meta({
+    description:
+      'Soft. Set means the conversation is gone from every read path, including its messages and attachments. The rows survive so it can be put back.',
+  }),
   archivedAt: dateTime.nullable().meta({
     description:
       'When the conversation was retired. Non-null means nobody may post, admins included, and it is served only by `GET /api/chats?archived=true`. Soft on purpose: the transcript and its attachments survive.',
@@ -171,6 +180,11 @@ const messageDto = z.object({
     }),
   isDeleted: z.boolean(),
   isPinned: z.boolean(),
+  systemEvent: z.enum(SYSTEM_EVENTS).nullable().meta({
+    description:
+      'Null for anything a person typed. When set, `sender` is who acted and `systemTarget` is who it happened to — the row exists so the note interleaves with the transcript in date order.',
+  }),
+  systemTarget: userSummaryDto.nullable(),
   replyToId: uuid(MESSAGE_ID).nullable(),
   replyTo: messageReplyDto.nullable(),
   attachments: z.array(attachmentDto),

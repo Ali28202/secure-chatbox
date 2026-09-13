@@ -29,6 +29,26 @@ class S3StorageService {
     });
   }
 
+  /**
+   * Reads an object back through the API instead of handing out a URL.
+   *
+   * Needed for avatars specifically: they are rendered in an `<img>`, and a
+   * redirect to a presigned URL would be a cross-origin subresource the browser
+   * sends no cookies with — and the S3 host answers no CORS for. Attachments do
+   * not have this problem because they are links, not embedded images.
+   */
+  async readFile(s3ObjectKey: string): Promise<{ bytes: ArrayBuffer; type: string } | null> {
+    try {
+      const file = this.client.file(s3ObjectKey);
+      const bytes = await file.arrayBuffer();
+
+      return { bytes, type: file.type || 'application/octet-stream' };
+    } catch (error) {
+      console.error('[s3] could not read', s3ObjectKey, error);
+      return null;
+    }
+  }
+
   async deleteFile(s3ObjectKey: string): Promise<boolean> {
     try {
       await this.client.delete(s3ObjectKey);

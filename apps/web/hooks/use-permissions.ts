@@ -3,6 +3,7 @@
 import {
   canArchiveChat,
   canCreateChat,
+  canDeleteChat,
   canDeleteMessage,
   canManageMembers,
   canMuteMember,
@@ -27,6 +28,7 @@ export interface ChatPermissions {
   canManageMembers: boolean;
   canUpdateChat: boolean;
   canArchiveChat: boolean;
+  canDeleteChat: boolean;
   canDelete: (senderId: string) => boolean;
   canUpdateMember: (member: ChatMemberDto) => boolean;
   canMuteMember: (member: ChatMemberDto) => boolean;
@@ -48,6 +50,7 @@ export function useChatPermissions(chat: ChatListItemDto | undefined): ChatPermi
         canManageMembers: false,
         canUpdateChat: false,
         canArchiveChat: false,
+        canDeleteChat: false,
         canDelete: () => false,
         canUpdateMember: () => false,
         canMuteMember: () => false,
@@ -65,6 +68,7 @@ export function useChatPermissions(chat: ChatListItemDto | undefined): ChatPermi
       canManageMembers: canManageMembers(chat, membership),
       canUpdateChat: canUpdateChat(chat, membership),
       canArchiveChat: canArchiveChat(chat, membership),
+      canDeleteChat: canDeleteChat(chat, membership),
       canDelete: (senderId: string) => canDeleteMessage(membership, senderId),
       canUpdateMember: (member: ChatMemberDto) => canUpdateMember(chat, membership, member),
       canMuteMember: (member: ChatMemberDto) => canMuteMember(chat, membership, member),

@@ -5,9 +5,9 @@ import { GraduationCapIcon, UsersIcon } from 'lucide-react';
 import Link from 'next/link';
 import { PresenceDot } from '@/components/chat/presence-indicator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Badge } from '@/components/ui/badge';
 import { getChatPeer, getChatPreview, getChatTitle } from '@/lib/chat';
-import { getInitials } from '@/lib/labels';
 import { ROUTES } from '@/lib/routes';
 import { cn } from '@/lib/utils';
 
@@ -36,17 +36,19 @@ export function ChatListItem({
       )}
     >
       <div className="relative shrink-0">
-        <Avatar className="size-10">
-          <AvatarFallback className="text-sm">
-            {chat.type === 'DIRECT' ? (
-              getInitials(title)
-            ) : chat.type === 'COURSE_GROUP' ? (
-              <GraduationCapIcon className="size-4" />
-            ) : (
-              <UsersIcon className="size-4" />
-            )}
-          </AvatarFallback>
-        </Avatar>
+        {peer ? (
+          <UserAvatar user={peer} className="size-10" />
+        ) : (
+          <Avatar className="size-10">
+            <AvatarFallback className="text-sm">
+              {chat.type === 'COURSE_GROUP' ? (
+                <GraduationCapIcon className="size-4" />
+              ) : (
+                <UsersIcon className="size-4" />
+              )}
+            </AvatarFallback>
+          </Avatar>
+        )}
         {peer && <PresenceDot userId={peer.id} />}
       </div>
 

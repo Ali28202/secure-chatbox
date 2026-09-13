@@ -5,6 +5,7 @@ import { AlertCircleIcon, Loader2Icon, MessagesSquareIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { MessageBubble } from '@/components/chat/message-bubble';
+import { SystemMessage } from '@/components/chat/system-message';
 import { Button } from '@/components/ui/button';
 import { useDeleteMessage, useMarkRead, useMessages, useSetPinned } from '@/hooks/use-messages';
 import type { ChatPermissions } from '@/hooks/use-permissions';
@@ -192,6 +193,17 @@ export function MessageList({
         const older = messages[index + 1];
         const startsDay = older ? !isSameDay(message.createdAt, older.createdAt) : !hasNextPage;
         const isOwn = message.sender.id === viewerId;
+
+        // A system note is not a bubble and has no sender side: it interleaves
+        // with the transcript but is rendered as a rule across it.
+        if (message.systemEvent !== null) {
+          return (
+            <div key={message.id} className="contents">
+              <SystemMessage message={message} />
+              {startsDay && <DayDivider date={message.createdAt} />}
+            </div>
+          );
+        }
 
         return (
           <div key={message.id} className="contents">

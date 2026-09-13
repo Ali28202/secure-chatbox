@@ -20,6 +20,10 @@ export function attachmentUrl(attachmentId: string): string {
   return `${API_BASE_URL}/api/attachments/${attachmentId}`;
 }
 
+export function avatarUrl(userId: string): string {
+  return `${API_BASE_URL}/api/users/${userId}/avatar`;
+}
+
 const NEVER_REFRESH = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout'];
 
 type RetriableRequest = InternalAxiosRequestConfig & { _retried?: boolean };

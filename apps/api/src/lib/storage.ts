@@ -1,4 +1,10 @@
-import { ALLOWED_FILE_TYPES, isAllowedFileType, UPLOAD, type AllowedFileType } from '@repo/shared';
+import {
+  ALLOWED_FILE_TYPES,
+  AVATAR,
+  isAllowedFileType,
+  UPLOAD,
+  type AllowedFileType,
+} from '@repo/shared';
 import { Errors } from './errors';
 import { s3Storage } from './s3';
 
@@ -57,6 +63,36 @@ function signatureMatches(type: AllowedFileType, head: Uint8Array): boolean {
       signature === null ||
       (head.length >= signature.length && signature.every((byte, at) => head[at] === byte))
   );
+}
+
+/**
+ * Validates and stores one avatar, returning its object key.
+ *
+ * Its own path rather than a call into `storeUploads`: an avatar is a single
+ * raster image with a much smaller ceiling, and it reuses the same magic-byte
+ * check so a renamed executable cannot arrive as a `.png`.
+ */
+export async function storeAvatar(file: File): Promise<string> {
+  const reject = (message: string) => Errors.validation([{ path: 'avatar', message }], message);
+
+  if (file.size === 0) throw reject('فایل خالی است.');
+  if (file.size > AVATAR.maxBytes) throw reject('حجم تصویر بیش از حد مجاز است.');
+
+  const type = file.type.split(';')[0]?.trim() ?? '';
+
+  if (!(AVATAR.types as readonly string[]).includes(type)) {
+    throw reject('تصویر باید PNG، JPEG یا WebP باشد.');
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  if (bytes.byteLength > AVATAR.maxBytes) throw reject('حجم تصویر بیش از حد مجاز است.');
+
+  if (!signatureMatches(type as AllowedFileType, bytes.subarray(0, 8))) {
+    throw reject('محتوای فایل با نوع اعلام‌شدهٔ آن هم‌خوانی ندارد.');
+  }
+
+  return s3Storage.uploadFile(bytes, type, `avatar${ALLOWED_FILE_TYPES[type as AllowedFileType]}`);
 }
 
 export async function storeUploads(files: File[]): Promise<StoredFile[]> {

@@ -1,9 +1,11 @@
-import type { AccountStatus, ChatRole, ChatType, GlobalRole } from '../constants';
+import type { AccountStatus, ChatRole, ChatType, GlobalRole, SystemEvent } from '../constants';
 export interface UserSummaryDto {
   id: string;
   name: string;
   universityId: string;
   role: GlobalRole;
+  /** Whether to fetch `/api/users/:id/avatar`. The key itself never leaves the API. */
+  hasAvatar: boolean;
 }
 
 export interface UserDto extends UserSummaryDto {
@@ -54,6 +56,7 @@ export interface ChatDto {
   title: string | null;
   isReadOnly: boolean;
   archivedAt: string | null;
+  deletedAt: string | null;
   creatorId: string;
   lastMessageAt: string | null;
   createdAt: string;
@@ -111,6 +114,9 @@ export interface MessageDto {
   content: string | null;
   isDeleted: boolean;
   isPinned: boolean;
+  /** Set only for what the system recorded: who was added, who was removed. */
+  systemEvent: SystemEvent | null;
+  systemTarget: UserSummaryDto | null;
   replyToId: string | null;
   replyTo: MessageReplyDto | null;
   attachments: AttachmentDto[];

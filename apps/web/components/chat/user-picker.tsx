@@ -3,12 +3,12 @@
 import type { UserSummaryDto } from '@repo/shared';
 import { CheckIcon, Loader2Icon, SearchIcon, UsersIcon } from 'lucide-react';
 import { useState } from 'react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useUserDirectory } from '@/hooks/use-users';
-import { getInitials, ROLE_LABELS } from '@/lib/labels';
+import { ROLE_LABELS } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
 interface UserPickerProps {
@@ -77,9 +77,7 @@ export function UserPicker({
                       isSelected && 'bg-accent'
                     )}
                   >
-                    <Avatar className="size-8 shrink-0">
-                      <AvatarFallback className="text-xs">{getInitials(user.name)}</AvatarFallback>
-                    </Avatar>
+                    <UserAvatar user={user} className="shrink-0" />
 
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{user.name}</span>

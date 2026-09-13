@@ -2,6 +2,7 @@
 
 import { ACCOUNT_STATUSES, GLOBAL_ROLES, toPersianDigits, type AdminUserDto } from '@repo/shared';
 import {
+  ArrowRightIcon,
   BanIcon,
   CheckIcon,
   Loader2Icon,
@@ -9,16 +10,19 @@ import {
   ShieldIcon,
   UndoIcon,
   XIcon,
+  EllipsisVertical,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -29,7 +33,7 @@ import { useAdminUsers, useUpdateUser } from '@/hooks/use-admin';
 import { useCurrentUser } from '@/hooks/use-auth';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { getApiErrorMessage } from '@/lib/api';
-import { ACCOUNT_STATUS_LABELS, getInitials, ROLE_LABELS } from '@/lib/labels';
+import { ACCOUNT_STATUS_LABELS, ROLE_LABELS } from '@/lib/labels';
 import { ROUTES } from '@/lib/routes';
 
 type Filter = (typeof ACCOUNT_STATUSES)[number] | 'ALL';
@@ -98,6 +102,16 @@ export function AdminPanel() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <header className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="بازگشت به گفت‌وگوها"
+          title="بازگشت به گفت‌وگوها"
+          render={<Link href={ROUTES.chats} />}
+        >
+          <ArrowRightIcon />
+        </Button>
+
         <ShieldIcon className="size-5 shrink-0 text-muted-foreground" />
         <div className="flex-1">
           <h1 className="text-lg font-semibold">مدیریت کاربران</h1>
@@ -156,9 +170,7 @@ export function AdminPanel() {
 
             return (
               <li key={user.id} className="flex items-center gap-3 p-3">
-                <Avatar className="size-9 shrink-0">
-                  <AvatarFallback className="text-xs">{getInitials(user.name)}</AvatarFallback>
-                </Avatar>
+                <UserAvatar user={user} className="size-9 shrink-0" />
 
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">
@@ -211,23 +223,27 @@ export function AdminPanel() {
                         />
                       }
                     >
-                      <ShieldIcon />
+                      <EllipsisVertical />
                     </DropdownMenuTrigger>
 
                     <DropdownMenuContent align="start" className="w-52">
-                      <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                        تغییر نقش
-                      </DropdownMenuLabel>
-                      {GLOBAL_ROLES.filter((role) => role !== user.role).map((role) => (
-                        <DropdownMenuItem
-                          key={role}
-                          onClick={() =>
-                            apply(user, { role }, `نقش ${user.name} شد ${ROLE_LABELS[role]}.`)
-                          }
-                        >
-                          {ROLE_LABELS[role]}
-                        </DropdownMenuItem>
-                      ))}
+                      {/* Base UI requires a label to live inside a group — used
+                          bare it throws `MenuGroupContext missing` at render. */}
+                      <DropdownMenuGroup>
+                        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                          تغییر نقش
+                        </DropdownMenuLabel>
+                        {GLOBAL_ROLES.filter((role) => role !== user.role).map((role) => (
+                          <DropdownMenuItem
+                            key={role}
+                            onClick={() =>
+                              apply(user, { role }, `نقش ${user.name} شد ${ROLE_LABELS[role]}.`)
+                            }
+                          >
+                            {ROLE_LABELS[role]}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuGroup>
 
                       <DropdownMenuSeparator />
 

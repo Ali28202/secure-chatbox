@@ -6,8 +6,16 @@ import { Menu as MenuPrimitive } from '@base-ui/react/menu';
 import { cn } from '@/lib/utils';
 import { ChevronRightIcon, CheckIcon } from 'lucide-react';
 
-function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
-  return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
+/**
+ * `modal={false}` on purpose.
+ *
+ * Base UI menus are modal by default, which locks the page scroll while one is
+ * open — and locking it hides the scrollbar, which reflows the layout and makes
+ * the page visibly jump every time a menu opens and closes. A dropdown has no
+ * reason to block the background; dismissal and focus still work without it.
+ */
+function DropdownMenu({ modal = false, ...props }: MenuPrimitive.Root.Props) {
+  return <MenuPrimitive.Root data-slot="dropdown-menu" modal={modal} {...props} />;
 }
 
 function DropdownMenuPortal({ ...props }: MenuPrimitive.Portal.Props) {

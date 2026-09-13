@@ -5,6 +5,7 @@ export const ROUTES = {
   chats: '/chats',
   chat: (chatId: string) => `/chats/${chatId}`,
   admin: '/admin',
+  settings: '/settings',
 } as const;
 
 export const PUBLIC_ROUTES: string[] = [ROUTES.home, ROUTES.login, ROUTES.register];

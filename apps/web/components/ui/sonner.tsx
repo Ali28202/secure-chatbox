@@ -34,7 +34,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }
       toastOptions={{
         classNames: {
-          toast: 'cn-toast',
+          // `font-sans` on the toast itself, not on the toaster. Sonner's own
+          // stylesheet hardcodes a system stack on `[data-sonner-toaster]` and
+          // is injected at runtime, so a rule there could lose on order — but
+          // nothing of theirs touches the toast, so this always wins and the
+          // title, description and buttons inherit it.
+          toast: 'cn-toast font-sans',
         },
       }}
       {...props}

@@ -27,7 +27,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <SessionContext value={session.data}>
-      <div className="flex h-svh flex-col">
+      {/* Fills the viewport exactly and never scrolls. Scrolling belongs to each
+          page: a chat has to fill the shell so its message list can scroll on
+          its own, while a settings page is simply long. A shared scrollbox
+          cannot be both — it either compresses the chat or clips the page. */}
+      <div className="flex h-full flex-col overflow-hidden">
         <RealtimeBridge />
         <AppHeader />
         <div className="mx-auto flex w-full max-w-5xl min-h-0 flex-1 flex-col px-4 py-6">

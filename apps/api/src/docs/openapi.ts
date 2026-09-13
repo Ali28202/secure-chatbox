@@ -402,6 +402,19 @@ An account holds **one device at a time**. Signing in here revokes the previous 
         ...VALIDATION_ERROR,
       },
     },
+    delete: {
+      tags: ['Chats'],
+      operationId: 'deleteChat',
+      summary: 'Delete the group',
+      description:
+        'Soft. Nothing is removed — the messages, receipts and stored files all survive, and a `deleted_at` stamp is what hides the conversation from every read path at once. A hard delete would cascade through every message and orphan every object in the bucket, with no way back from a mistake. Gated like the roster: faculty, or whoever made it.',
+      parameters: [CHAT_ID_PARAM],
+      responses: {
+        200: json('Deleted.', 'SuccessResult'),
+        403: error('Only faculty or the creator may delete, and never a direct chat.'),
+        ...CHAT_SCOPE_ERRORS,
+      },
+    },
   },
 
   '/api/chats/{chatId}/members': {

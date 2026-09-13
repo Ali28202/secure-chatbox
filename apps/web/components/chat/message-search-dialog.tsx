@@ -51,6 +51,7 @@ function highlight(text: string, term: string) {
 }
 
 export function MessageSearchDialog() {
+  const [open, setOpen] = useState(false);
   const [term, setTerm] = useState('');
   const debounced = useDebouncedValue(term);
   const results = useMessageSearch(debounced);
@@ -58,7 +59,13 @@ export function MessageSearchDialog() {
   const tooShort = debounced.trim().length > 0 && debounced.trim().length < LIMITS.search.min;
 
   return (
-    <Dialog onOpenChange={(open) => !open && setTerm('')}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setTerm('');
+      }}
+    >
       <DialogTrigger
         render={<Button variant="outline" size="icon" aria-label="جست‌وجوی پیام‌ها" />}
       >
@@ -109,6 +116,9 @@ export function MessageSearchDialog() {
                 <li key={message.id}>
                   <Link
                     href={ROUTES.chat(chatId)}
+                    // Navigating is the end of searching. Without this the
+                    // dialog stays open over the conversation it just opened.
+                    onClick={() => setOpen(false)}
                     className="block rounded-sm px-2 py-2 transition-colors hover:bg-accent"
                   >
                     <p className="flex items-center justify-between gap-2 text-xs text-muted-foreground">

@@ -100,14 +100,11 @@ test.describe('a read-only chat', () => {
 
     await professor.page.goto(`/chats/${chat.id}`);
 
-    const toggle = professor.page.getByRole('button', { name: 'باز', exact: true });
-    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-    await toggle.click();
+    // The switches live behind the conversation's menu now, not in the header.
+    await professor.page.getByRole('button', { name: 'تنظیمات گفت‌وگو' }).click();
+    await professor.page.getByRole('menuitem', { name: 'بستن گروه' }).click();
 
-    await expect(professor.page.getByRole('button', { name: 'بسته', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    );
+    await expect(professor.page.getByText('بسته', { exact: true })).toBeVisible();
 
     await attendee.page.goto(`/chats/${chat.id}`);
 
@@ -138,7 +135,8 @@ test.describe('a read-only chat', () => {
     await student.page.goto(`/chats/${chat.id}`);
     await expect(student.page.getByRole('heading', { name: peer.account.name })).toBeVisible();
 
-    await expect(student.page.getByRole('button', { name: 'باز', exact: true })).toBeHidden();
+    // A direct conversation has nothing to administer, so no menu at all.
+    await expect(student.page.getByRole('button', { name: 'تنظیمات گفت‌وگو' })).toBeHidden();
 
     const response = await student.api
       .raw()

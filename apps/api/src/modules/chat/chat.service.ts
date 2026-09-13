@@ -1,18 +1,21 @@
 import { prisma } from '@repo/database';
 import {
   canArchiveChat,
+  canDeleteChat,
   canLeaveChat,
   canManageMembers,
   canMuteMember,
   canUpdateChat,
   canUpdateMember,
   isChatCreator,
+  isSystemAdmin,
   type AddMemberInput,
   type ChatDto,
   type ChatListItemDto,
   type ChatMemberDto,
   type CreateChatInput,
   type ListChatsQuery,
+  type PolicyUser,
   type UpdateChatInput,
   type UpdateMemberInput,
 } from '@repo/shared';
@@ -21,7 +24,10 @@ import {
   chatListSelect,
   chatMemberSelect,
   chatSelect,
+  messageSelect,
+  userSummarySelect,
   toChatDto,
+  toMessageDto,
   toChatListItemDto,
   toChatMemberDto,
   type ChatMemberRow,
@@ -44,7 +50,11 @@ class ChatService {
     const chats = await prisma.chat.findMany({
       // Archived conversations are a separate view, never mixed in: a retired
       // group would otherwise keep a place in the list for good.
-      where: { members: { some: { userId } }, archivedAt: query.archived ? { not: null } : null },
+      where: {
+        members: { some: { userId } },
+        deletedAt: null,
+        archivedAt: query.archived ? { not: null } : null,
+      },
       select: chatListSelect,
       orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
     });
@@ -63,9 +73,20 @@ class ChatService {
     );
   }
 
-  async getChat(chatId: string, userId: string): Promise<ChatListItemDto> {
+  async getChat(chatId: string, user: PolicyUser): Promise<ChatListItemDto> {
     const chat = await prisma.chat.findFirst({
-      where: { id: chatId, members: { some: { userId } } },
+      // `requireChatMember` has already decided this, but the filter stays as a
+      // second lock — so it has to admit the same people, operators included.
+      // Without the second branch the one route that loads a conversation was
+      // the one route a system administrator could not use.
+      where: {
+        id: chatId,
+        deletedAt: null,
+        OR: [
+          { members: { some: { userId: user.id } } },
+          ...(isSystemAdmin(user) ? [{ type: { not: 'DIRECT' as const } }] : []),
+        ],
+      },
       select: chatListSelect,
     });
 
@@ -74,7 +95,7 @@ class ChatService {
     }
 
     const [unread, watermarks] = await Promise.all([
-      countUnread(userId, [chatId]),
+      countUnread(user.id, [chatId]),
       readWatermarks([chatId]),
     ]);
 
@@ -123,6 +144,7 @@ class ChatService {
     });
 
     await socketGateway.joinChat(chat.id, input.userId);
+    await this.recordSystemEvent(chat.id, actor.user.id, input.userId, 'MEMBER_ADDED');
 
     return toChatMemberDto(member);
   }
@@ -164,6 +186,39 @@ class ChatService {
     }
 
     socketGateway.leaveChat(chat.id, userId);
+
+    if (!isSelf) {
+      await this.recordSystemEvent(chat.id, actor.user.id, userId, 'MEMBER_REMOVED');
+    }
+  }
+
+  /**
+   * Soft-deletes the conversation.
+   *
+   * Nothing is removed: the messages, the receipts and the S3 objects all stay,
+   * and `deletedAt` is what hides them. A hard delete would cascade through
+   * every message and orphan every attachment in the bucket, with no way back
+   * from a mistake — and a university transcript is a record, not scratch.
+   */
+  async deleteChat(chat: ChatRow, actor: ChatMemberRow): Promise<void> {
+    if (chat.type === 'DIRECT') {
+      throw Errors.forbidden(DIRECT_IMMUTABLE);
+    }
+
+    if (!canDeleteChat(chat, actor)) {
+      throw Errors.forbidden(NOT_ROSTER_MANAGER);
+    }
+
+    await prisma.chat.update({ where: { id: chat.id }, data: { deletedAt: new Date() } });
+
+    socketGateway.emitToChat(chat.id, 'chat:deleted', chat.id);
+
+    const members = await prisma.chatMember.findMany({
+      where: { chatId: chat.id },
+      select: { userId: true },
+    });
+
+    for (const { userId } of members) socketGateway.leaveChat(chat.id, userId);
   }
 
   async updateChat(chat: ChatRow, actor: ChatMemberRow, input: UpdateChatInput): Promise<ChatDto> {
@@ -250,10 +305,48 @@ class ChatService {
       select: { ...chatMemberSelect, chat: { select: chatSelect } },
     });
 
-    if (!row) return null;
+    // Every chat-scoped route hangs off this, so refusing here is what makes a
+    // deleted conversation disappear from messages, members and attachments
+    // together, rather than needing the same check in each of them.
+    if (row) {
+      const { chat, ...member } = row;
+      return chat.deletedAt !== null ? null : { member, chat };
+    }
 
-    const { chat, ...member } = row;
-    return { member, chat };
+    return this.systemAdminMembership(chatId, userId);
+  }
+
+  /**
+   * Lets the platform's operator into a group they were never added to.
+   *
+   * Groups only — a `DIRECT` conversation is two people's correspondence, and
+   * the difference between administering a university's groups and reading its
+   * private messages is the whole line. The membership handed back is
+   * synthetic: there is no row, so they do not appear in the roster, are not
+   * counted as a member, and receive no receipts.
+   */
+  private async systemAdminMembership(
+    chatId: string,
+    userId: string
+  ): Promise<{ member: ChatMemberRow; chat: ChatRow } | null> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: userSummarySelect,
+    });
+
+    if (user?.role !== 'ADMIN') return null;
+
+    const chat = await prisma.chat.findFirst({
+      where: { id: chatId, deletedAt: null, type: { not: 'DIRECT' } },
+      select: chatSelect,
+    });
+
+    if (!chat) return null;
+
+    return {
+      chat,
+      member: { user, role: 'ADMIN', isMuted: false, joinedAt: new Date() },
+    };
   }
 
   private async createDirectChat(creatorId: string, otherUserId: string): Promise<ChatDto> {
@@ -343,6 +436,33 @@ class ChatService {
     await this.openRooms(chat.id, [creatorId, ...memberIds]);
 
     return toChatDto(chat);
+  }
+
+  /**
+   * Writes the "X added Y" line that appears in the transcript.
+   *
+   * A real message row, not a separate table: it has to interleave with the
+   * conversation in date order, and paging already does that. No receipts are
+   * created for it — an unread badge for "someone joined" is noise, and
+   * `countUnread` counts by receipt, so leaving them out is the whole of it.
+   */
+  private async recordSystemEvent(
+    chatId: string,
+    actorId: string,
+    targetId: string,
+    systemEvent: 'MEMBER_ADDED' | 'MEMBER_REMOVED'
+  ): Promise<void> {
+    const message = await prisma.message.create({
+      data: { chatId, senderId: actorId, systemTargetId: targetId, systemEvent, content: null },
+      select: messageSelect,
+    });
+
+    await prisma.chat.update({
+      where: { id: chatId },
+      data: { lastMessageAt: message.createdAt },
+    });
+
+    socketGateway.emitToChat(chatId, 'message:new', toMessageDto(message));
   }
 
   private async openRooms(chatId: string, userIds: string[]): Promise<void> {

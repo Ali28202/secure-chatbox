@@ -26,6 +26,12 @@ enum AccountStatus {
   REJECTED
 }
 
+/// What a message records when it is not something a person typed.
+enum SystemEvent {
+  MEMBER_ADDED
+  MEMBER_REMOVED
+}
+
 enum ChatType {
   DIRECT
   COURSE_GROUP
@@ -55,11 +61,15 @@ model User {
   isActive     Boolean    @default(true) @map("is_active")
   deviceId     String?    @map("device_id")
   lastSeen     DateTime?  @map("last_seen")
+  /// S3 object key, never sent to the browser. Avatars are served through a
+  /// redirect that signs a fresh URL, so nothing expiring is cached in a DTO.
+  avatarKey    String?    @map("avatar_key")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
   createdChats    Chat[]           @relation("ChatCreator")
   memberships     ChatMember[]
   sentMessages    Message[]        @relation("MessageSender")
+  systemMentions  Message[]        @relation("MessageSystemTarget")
   messageReceipts MessageReceipt[]
   reactions       MessageReaction[]
   sessions        Session[]
@@ -106,6 +116,10 @@ model Chat {
   // the receipts and the attachments, where a delete would orphan every S3
   // object the messages point at.
   archivedAt    DateTime? @map("archived_at")
+  /// Soft, like everything else here. The transcript is a record: deleting the
+  /// rows would take every message and every S3 object with it, and there would
+  /// be nothing to restore if it turned out to be a mistake.
+  deletedAt     DateTime? @map("deleted_at")
 
   creator  User         @relation("ChatCreator", fields: [creatorId], references: [id], onDelete: Restrict)
   members  ChatMember[]
@@ -114,6 +128,7 @@ model Chat {
   @@index([creatorId])
   @@index([lastMessageAt(sort: Desc)])
   @@index([archivedAt])
+  @@index([deletedAt])
   @@map("chats")
 }
 
@@ -139,9 +154,14 @@ model Message {
   isEdited  Boolean  @default(false) @map("is_edited")
   isDeleted Boolean  @default(false) @map("is_deleted")
   isPinned  Boolean  @default(false) @map("is_pinned")
+  /// Null for anything a person wrote. When set, `senderId` is who acted and
+  /// `systemTargetId` is who it happened to.
+  systemEvent    SystemEvent? @map("system_event")
+  systemTargetId String?      @map("system_target_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-  sender      User             @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  sender       User  @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  systemTarget User? @relation("MessageSystemTarget", fields: [systemTargetId], references: [id], onDelete: SetNull)
   chat        Chat             @relation(fields: [chatId], references: [id], onDelete: Cascade)
   replyTo     Message?         @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies     Message[]        @relation("MessageReplies")

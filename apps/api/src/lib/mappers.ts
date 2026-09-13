@@ -18,6 +18,7 @@ export const userSummarySelect = {
   name: true,
   universityId: true,
   role: true,
+  avatarKey: true,
 } satisfies Prisma.UserSelect;
 
 export const userSelect = {
@@ -39,6 +40,9 @@ export function toUserSummaryDto(user: UserSummaryRow): UserSummaryDto {
     name: user.name,
     universityId: user.universityId,
     role: user.role,
+    // A boolean, not the key and not a URL: the key is private, and a signed
+    // URL would expire inside a cached DTO. The client asks the redirect route.
+    hasAvatar: user.avatarKey !== null,
   };
 }
 
@@ -138,9 +142,11 @@ export const messageSelect = {
   content: true,
   isDeleted: true,
   isPinned: true,
+  systemEvent: true,
   replyToId: true,
   createdAt: true,
   sender: { select: userSummarySelect },
+  systemTarget: { select: userSummarySelect },
   replyTo: { select: replyPreviewSelect },
   attachments: { select: attachmentSelect, orderBy: { id: 'asc' } },
   reactions: { select: { emoji: true, userId: true }, orderBy: { createdAt: 'asc' } },
@@ -178,6 +184,8 @@ export function toMessageDto(message: MessageRow): MessageDto {
     content: message.isDeleted ? null : message.content,
     isDeleted: message.isDeleted,
     isPinned: message.isPinned,
+    systemEvent: message.systemEvent,
+    systemTarget: message.systemTarget ? toUserSummaryDto(message.systemTarget) : null,
     replyToId: message.replyToId,
     replyTo: message.replyTo
       ? {
@@ -202,6 +210,7 @@ export const chatSelect = {
   title: true,
   isReadOnly: true,
   archivedAt: true,
+  deletedAt: true,
   creatorId: true,
   lastMessageAt: true,
   createdAt: true,
@@ -216,6 +225,7 @@ export function toChatDto(chat: ChatRow): ChatDto {
     title: chat.title,
     isReadOnly: chat.isReadOnly,
     archivedAt: chat.archivedAt?.toISOString() ?? null,
+    deletedAt: chat.deletedAt?.toISOString() ?? null,
     creatorId: chat.creatorId,
     lastMessageAt: chat.lastMessageAt?.toISOString() ?? null,
     createdAt: chat.createdAt.toISOString(),
