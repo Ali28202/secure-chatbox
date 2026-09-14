@@ -142,9 +142,7 @@ test.describe('pinning', () => {
     newSession,
   }) => {
     const attendee = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'شبکه‌های کامپیوتری', [
-      attendee.account.id,
-    ]);
+    const chat = await professor.api.createGroup('شبکه‌های کامپیوتری', [attendee.account.id]);
     await professor.api.sendMessage(chat.id, 'امتحان میان‌ترم: ۲۵ آبان');
 
     await professor.page.goto(`/chats/${chat.id}`);

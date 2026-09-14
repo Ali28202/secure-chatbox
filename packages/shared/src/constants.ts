@@ -12,7 +12,7 @@ export const AVATAR = {
   types: ['image/png', 'image/jpeg', 'image/webp'] as const,
 } as const;
 
-export const CHAT_TYPES = ['DIRECT', 'COURSE_GROUP', 'CUSTOM_GROUP'] as const;
+export const CHAT_TYPES = ['DIRECT', 'GROUP'] as const;
 export type ChatType = (typeof CHAT_TYPES)[number];
 
 export const CHAT_ROLES = ['ADMIN', 'MEMBER'] as const;

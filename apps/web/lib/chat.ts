@@ -8,8 +8,7 @@ import {
 
 export const CHAT_TYPE_LABELS: Record<ChatType, string> = {
   DIRECT: 'گفت‌وگوی خصوصی',
-  COURSE_GROUP: 'گروه درسی',
-  CUSTOM_GROUP: 'گروه',
+  GROUP: 'گروه',
 };
 
 export function getChatPeer(chat: ChatListItemDto, viewerId: string): UserSummaryDto | null {

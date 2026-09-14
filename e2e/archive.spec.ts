@@ -7,9 +7,7 @@ test.describe('archiving a group', () => {
     newSession,
   }) => {
     const attendee = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'ترم گذشته', [
-      attendee.account.id,
-    ]);
+    const chat = await professor.api.createGroup('ترم گذشته', [attendee.account.id]);
 
     await professor.page.goto(`/chats/${chat.id}`);
     await professor.page.getByRole('button', { name: 'تنظیمات گفت‌وگو' }).click();
@@ -41,7 +39,7 @@ test.describe('archiving a group', () => {
     newSession,
   }) => {
     const deputy = await newSession('STUDENT');
-    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه درسی من', [deputy.account.id]);
+    const chat = await student.api.createGroup('گروه من', [deputy.account.id]);
 
     await student.api.updateMember(chat.id, deputy.account.id, { role: 'ADMIN' });
 
@@ -58,7 +56,7 @@ test.describe('archiving a group', () => {
 
   test('keeps every message rather than deleting them', async ({ professor, newSession }) => {
     const attendee = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'بایگانی', [attendee.account.id]);
+    const chat = await professor.api.createGroup('بایگانی', [attendee.account.id]);
     await professor.api.sendMessage(chat.id, 'این باید بماند');
 
     await professor.api.updateChat(chat.id, { isArchived: true });

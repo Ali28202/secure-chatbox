@@ -5,9 +5,7 @@ import { expect, test } from './support/fixtures';
 test.describe('deleting a group', () => {
   test('hides it from everyone without destroying anything', async ({ professor, newSession }) => {
     const attendee = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'درس تمام‌شده', [
-      attendee.account.id,
-    ]);
+    const chat = await professor.api.createGroup('درس تمام‌شده', [attendee.account.id]);
     await professor.api.sendMessage(chat.id, 'این پیام باید در دیتابیس بماند');
 
     const deleted = await professor.api.raw().delete(`${API_URL}/api/chats/${chat.id}`, {
@@ -37,7 +35,7 @@ test.describe('deleting a group', () => {
     newSession,
   }) => {
     const attendee = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'گروه مهم', [attendee.account.id]);
+    const chat = await professor.api.createGroup('گروه مهم', [attendee.account.id]);
 
     await professor.page.goto(`/chats/${chat.id}`);
     await professor.page.getByRole('button', { name: 'تنظیمات گفت‌وگو' }).click();
@@ -62,7 +60,7 @@ test.describe('deleting a group', () => {
     newSession,
   }) => {
     const deputy = await newSession('STUDENT');
-    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه من', [deputy.account.id]);
+    const chat = await student.api.createGroup('گروه من', [deputy.account.id]);
 
     await student.api.updateMember(chat.id, deputy.account.id, { role: 'ADMIN' });
 
@@ -83,7 +81,7 @@ test.describe('the roster notes in the transcript', () => {
   test('record who added whom, for everyone to see', async ({ professor, newSession }) => {
     const attendee = await newSession('STUDENT');
     const latecomer = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'کارگاه', [attendee.account.id]);
+    const chat = await professor.api.createGroup('کارگاه', [attendee.account.id]);
 
     await attendee.page.goto(`/chats/${chat.id}`);
     await expect(attendee.page.getByText('هنوز پیامی اینجا نیست')).toBeVisible();
@@ -100,10 +98,7 @@ test.describe('the roster notes in the transcript', () => {
   test('record a removal too', async ({ professor, newSession }) => {
     const attendee = await newSession('STUDENT');
     const other = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'حذف', [
-      attendee.account.id,
-      other.account.id,
-    ]);
+    const chat = await professor.api.createGroup('حذف', [attendee.account.id, other.account.id]);
 
     await professor.api
       .raw()
@@ -120,7 +115,7 @@ test.describe('the roster notes in the transcript', () => {
   test('do not count as unread', async ({ professor, newSession }) => {
     const attendee = await newSession('STUDENT');
     const latecomer = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'بی‌صدا', [attendee.account.id]);
+    const chat = await professor.api.createGroup('بی‌صدا', [attendee.account.id]);
 
     await professor.api.addMember(chat.id, latecomer.account.id);
 

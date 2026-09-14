@@ -95,9 +95,7 @@ test.describe('the layout', () => {
 test.describe('numbers', () => {
   test('are Persian everywhere they are read as prose', async ({ professor, newSession }) => {
     const attendee = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'مبانی شبکه', [
-      attendee.account.id,
-    ]);
+    const chat = await professor.api.createGroup('مبانی شبکه', [attendee.account.id]);
     await professor.api.sendMessage(chat.id, 'خوش آمدید');
 
     await professor.page.goto(`/chats/${chat.id}`);

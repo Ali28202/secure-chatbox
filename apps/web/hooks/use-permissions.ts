@@ -2,7 +2,6 @@
 
 import {
   canArchiveChat,
-  canCreateChat,
   canDeleteChat,
   canDeleteMessage,
   canManageMembers,
@@ -14,7 +13,6 @@ import {
   SEND_BLOCK_MESSAGES,
   type ChatListItemDto,
   type ChatMemberDto,
-  type ChatType,
 } from '@repo/shared';
 import { useMemo } from 'react';
 import { useCurrentUser } from '@/hooks/use-auth';
@@ -74,9 +72,4 @@ export function useChatPermissions(chat: ChatListItemDto | undefined): ChatPermi
       canMuteMember: (member: ChatMemberDto) => canMuteMember(chat, membership, member),
     };
   }, [chat, viewer.id]);
-}
-
-export function useCreatableChatTypes<T extends ChatType>(types: readonly T[]): T[] {
-  const viewer = useCurrentUser();
-  return types.filter((type) => canCreateChat(viewer, type));
 }

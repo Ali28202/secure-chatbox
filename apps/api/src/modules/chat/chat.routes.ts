@@ -1,14 +1,12 @@
 import { zValidator } from '@hono/zod-validator';
 import {
   addMemberSchema,
-  canCreateChat,
   createChatSchema,
   listChatsQuerySchema,
   updateChatSchema,
   updateMemberSchema,
 } from '@repo/shared';
 import { Hono } from 'hono';
-import { Errors } from '../../lib/errors';
 import { onValidationError } from '../../lib/validation';
 import { requireAuth } from '../../middleware/require-auth';
 import { requireChatMember } from '../../middleware/require-chat-member';
@@ -75,15 +73,8 @@ chatRoutes.get('/', zValidator('query', listChatsQuerySchema, onValidationError)
   c.json(await chatService.getUserChats(c.get('user').id, c.req.valid('query')))
 );
 
-chatRoutes.post('/', zValidator('json', createChatSchema, onValidationError), async (c) => {
-  const user = c.get('user');
-  const input = c.req.valid('json');
-
-  if (!canCreateChat(user, input.type)) {
-    throw Errors.forbidden('فقط استادها می‌تونن گروه درسی بسازن.');
-  }
-
-  return c.json(await chatService.createChat(user.id, input), 201);
-});
+chatRoutes.post('/', zValidator('json', createChatSchema, onValidationError), async (c) =>
+  c.json(await chatService.createChat(c.get('user').id, c.req.valid('json')), 201)
+);
 
 chatRoutes.route('/:chatId', chatDetailRoutes);

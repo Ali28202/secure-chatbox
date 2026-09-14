@@ -358,7 +358,7 @@ An account holds **one device at a time**. Signing in here revokes the previous 
       operationId: 'createChat',
       summary: 'Start a conversation',
       description:
-        'The body is discriminated on `type`. A `DIRECT` chat names one other member and is unique per pair — asking for one that exists returns the existing chat. `COURSE_GROUP` is restricted to professors; custom groups and direct chats are open to everyone.',
+        'The body is discriminated on `type`. A `DIRECT` chat names one other member and is unique per pair — asking for one that exists returns the existing chat. A `GROUP` carries a title and an optional member list. Both are open to everyone.',
       requestBody: {
         required: true,
         content: { 'application/json': { schema: ref('CreateChatRequest') } },

@@ -16,43 +16,26 @@ async function refusal(response: APIResponse): Promise<Refusal> {
 }
 
 test.describe('what a student may create', () => {
-  test('is not offered a course group, and cannot ask for one anyway', async ({ student }) => {
+  test('starts a group from the dialog and lands inside it', async ({ student }) => {
     await student.page.goto('/chats');
     await student.page.getByRole('button', { name: 'گفت‌وگوی جدید' }).click();
 
     const dialog = student.page.getByRole('dialog');
     await dialog.getByRole('tab', { name: 'گروه' }).click();
 
-    await expect(dialog.getByRole('group', { name: 'نوع گروه' })).toBeHidden();
-    await expect(dialog.getByRole('button', { name: 'گروه درسی' })).toBeHidden();
-
     await dialog.getByLabel('اسم گروه').fill('گروه مطالعاتی ترم');
     await dialog.getByRole('button', { name: 'ساخت گروه' }).click();
     await expect(student.page).toHaveURL(/\/chats\/[0-9a-f-]{36}$/);
 
     const [chat] = await student.api.listChats();
-    expect(chat?.type).toBe('CUSTOM_GROUP');
-  });
-
-  test('is refused by the API, not only by the picker', async ({ student }) => {
-    const response = await student.api
-      .raw()
-      .post(`${API_URL}/api/chats`, { data: { type: 'COURSE_GROUP', title: 'درس جعلی' } });
-
-    expect(await refusal(response)).toEqual({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'فقط استادها می‌تونن گروه درسی بسازن.',
-    });
-
-    expect(await student.api.listChats()).toHaveLength(0);
+    expect(chat?.type).toBe('GROUP');
   });
 });
 
 test.describe('conversations you are not part of', () => {
   test('look exactly like conversations that do not exist', async ({ professor, newSession }) => {
     const outsider = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'شورای گروه');
+    const chat = await professor.api.createGroup('شورای گروه');
 
     const real = await outsider.api.raw().get(`${API_URL}/api/chats/${chat.id}`);
     const imaginary = await outsider.api.raw().get(`${API_URL}/api/chats/${randomUUID()}`);
@@ -66,7 +49,7 @@ test.describe('conversations you are not part of', () => {
     newSession,
   }) => {
     const outsider = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('CUSTOM_GROUP', 'جلسات داخلی');
+    const chat = await professor.api.createGroup('جلسات داخلی');
 
     await outsider.page.goto(`/chats/${chat.id}`);
 
@@ -81,7 +64,7 @@ test.describe('conversations you are not part of', () => {
 
   test('cannot be written into from outside', async ({ professor, newSession }) => {
     const outsider = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'ریاضی ۲');
+    const chat = await professor.api.createGroup('ریاضی ۲');
 
     const response = await outsider.api
       .raw()
@@ -94,9 +77,7 @@ test.describe('conversations you are not part of', () => {
 test.describe('a read-only chat', () => {
   test('is closed by the professor and read by the class', async ({ professor, newSession }) => {
     const attendee = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'اعلانات دانشکده', [
-      attendee.account.id,
-    ]);
+    const chat = await professor.api.createGroup('اعلانات دانشکده', [attendee.account.id]);
 
     await professor.page.goto(`/chats/${chat.id}`);
 
@@ -143,15 +124,13 @@ test.describe('a read-only chat', () => {
   });
 });
 
-test.describe('moderating a course group', () => {
+test.describe('moderating a group', () => {
   test('a student can answer a professor’s message but not remove or pin it', async ({
     professor,
     newSession,
   }) => {
     const attendee = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'پایگاه داده', [
-      attendee.account.id,
-    ]);
+    const chat = await professor.api.createGroup('پایگاه داده', [attendee.account.id]);
     const message = await professor.api.sendMessage(chat.id, 'منابع امتحان اعلام شد.');
 
     await attendee.page.goto(`/chats/${chat.id}`);
@@ -188,9 +167,7 @@ test.describe('moderating a course group', () => {
 
   test('the professor can remove a student’s message', async ({ professor, newSession }) => {
     const attendee = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'سیستم‌عامل', [
-      attendee.account.id,
-    ]);
+    const chat = await professor.api.createGroup('سیستم‌عامل', [attendee.account.id]);
     await attendee.api.sendMessage(chat.id, 'پیام نامناسب');
 
     await professor.page.goto(`/chats/${chat.id}`);
@@ -209,9 +186,7 @@ test.describe('managing members', () => {
     newSession,
   }) => {
     const attendee = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'هوش مصنوعی پیشرفته', [
-      attendee.account.id,
-    ]);
+    const chat = await professor.api.createGroup('هوش مصنوعی پیشرفته', [attendee.account.id]);
 
     await professor.page.goto(`/chats/${chat.id}`);
     await professor.page.getByRole('button', { name: '۲ عضو' }).click();
@@ -237,7 +212,7 @@ test.describe('managing members', () => {
   }) => {
     const attendee = await newSession('STUDENT');
     const other = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('CUSTOM_GROUP', 'گروه تمرین', [
+    const chat = await professor.api.createGroup('گروه تمرین', [
       attendee.account.id,
       other.account.id,
     ]);
@@ -270,9 +245,7 @@ test.describe('who may change the roster', () => {
   test('a student may grow the group they made themselves', async ({ student, newSession }) => {
     const classmate = await newSession('STUDENT');
     const latecomer = await newSession('STUDENT');
-    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه پروژه', [
-      classmate.account.id,
-    ]);
+    const chat = await student.api.createGroup('گروه پروژه', [classmate.account.id]);
 
     await student.api.addMember(chat.id, latecomer.account.id);
 
@@ -285,7 +258,7 @@ test.describe('who may change the roster', () => {
     newSession,
   }) => {
     const latecomer = await newSession('STUDENT');
-    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه کارگاه');
+    const chat = await student.api.createGroup('گروه کارگاه');
 
     await student.page.goto(`/chats/${chat.id}`);
     await student.page.getByRole('button', { name: '۱ عضو' }).click();
@@ -312,9 +285,7 @@ test.describe('who may change the roster', () => {
   }) => {
     const deputy = await newSession('STUDENT');
     const outsider = await newSession('STUDENT');
-    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه درس‌خوانی', [
-      deputy.account.id,
-    ]);
+    const chat = await student.api.createGroup('گروه درس‌خوانی', [deputy.account.id]);
 
     await student.api.updateMember(chat.id, deputy.account.id, { role: 'ADMIN' });
 
@@ -334,9 +305,7 @@ test.describe('who may change the roster', () => {
     newSession,
   }) => {
     const latecomer = await newSession('STUDENT');
-    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه مشترک', [
-      professor.account.id,
-    ]);
+    const chat = await student.api.createGroup('گروه مشترک', [professor.account.id]);
 
     await student.api.updateMember(chat.id, professor.account.id, { role: 'ADMIN' });
     await professor.api.addMember(chat.id, latecomer.account.id);
@@ -352,7 +321,7 @@ test.describe('the creator’s seat', () => {
     newSession,
   }) => {
     const deputy = await newSession('STUDENT');
-    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه کنفرانس', [deputy.account.id]);
+    const chat = await student.api.createGroup('گروه کنفرانس', [deputy.account.id]);
 
     await student.api.updateMember(chat.id, deputy.account.id, { role: 'ADMIN' });
 
@@ -387,9 +356,7 @@ test.describe('the creator’s seat', () => {
     student,
     professor,
   }) => {
-    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه پژوهش', [
-      professor.account.id,
-    ]);
+    const chat = await student.api.createGroup('گروه پژوهش', [professor.account.id]);
 
     await student.api.updateMember(chat.id, professor.account.id, { role: 'ADMIN' });
 
@@ -403,7 +370,7 @@ test.describe('the creator’s seat', () => {
 
   test('offers no management menu in the members dialog', async ({ student, newSession }) => {
     const deputy = await newSession('STUDENT');
-    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه آزمایش', [deputy.account.id]);
+    const chat = await student.api.createGroup('گروه آزمایش', [deputy.account.id]);
 
     await student.api.updateMember(chat.id, deputy.account.id, { role: 'ADMIN' });
 

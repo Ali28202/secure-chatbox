@@ -1,7 +1,7 @@
 'use client';
 
 import { formatChatTimestamp, toPersianDigits, type ChatListItemDto } from '@repo/shared';
-import { GraduationCapIcon, UsersIcon } from 'lucide-react';
+import { UsersIcon } from 'lucide-react';
 import Link from 'next/link';
 import { PresenceDot } from '@/components/chat/presence-indicator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -41,11 +41,7 @@ export function ChatListItem({
         ) : (
           <Avatar className="size-10">
             <AvatarFallback className="text-sm">
-              {chat.type === 'COURSE_GROUP' ? (
-                <GraduationCapIcon className="size-4" />
-              ) : (
-                <UsersIcon className="size-4" />
-              )}
+              <UsersIcon className="size-4" />
             </AvatarFallback>
           </Avatar>
         )}

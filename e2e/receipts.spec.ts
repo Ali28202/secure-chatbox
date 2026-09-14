@@ -89,7 +89,7 @@ test.describe('read ticks', () => {
     const present = await newSession('STUDENT');
     const absent = await newSession('STUDENT');
 
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'هوش مصنوعی', [
+    const chat = await professor.api.createGroup('هوش مصنوعی', [
       present.account.id,
       absent.account.id,
     ]);

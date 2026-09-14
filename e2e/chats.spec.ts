@@ -47,7 +47,7 @@ test.describe('starting a direct conversation', () => {
 });
 
 test.describe('creating a group', () => {
-  test('a professor names a course group and gathers its members', async ({ professor }) => {
+  test('a professor names a group and gathers its members', async ({ professor }) => {
     const attendee = await createAccount('STUDENT', { name: 'زهرا کریمی' });
 
     await professor.page.goto('/chats');
@@ -56,8 +56,6 @@ test.describe('creating a group', () => {
     const dialog = professor.page.getByRole('dialog');
     await dialog.getByRole('tab', { name: 'گروه' }).click();
     await dialog.getByLabel('اسم گروه').fill('مهندسی نرم‌افزار — گروه ۱');
-
-    await dialog.getByRole('button', { name: 'گروه درسی' }).click();
 
     await dialog.getByLabel('جست‌وجوی کاربرها').fill(attendee.universityId);
     await dialog.getByRole('button', { name: attendee.name }).click();
@@ -90,7 +88,7 @@ test.describe('creating a group', () => {
   }) => {
     const attendee = await newSession('STUDENT');
 
-    await professor.api.createGroup('COURSE_GROUP', 'ساختمان داده‌ها', [attendee.account.id]);
+    await professor.api.createGroup('ساختمان داده‌ها', [attendee.account.id]);
 
     await attendee.page.goto('/chats');
     await expect(attendee.page.getByRole('link', { name: /ساختمان داده‌ها/ })).toBeVisible();
@@ -103,7 +101,7 @@ test.describe('membership', () => {
     newSession,
   }) => {
     const latecomer = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'مبانی برنامه‌نویسی');
+    const chat = await professor.api.createGroup('مبانی برنامه‌نویسی');
     await professor.api.sendMessage(chat.id, 'جلسهٔ اول: فردا ساعت ۱۰');
 
     await professor.api.addMember(chat.id, latecomer.account.id);
@@ -117,9 +115,7 @@ test.describe('membership', () => {
     newSession,
   }) => {
     const muted = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('CUSTOM_GROUP', 'گروه پرسش و پاسخ', [
-      muted.account.id,
-    ]);
+    const chat = await professor.api.createGroup('گروه پرسش و پاسخ', [muted.account.id]);
 
     await professor.api.updateMember(chat.id, muted.account.id, { isMuted: true });
 

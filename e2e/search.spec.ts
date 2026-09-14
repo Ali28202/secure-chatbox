@@ -7,7 +7,7 @@ test.describe('searching messages', () => {
     newSession,
   }) => {
     const peer = await newSession('STUDENT');
-    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه ترم', [peer.account.id]);
+    const chat = await student.api.createGroup('گروه ترم', [peer.account.id]);
     await peer.api.sendMessage(chat.id, 'جلسهٔ جبران فردا ساعت ده برگزار می‌شود');
 
     await student.page.goto('/chats');
@@ -36,7 +36,7 @@ test.describe('searching messages', () => {
 
   test('never reaches a conversation you are not in', async ({ professor, newSession }) => {
     const outsider = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'شورای گروه');
+    const chat = await professor.api.createGroup('شورای گروه');
     await professor.api.sendMessage(chat.id, 'یک راز کاملاً یکتا برای جست‌وجو');
 
     const { hits } = await outsider.api.search('یکتا برای جست‌وجو');

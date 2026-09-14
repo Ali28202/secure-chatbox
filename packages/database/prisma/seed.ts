@@ -59,7 +59,7 @@ const CHATS: SeedChat[] = [
   {
     id: CHAT_IDS.netSecurity,
     title: 'امنیت شبکه — نیمسال دوم ۱۴۰۴',
-    type: 'COURSE_GROUP',
+    type: 'GROUP',
     creator: '900101',
     members: [
       { user: '900101', role: 'ADMIN' },
@@ -72,7 +72,7 @@ const CHATS: SeedChat[] = [
   {
     id: CHAT_IDS.databases,
     title: 'پایگاه داده — نیمسال دوم ۱۴۰۴',
-    type: 'COURSE_GROUP',
+    type: 'GROUP',
     creator: '900102',
     members: [
       { user: '900102', role: 'ADMIN' },
@@ -84,7 +84,7 @@ const CHATS: SeedChat[] = [
   {
     id: CHAT_IDS.announcements,
     title: 'اطلاعیه‌های دانشکده',
-    type: 'COURSE_GROUP',
+    type: 'GROUP',
     isReadOnly: true,
     creator: 'admin',
     members: [
@@ -100,7 +100,7 @@ const CHATS: SeedChat[] = [
   {
     id: CHAT_IDS.finalProject,
     title: 'پروژهٔ پایانی — گروه ۳',
-    type: 'CUSTOM_GROUP',
+    type: 'GROUP',
     creator: '40012301',
     members: [{ user: '40012301', role: 'ADMIN' }, { user: '40012302' }, { user: '40012303' }],
   },

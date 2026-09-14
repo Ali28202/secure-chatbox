@@ -78,22 +78,29 @@ test.describe('the admin panel', () => {
     expect((await retry.json()).error?.message).toContain('پذیرفته نشده');
   });
 
-  test('changes a role, and the new role is what the API enforces', async ({ newSession }) => {
+  test('changes a role, and the new role is what the API enforces', async ({
+    newSession,
+    professor,
+  }) => {
     const admin = await newSession('ADMIN');
     const student = await newSession('STUDENT');
+    const outsider = await newSession('STUDENT');
 
-    const before = await student.api
-      .raw()
-      .post(`${API_URL}/api/chats`, { data: { type: 'COURSE_GROUP', title: 'قبل از ارتقا' } });
+    const chat = await professor.api.createGroup('شورای درس', [student.account.id]);
+    await professor.api.updateMember(chat.id, student.account.id, { role: 'ADMIN' });
+
+    const before = await student.api.raw().post(`${API_URL}/api/chats/${chat.id}/members`, {
+      data: { userId: outsider.account.id },
+    });
     expect(before.status()).toBe(403);
 
     await admin.api.raw().patch(`${API_URL}/api/admin/users/${student.account.id}`, {
       data: { role: 'PROFESSOR' },
     });
 
-    const after = await student.api
-      .raw()
-      .post(`${API_URL}/api/chats`, { data: { type: 'COURSE_GROUP', title: 'بعد از ارتقا' } });
+    const after = await student.api.raw().post(`${API_URL}/api/chats/${chat.id}/members`, {
+      data: { userId: outsider.account.id },
+    });
     expect(after.status()).toBe(201);
   });
 
@@ -111,9 +118,7 @@ test.describe('a system administrator inside a conversation', () => {
   test('can moderate a group they were never added to', async ({ professor, newSession }) => {
     const admin = await newSession('ADMIN');
     const attendee = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'گروه بدون ادمین', [
-      attendee.account.id,
-    ]);
+    const chat = await professor.api.createGroup('گروه بدون ادمین', [attendee.account.id]);
     const message = await attendee.api.sendMessage(chat.id, 'پیامی که باید برداشته شود');
 
     expect(await getMembership(chat.id, admin.account.id)).toBeNull();
@@ -135,7 +140,7 @@ test.describe('a system administrator inside a conversation', () => {
   }) => {
     const admin = await newSession('ADMIN');
     const latecomer = await newSession('STUDENT');
-    const chat = await student.api.createGroup('CUSTOM_GROUP', 'گروه دانشجو');
+    const chat = await student.api.createGroup('گروه دانشجو');
 
     const deputy = await newSession('STUDENT');
     await student.api.addMember(chat.id, deputy.account.id);
@@ -164,9 +169,7 @@ test.describe('a system administrator inside a conversation', () => {
   }) => {
     const admin = await newSession('ADMIN');
     const attendee = await newSession('STUDENT');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'گروه بسته', [
-      attendee.account.id,
-    ]);
+    const chat = await professor.api.createGroup('گروه بسته', [attendee.account.id]);
 
     await professor.api.updateChat(chat.id, { isReadOnly: true });
 
@@ -192,7 +195,7 @@ test.describe('a system administrator inside a conversation', () => {
     newSession,
   }) => {
     const admin = await newSession('ADMIN');
-    const chat = await professor.api.createGroup('COURSE_GROUP', 'گروه آرشیوی');
+    const chat = await professor.api.createGroup('گروه آرشیوی');
 
     await professor.api.updateChat(chat.id, { isArchived: true });
 

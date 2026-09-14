@@ -29,8 +29,7 @@ enum SystemEvent {
 
 enum ChatType {
   DIRECT
-  COURSE_GROUP
-  CUSTOM_GROUP
+  GROUP
 }
 
 enum ChatRole {

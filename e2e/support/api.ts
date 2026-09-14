@@ -3,7 +3,6 @@ import type {
   ChatListItemDto,
   ChatMemberDto,
   ChatRole,
-  ChatType,
   MarkReadResultDto,
   MessageDto,
   MessageSearchResultsDto,
@@ -54,13 +53,11 @@ export class Api {
     );
   }
 
-  async createGroup(
-    type: Exclude<ChatType, 'DIRECT'>,
-    title: string,
-    memberIds: string[] = []
-  ): Promise<ChatDto> {
+  async createGroup(title: string, memberIds: string[] = []): Promise<ChatDto> {
     return this.json(
-      await this.request.post(`${API_URL}/api/chats`, { data: { type, title, memberIds } }),
+      await this.request.post(`${API_URL}/api/chats`, {
+        data: { type: 'GROUP', title, memberIds },
+      }),
       'create group'
     );
   }

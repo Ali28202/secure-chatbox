@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  createChatSchema,
-  type ChatType,
-  type CreateChatPayload,
-  type UserSummaryDto,
-} from '@repo/shared';
+import { createChatSchema, type CreateChatPayload, type UserSummaryDto } from '@repo/shared';
 import { Loader2Icon, PlusIcon, XIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -25,11 +20,8 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCreateChat } from '@/hooks/use-chats';
-import { useCreatableChatTypes } from '@/hooks/use-permissions';
 import { getApiErrorMessage } from '@/lib/api';
 import { ROUTES } from '@/lib/routes';
-
-const GROUP_TYPES = ['COURSE_GROUP', 'CUSTOM_GROUP'] as const;
 
 export function NewChatDialog() {
   const router = useRouter();
@@ -39,11 +31,6 @@ export function NewChatDialog() {
   const [title, setTitle] = useState('');
   const [members, setMembers] = useState<UserSummaryDto[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  const groupTypes = useCreatableChatTypes(GROUP_TYPES);
-  const [groupType, setGroupType] = useState<Exclude<ChatType, 'DIRECT'>>(
-    groupTypes[0] ?? 'CUSTOM_GROUP'
-  );
 
   function reset() {
     setTitle('');
@@ -123,23 +110,6 @@ export function NewChatDialog() {
               />
             </Field>
 
-            {groupTypes.length > 1 && (
-              <div className="flex gap-2" role="group" aria-label="نوع گروه">
-                {groupTypes.map((type) => (
-                  <Button
-                    key={type}
-                    type="button"
-                    size="sm"
-                    variant={groupType === type ? 'default' : 'outline'}
-                    aria-pressed={groupType === type}
-                    onClick={() => setGroupType(type)}
-                  >
-                    {type === 'COURSE_GROUP' ? 'گروه درسی' : 'گروه عادی'}
-                  </Button>
-                ))}
-              </div>
-            )}
-
             {members.length > 0 && (
               <ul className="flex flex-wrap gap-1.5">
                 {members.map((member) => (
@@ -170,7 +140,7 @@ export function NewChatDialog() {
               type="button"
               disabled={createChat.isPending}
               onClick={() =>
-                submit({ type: groupType, title, memberIds: members.map((member) => member.id) })
+                submit({ type: 'GROUP', title, memberIds: members.map((member) => member.id) })
               }
             >
               {createChat.isPending && <Loader2Icon className="animate-spin" />}

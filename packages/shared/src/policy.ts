@@ -24,10 +24,6 @@ export function isSystemAdmin(user: PolicyUser): boolean {
   return user.role === 'ADMIN';
 }
 
-export function canCreateChat(user: PolicyUser, type: ChatType): boolean {
-  return type === 'COURSE_GROUP' ? isFaculty(user) : true;
-}
-
 export type SendBlock = 'MUTED' | 'READ_ONLY' | 'ARCHIVED';
 
 export const SEND_BLOCK_MESSAGES: Record<SendBlock, string> = {

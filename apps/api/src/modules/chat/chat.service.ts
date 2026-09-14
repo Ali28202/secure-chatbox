@@ -366,7 +366,7 @@ class ChatService {
 
   private async createGroupChat(
     creatorId: string,
-    input: Extract<CreateChatInput, { type: 'COURSE_GROUP' | 'CUSTOM_GROUP' }>
+    input: Extract<CreateChatInput, { type: 'GROUP' }>
   ): Promise<ChatDto> {
     const memberIds = [...new Set(input.memberIds)].filter((id) => id !== creatorId);
 

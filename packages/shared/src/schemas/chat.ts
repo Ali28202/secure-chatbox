@@ -19,12 +19,7 @@ export const createChatSchema = z.discriminatedUnion('type', [
     memberId: idSchema,
   }),
   z.object({
-    type: z.literal('COURSE_GROUP'),
-    title: chatTitleSchema,
-    memberIds: z.array(idSchema).default([]),
-  }),
-  z.object({
-    type: z.literal('CUSTOM_GROUP'),
+    type: z.literal('GROUP'),
     title: chatTitleSchema,
     memberIds: z.array(idSchema).default([]),
   }),
