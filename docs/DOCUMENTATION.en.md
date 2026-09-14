@@ -1521,8 +1521,41 @@ Back up `.env` too — separately, and not into the repository. The JWT secrets 
 end-to-end suite, builds both images, and deploys — see §15. `migrate` reruns as
 part of every deploy and applies anything new.
 
-To deploy by hand — a rollback, or a build CI could not finish — run the same
-script CI runs, from the deploy directory on the server:
+### Deploying from your own machine
+
+When CI cannot do it — the runner is failing, or you simply want to push
+something now — one command does the whole thing from a laptop:
+
+```bash
+bun run prod:deploy
+```
+
+It builds both images locally, streams them straight into the server's Docker
+daemon over SSH, ships `compose.prod.yml` and `infra/`, and then runs the same
+`infra/deploy.sh` CI runs — so the health check and the automatic rollback are
+identical. Nothing touches a registry, so neither end needs a GHCR token.
+
+It still does not build on the server: 3.8 GB of RAM and no swap means a
+Next.js build there would be competing with a live Postgres.
+
+Override the target if it is not the `QUT` host in your `~/.ssh/config`:
+
+```bash
+SSH_HOST=root@1.2.3.4 DEPLOY_DIR=secure-chatbox bun run prod:deploy
+```
+
+A dirty working tree is tagged `<sha>-dirty-<epoch>` rather than borrowing the
+commit's hash, so what is running is never mistaken for what was committed.
+
+Because the images arrive as tags rather than through a registry, they
+accumulate: `docker image prune -f` on the server only clears dangling ones.
+Old `secure-chatbox-*` tags are worth sweeping occasionally — but keep at least
+the previous one, since that is what a rollback returns to.
+
+### Deploying from the server
+
+To deploy by hand from the server itself — a rollback, or a build CI could not
+finish — run the same script directly:
 
 ```bash
 cd ~/secure-chatbox

@@ -38,7 +38,13 @@ wait_until_healthy() {
 }
 
 bring_up() {
-  API_IMAGE="$1" WEB_IMAGE="$2" compose pull --quiet api web migrate
+  # Skipped when the images were loaded straight into this machine's daemon
+  # rather than pushed to a registry — see infra/deploy-local.sh. A pull would
+  # then look for a repository that does not exist and fail the deploy.
+  if [ "${SKIP_PULL:-0}" != 1 ]; then
+    API_IMAGE="$1" WEB_IMAGE="$2" compose pull --quiet api web migrate
+  fi
+
   API_IMAGE="$1" WEB_IMAGE="$2" compose up -d --no-build --remove-orphans
 }
 
