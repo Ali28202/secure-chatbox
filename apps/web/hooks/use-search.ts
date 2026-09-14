@@ -13,8 +13,6 @@ export function useMessageSearch(q: string) {
     queryKey: searchQueryKey(trimmed),
     queryFn: async () =>
       (await api.get<MessageSearchResultsDto>('/search', { params: { q: trimmed } })).data.hits,
-    // Below the minimum the server would reject it anyway, and a one-character
-    // query matches most of the table, which the trigram index cannot help with.
     enabled: trimmed.length >= LIMITS.search.min,
     staleTime: 30_000,
   });

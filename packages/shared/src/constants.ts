@@ -9,7 +9,6 @@ export type SystemEvent = (typeof SYSTEM_EVENTS)[number];
 
 export const AVATAR = {
   maxBytes: 2 * 1024 * 1024,
-  /** Raster only: an SVG avatar is a script the browser would run. */
   types: ['image/png', 'image/jpeg', 'image/webp'] as const,
 } as const;
 
@@ -22,11 +21,6 @@ export type ChatRole = (typeof CHAT_ROLES)[number];
 export const RECEIPT_STATUSES = ['DELIVERED', 'READ'] as const;
 export type ReceiptStatus = (typeof RECEIPT_STATUSES)[number];
 
-/**
- * A closed set, not free text. An open `emoji` column is a free-form string
- * every member can write into every conversation — unbounded storage, nothing
- * to validate, and a picker nobody asked for. Six covers what people use.
- */
 export const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '😮', '😢'] as const;
 export type ReactionEmoji = (typeof REACTION_EMOJIS)[number];
 
@@ -39,8 +33,6 @@ export const LIMITS = {
   chatTitle: { min: 2, max: 100 },
   messageContent: { min: 1, max: 4000 },
   page: { default: 50, max: 100 },
-  // Two characters is the shortest trigram-indexable prefix worth running; one
-  // character matches most of the table and the index cannot help.
   search: { min: 2, max: 100 },
 } as const;
 

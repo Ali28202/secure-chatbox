@@ -15,8 +15,6 @@ test.describe('archiving a group', () => {
     await professor.page.getByRole('button', { name: 'تنظیمات گفت‌وگو' }).click();
     await professor.page.getByRole('menuitem', { name: 'آرشیو کردن' }).click();
 
-    // Closed to the admin who archived it too — archiving says the conversation
-    // is over, which read-only does not.
     await expect(professor.page.getByLabel('متن پیام')).toBeHidden();
     await expect(
       professor.page.getByText('این گفت‌وگو آرشیو شده.', { exact: false })
@@ -52,7 +50,6 @@ test.describe('archiving a group', () => {
       .patch(`${API_URL}/api/chats/${chat.id}`, { data: { isArchived: true } });
     expect(refused.status()).toBe(403);
 
-    // …but renaming it, which only affects the label, still is.
     const renamed = await deputy.api
       .raw()
       .patch(`${API_URL}/api/chats/${chat.id}`, { data: { title: 'نام تازه' } });

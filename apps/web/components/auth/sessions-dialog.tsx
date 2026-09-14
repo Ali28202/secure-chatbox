@@ -16,7 +16,6 @@ import {
 import { useRevokeOtherSessions, useRevokeSession, useSessions } from '@/hooks/use-sessions';
 import { getApiErrorMessage } from '@/lib/api';
 
-/** A user agent is unreadable; this turns it into something a person recognises. */
 function describeAgent(userAgent: string | null): string {
   if (!userAgent) return 'یه دستگاه ناشناس';
 

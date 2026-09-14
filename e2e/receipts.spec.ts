@@ -40,9 +40,6 @@ test.describe('unread counts', () => {
 
     await student.page.goto('/chats');
 
-    // Wait for the row before sending. The badge counts up from `message:new`,
-    // and `goto` resolves long before the socket has joined the room — send
-    // into that gap and the events land nowhere.
     const row = student.page.getByRole('link', { name: new RegExp(peer.account.name) });
     await expect(row).toBeVisible();
 

@@ -41,11 +41,7 @@ export function getDeviceId(): string {
 
   ephemeralDeviceId = `${fnv1a(deviceTraits())}-${randomHex(16)}`;
 
-  try {
-    localStorage.setItem(STORAGE_KEY, ephemeralDeviceId);
-  } catch {
-    //
-  }
+  writeStoredDeviceId(ephemeralDeviceId);
 
   return ephemeralDeviceId;
 }
@@ -55,5 +51,14 @@ function readStoredDeviceId(): string | null {
     return localStorage.getItem(STORAGE_KEY);
   } catch {
     return null;
+  }
+}
+
+function writeStoredDeviceId(value: string): boolean {
+  try {
+    localStorage.setItem(STORAGE_KEY, value);
+    return true;
+  } catch {
+    return false;
   }
 }

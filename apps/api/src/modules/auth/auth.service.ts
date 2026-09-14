@@ -30,7 +30,6 @@ const ACCOUNT_REJECTED = 'درخواست حسابت پذیرفته نشده. ب�
 const SESSION_INVALID = 'نشستت معتبر نیست یا تموم شده. دوباره وارد شو.';
 const DEVICE_MISMATCH = 'حسابت روی یه دستگاه دیگه وارد شده. برای ادامه، دوباره از همین‌جا وارد شو.';
 
-/** Approval is a gate on *using* the account, so it is enforced on every call. */
 function assertApproved(status: AccountStatus): void {
   if (status === 'APPROVED') return;
 
@@ -49,7 +48,6 @@ export interface VerifiedSession {
   sessionId: string;
 }
 
-/** What the browser told us about itself. Labels for a list, nothing more. */
 export interface SessionContext {
   userAgent?: string | null;
   ipAddress?: string | null;
@@ -107,13 +105,6 @@ class AuthService {
     return this.issueSession(user, input.deviceId, context);
   }
 
-  /**
-   * Rotates the tokens for an existing session rather than starting a new one.
-   *
-   * Minting a fresh session per refresh would add a row every fifteen minutes
-   * and make the session list useless — the point of the list is that each
-   * entry is a sign-in someone can recognise and end.
-   */
   async refresh(refreshToken: string): Promise<AuthResult> {
     const { user, deviceId, sessionId } = await this.verifyToken(refreshToken, 'refresh');
 
@@ -140,7 +131,6 @@ class AuthService {
     };
   }
 
-  /** Everything still valid for this user, newest first. */
   async listSessions(userId: string): Promise<SessionRow[]> {
     return prisma.session.findMany({
       where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
@@ -149,12 +139,6 @@ class AuthService {
     });
   }
 
-  /**
-   * Ends one session, or every session but the one asking.
-   *
-   * Scoped by `userId` in the `where`, not checked after the read: that is what
-   * stops one person ending another's session by guessing an id.
-   */
   async revokeSessions(
     userId: string,
     options: { sessionId?: string; exceptSessionId?: string }
@@ -182,8 +166,6 @@ class AuthService {
   async verifyToken(token: string, type: TokenType = 'access'): Promise<VerifiedSession> {
     const payload = await verifyJwt(type, token);
 
-    // One query, not two: the session carries the user, so adding revocation
-    // costs no extra round trip over the user lookup this replaced.
     const session = await prisma.session.findUnique({
       where: { id: payload.sid },
       select: { id: true, revokedAt: true, expiresAt: true, user: { select: userSelect } },
@@ -195,19 +177,10 @@ class AuthService {
 
     const { user } = session;
 
-    // Ahead of the revocation check, and the order matters. Signing in on a
-    // second device revokes the first device's row *and* moves `users.deviceId`,
-    // so both conditions are true at once — and the two mean different things to
-    // the person holding the displaced tab. "You opened this somewhere else" is
-    // recoverable and says so; a bare 401 is not. Checking this first keeps
-    // DEVICE_MISMATCH for the displaced device, and leaves plain UNAUTHORIZED
-    // for a session revoked on the device still holding it.
     if (user.deviceId !== payload.did) {
       throw Errors.deviceMismatch(DEVICE_MISMATCH);
     }
 
-    // The whole reason the table exists: a token whose row is revoked stops
-    // working now, rather than whenever it would have expired.
     if (session.revokedAt !== null || session.expiresAt <= new Date()) {
       throw Errors.unauthorized(SESSION_INVALID);
     }
@@ -216,8 +189,6 @@ class AuthService {
       throw Errors.forbidden(ACCOUNT_DISABLED);
     }
 
-    // Checked on every request, not only at login: an admin who rejects an
-    // account mid-session must not have to wait for a token to expire.
     assertApproved(user.status);
 
     return { user, deviceId: payload.did, sessionId: session.id };
@@ -245,17 +216,11 @@ class AuthService {
     context: SessionContext
   ): Promise<AuthResult> {
     const { current, session } = await prisma.$transaction(async (tx) => {
-      // One live row per device, which is what makes the session list readable:
-      // signing in again on a machine you already use is the same session, not
-      // a second entry beside it.
       const existing = await tx.session.findFirst({
         where: { userId: user.id, deviceId, revokedAt: null },
         select: { id: true },
       });
 
-      // Only *other* devices are displaced. Revoking this one too would end the
-      // session the caller is re-establishing, and a token they already hold
-      // would stop working because they signed in again on the same machine.
       await tx.session.updateMany({
         where: { userId: user.id, revokedAt: null, deviceId: { not: deviceId } },
         data: { revokedAt: new Date() },

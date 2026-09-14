@@ -61,13 +61,6 @@ export function useLogin() {
   });
 }
 
-/**
- * Registers, and stops there.
- *
- * It used to sign the new account straight in. It cannot any more: an account
- * begins as PENDING, so the login that followed would come back 403 and the
- * form would report a failure for a registration that actually succeeded.
- */
 export function useRegister() {
   return useMutation({
     mutationFn: async (input: RegisterInput) =>

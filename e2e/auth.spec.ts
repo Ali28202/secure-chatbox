@@ -163,7 +163,6 @@ test.describe('registering', () => {
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'ساخت حساب' }).click();
 
-    // Registration is a request now, not an entry: it no longer signs anyone in.
     await expect(page.getByText('درخواستت ثبت شد')).toBeVisible();
     await expect(page).toHaveURL('/register');
 

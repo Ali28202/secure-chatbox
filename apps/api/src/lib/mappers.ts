@@ -40,8 +40,6 @@ export function toUserSummaryDto(user: UserSummaryRow): UserSummaryDto {
     name: user.name,
     universityId: user.universityId,
     role: user.role,
-    // A boolean, not the key and not a URL: the key is private, and a signed
-    // URL would expire inside a cached DTO. The client asks the redirect route.
     hasAvatar: user.avatarKey !== null,
   };
 }
@@ -93,8 +91,6 @@ export function toSessionDto(session: SessionRow, currentSessionId: string): Ses
     createdAt: session.createdAt.toISOString(),
     lastUsedAt: session.lastUsedAt.toISOString(),
     expiresAt: session.expiresAt.toISOString(),
-    // Marked here rather than left to the client, so "this is the one you are
-    // using" cannot disagree between the list and the button that ends it.
     isCurrent: session.id === currentSessionId,
   };
 }
@@ -163,7 +159,6 @@ function toAttachmentDto(attachment: MessageRow['attachments'][number]): Attachm
   };
 }
 
-/** Rows in, one entry per emoji out, in first-reacted order. */
 function toReactionDtos(rows: MessageRow['reactions']): MessageReactionDto[] {
   const byEmoji = new Map<string, string[]>();
 
@@ -197,8 +192,6 @@ export function toMessageDto(message: MessageRow): MessageDto {
         }
       : null,
     attachments: message.isDeleted ? [] : message.attachments.map(toAttachmentDto),
-    // A tombstone carries no reactions: the text is gone, so what they referred
-    // to is gone with it.
     reactions: message.isDeleted ? [] : toReactionDtos(message.reactions),
     createdAt: message.createdAt.toISOString(),
   };

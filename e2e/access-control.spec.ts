@@ -100,7 +100,6 @@ test.describe('a read-only chat', () => {
 
     await professor.page.goto(`/chats/${chat.id}`);
 
-    // The switches live behind the conversation's menu now, not in the header.
     await professor.page.getByRole('button', { name: 'تنظیمات گفت‌وگو' }).click();
     await professor.page.getByRole('menuitem', { name: 'بستن گروه' }).click();
 
@@ -135,7 +134,6 @@ test.describe('a read-only chat', () => {
     await student.page.goto(`/chats/${chat.id}`);
     await expect(student.page.getByRole('heading', { name: peer.account.name })).toBeVisible();
 
-    // A direct conversation has nothing to administer, so no menu at all.
     await expect(student.page.getByRole('button', { name: 'تنظیمات گفت‌وگو' })).toBeHidden();
 
     const response = await student.api
@@ -297,8 +295,6 @@ test.describe('who may change the roster', () => {
     await dialog.getByLabel('جست‌وجوی کاربرها').fill(latecomer.account.universityId);
     await dialog.getByRole('button', { name: latecomer.account.name }).click();
 
-    // Assert inside the dialog: it is modal, so while it is open the trigger
-    // button behind it is out of the accessibility tree entirely.
     await expect(
       dialog.getByRole('button', { name: `مدیریت عضویت ${latecomer.account.name}` })
     ).toBeVisible();
@@ -322,9 +318,6 @@ test.describe('who may change the roster', () => {
 
     await student.api.updateMember(chat.id, deputy.account.id, { role: 'ADMIN' });
 
-    // Being the chat admin is not the whole story: widening the audience is
-    // also gated on being faculty or the creator, because every new member can
-    // read the entire history.
     const added = await deputy.api
       .raw()
       .post(`${API_URL}/api/chats/${chat.id}/members`, { data: { userId: outsider.account.id } });
@@ -374,7 +367,6 @@ test.describe('the creator’s seat', () => {
       message: 'سازندهٔ گفت‌وگو رو نمی‌شه تغییر داد یا حذف کرد.',
     });
 
-    // Nor by the back door: removing them would strip the protected admin too.
     const removed = await deputy.api
       .raw()
       .delete(`${API_URL}/api/chats/${chat.id}/members/${student.account.id}`, { data: {} });

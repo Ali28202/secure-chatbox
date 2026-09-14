@@ -41,13 +41,6 @@ userRoutes.delete('/me/avatar', async (c) =>
   c.json(await userService.clearAvatar(c.get('user').id))
 );
 
-/**
- * Streams the image rather than redirecting to a signed URL.
- *
- * An avatar is rendered in an `<img>`, which is a subresource: a cross-origin
- * redirect to the bucket would carry no cookie and the bucket answers no CORS.
- * Attachments can redirect because they are links the browser navigates to.
- */
 userRoutes.get('/:userId/avatar', async (c) => {
   const avatar = await userService.readAvatar(c.req.param('userId'));
 
@@ -58,9 +51,6 @@ userRoutes.get('/:userId/avatar', async (c) => {
   return new Response(avatar.bytes, {
     headers: {
       'Content-Type': avatar.type,
-      // Private, because the request carried a cookie and the answer is only
-      // for this reader. Short, because replacing an avatar should be visible
-      // without waiting out a long cache.
       'Cache-Control': 'private, max-age=60',
     },
   });

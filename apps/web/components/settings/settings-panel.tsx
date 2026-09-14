@@ -26,8 +26,6 @@ export function SettingsPanel() {
     const file = files?.[0];
     if (!file) return;
 
-    // Checked again on the server, magic bytes and all. This is only so the
-    // obvious mistakes fail instantly instead of after an upload.
     if (file.size > AVATAR.maxBytes) {
       toast.error(`عکس باید کمتر از ${toPersianDigits(AVATAR.maxBytes / MEGABYTE)} مگابایت باشه.`);
     } else if (!(AVATAR.types as readonly string[]).includes(file.type)) {
@@ -39,18 +37,10 @@ export function SettingsPanel() {
       });
     }
 
-    // Always: picking the same file twice in a row fires no change event
-    // otherwise, so a failed upload could not be retried.
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   return (
-    // Its own scrollbox, because the shell around it is pinned to the viewport
-    // and nothing else will scroll on its behalf.
-    //
-    // The scrolling element is a plain block and the column lives inside it. As
-    // a flex column it would make every section a flex item, and flex items
-    // shrink by default — the page would squash to fit instead of scrolling.
     <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
       <div className="flex flex-col gap-6">
         <header>

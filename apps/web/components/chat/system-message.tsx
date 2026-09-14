@@ -5,8 +5,6 @@ import { UserMinusIcon, UserPlusIcon } from 'lucide-react';
 
 function describe(message: MessageDto): string {
   const actor = message.sender.name;
-  // The target can be null if that account was since removed: the relation is
-  // `SetNull`, because losing the note entirely would be worse than a vague one.
   const target = message.systemTarget?.name ?? 'یک کاربر';
 
   return message.systemEvent === 'MEMBER_ADDED'
@@ -14,7 +12,6 @@ function describe(message: MessageDto): string {
     : `${actor} ${target} را از گروه حذف کرد`;
 }
 
-/** A rule across the conversation, not a bubble — it belongs to nobody. */
 export function SystemMessage({ message }: { message: MessageDto }) {
   const Icon = message.systemEvent === 'MEMBER_ADDED' ? UserPlusIcon : UserMinusIcon;
 

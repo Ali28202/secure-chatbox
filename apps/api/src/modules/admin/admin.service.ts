@@ -21,8 +21,6 @@ class AdminService {
       prisma.user.findMany({
         where,
         select: adminUserSelect,
-        // Pending first: the list exists to be worked through, and the thing
-        // waiting on a human should not be below the thing that is settled.
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
         take: query.limit,
       }),
@@ -36,14 +34,6 @@ class AdminService {
     return prisma.user.count({ where: { status: 'PENDING' } });
   }
 
-  /**
-   * Changes a role, an approval, or an account's activity.
-   *
-   * Refuses to act on the caller. An admin who could demote or disable
-   * themselves could leave the deployment with no administrator at all, and
-   * nothing inside the app could undo it — the same reasoning as the chat-level
-   * rule in `policy.ts`, one level up.
-   */
   async updateUser(
     actorId: string,
     userId: string,
@@ -73,8 +63,6 @@ class AdminService {
       select: adminUserSelect,
     });
 
-    // A rejected or disabled account keeps working until its sessions are gone,
-    // so the decision is only real once they are.
     if (input.status === 'REJECTED' || input.isActive === false) {
       await prisma.session.updateMany({
         where: { userId, revokedAt: null },

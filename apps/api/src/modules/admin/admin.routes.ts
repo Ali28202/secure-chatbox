@@ -27,7 +27,6 @@ adminRoutes.patch(
     const userId = c.req.param('userId');
     const user = await adminService.updateUser(c.get('user').id, userId, c.req.valid('json'));
 
-    // Revoking the rows does not close a socket that is already open.
     if (user.status === 'REJECTED' || !user.isActive) {
       await socketGateway
         .disconnectUser(userId)

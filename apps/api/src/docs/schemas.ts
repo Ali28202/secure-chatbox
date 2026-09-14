@@ -274,7 +274,6 @@ const echoResult = z.object({ echoed: z.array(z.string()) });
 const registry = z.registry<{ id: string }>();
 
 export const SCHEMA_NAMES = {
-  // Requests
   RegisterRequest: registerSchema,
   LoginRequest: loginSchema,
   CreateChatRequest: createChatSchema,
@@ -289,7 +288,6 @@ export const SCHEMA_NAMES = {
   ToggleReactionRequest: toggleReactionSchema,
   EchoRequest: echoSchema,
 
-  // Responses.
   UserSummaryDto: userSummaryDto,
   UserDto: userDto,
   ChatDto: chatDto,

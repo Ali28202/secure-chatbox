@@ -76,7 +76,6 @@ class SocketGateway {
     return this.connections.has(userId);
   }
 
-  /** Every socket this person has open, on any device. */
   async disconnectUser(userId: string): Promise<void> {
     const io = this.io;
     if (!io) return;
@@ -179,12 +178,6 @@ class SocketGateway {
       .catch((error: unknown) => console.error('failed to stamp lastSeen', error));
   }
 
-  /**
-   * Relayed, never stored. The room check is the authorization: a socket is
-   * only ever in `chat:<id>` if `onConnection` or `onChatJoin` put it there
-   * after reading the membership row, so a client that invents a chat id gets
-   * nothing. Without it, anyone could announce themselves into any chat.
-   */
   private onTyping(socket: AppSocket, chatId: string, isTyping: boolean): void {
     if (typeof chatId !== 'string') return;
 

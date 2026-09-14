@@ -65,13 +65,6 @@ function signatureMatches(type: AllowedFileType, head: Uint8Array): boolean {
   );
 }
 
-/**
- * Validates and stores one avatar, returning its object key.
- *
- * Its own path rather than a call into `storeUploads`: an avatar is a single
- * raster image with a much smaller ceiling, and it reuses the same magic-byte
- * check so a renamed executable cannot arrive as a `.png`.
- */
 export async function storeAvatar(file: File): Promise<string> {
   const reject = (message: string) => Errors.validation([{ path: 'avatar', message }], message);
 

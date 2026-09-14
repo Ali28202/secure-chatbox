@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 FROM oven/bun:1.3.14-alpine AS build
 
 WORKDIR /app
@@ -10,13 +8,6 @@ COPY apps/web/package.json apps/web/
 COPY packages/database/package.json packages/database/
 COPY packages/shared/package.json packages/shared/
 
-# A slow or lossy link is the normal case here, and `@prisma/client` is a 28 MB
-# tarball — by far the largest — so it is the one that times out first while
-# dozens of smaller requests compete with it.
-#
-# Three things make that survivable: an explicit cache directory mounted across
-# builds so a retry resumes instead of starting over, fewer concurrent requests
-# so the big download gets bandwidth, and actually retrying.
 RUN --mount=type=cache,target=/bun-cache,sharing=locked \
   export BUN_INSTALL_CACHE_DIR=/bun-cache; \
   for attempt in 1 2 3; do \

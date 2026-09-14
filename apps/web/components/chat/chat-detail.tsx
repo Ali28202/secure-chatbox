@@ -106,13 +106,6 @@ function DeleteChatDialog({
   );
 }
 
-/**
- * Everything that changes the conversation itself, in one menu.
- *
- * These were three buttons in the header competing with the member count for
- * space. They are also the rare actions — you open a chat to read it, not to
- * retire it — so they belong behind a control rather than in front of one.
- */
 function ChatActionsMenu({
   chatId,
   title,
@@ -150,8 +143,6 @@ function ChatActionsMenu({
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="start" className="w-56">
-          {/* An archived conversation is closed to everyone already, so offering
-              a read-only switch on top of it would be two words for one state. */}
           {permissions.canUpdateChat && !isArchived && (
             <DropdownMenuItem onClick={() => update({ isReadOnly: !isReadOnly })}>
               {isReadOnly ? <UnlockIcon /> : <LockIcon />}
@@ -261,8 +252,6 @@ export function ChatDetail({ chatId }: { chatId: string }) {
         </Button>
 
         <div className="relative shrink-0">
-          {/* A direct chat is a person and shows their picture; a group is not,
-              so it keeps the initials of its title. */}
           {peer ? (
             <UserAvatar user={peer} className="size-10" />
           ) : (
@@ -280,8 +269,6 @@ export function ChatDetail({ chatId }: { chatId: string }) {
           </p>
         </div>
 
-        {/* State is still shown to everyone; only the switches moved into the
-            menu, and only for the people who may throw them. */}
         {chat.data.archivedAt !== null && <Badge variant="secondary">آرشیو</Badge>}
         {chat.data.isReadOnly && chat.data.archivedAt === null && (
           <Badge variant="outline">بسته</Badge>

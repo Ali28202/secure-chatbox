@@ -48,8 +48,6 @@ export const updateChatSchema = z
   );
 
 export const listChatsQuerySchema = z.object({
-  // Archived conversations are a separate view, not a flag rendered inline: a
-  // retired group would otherwise sit in the list forever competing for a place.
   archived: z.stringbool().default(false),
 });
 

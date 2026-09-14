@@ -4,7 +4,6 @@ export interface UserSummaryDto {
   name: string;
   universityId: string;
   role: GlobalRole;
-  /** Whether to fetch `/api/users/:id/avatar`. The key itself never leaves the API. */
   hasAvatar: boolean;
 }
 
@@ -16,7 +15,6 @@ export interface UserDto extends UserSummaryDto {
   createdAt: string;
 }
 
-/** What the admin panel lists. Same row, plus who reviewed it and when. */
 export interface AdminUserDto extends UserDto {
   reviewedAt: string | null;
   chatCount: number;
@@ -35,7 +33,6 @@ export interface ChatMemberDto {
   lastReadAt: string | null;
 }
 
-/** Never the device id: it is the session's secret half, not a label. */
 export interface SessionDto {
   id: string;
   userAgent: string | null;
@@ -83,19 +80,11 @@ export interface MessageReplyDto {
   attachmentCount: number;
 }
 
-/**
- * Who reacted, not how many — and deliberately not "did *I* react".
- *
- * `message:new` and `message:updated` are broadcast to a whole room as one
- * payload, so any field whose value depends on the reader would be wrong for
- * everyone but one person. The client counts the list and looks for its own id.
- */
 export interface MessageReactionDto {
   emoji: string;
   userIds: string[];
 }
 
-/** A hit carries its conversation, because results span every chat you are in. */
 export interface MessageSearchHitDto {
   message: MessageDto;
   chatId: string;
@@ -114,7 +103,6 @@ export interface MessageDto {
   content: string | null;
   isDeleted: boolean;
   isPinned: boolean;
-  /** Set only for what the system recorded: who was added, who was removed. */
   systemEvent: SystemEvent | null;
   systemTarget: UserSummaryDto | null;
   replyToId: string | null;

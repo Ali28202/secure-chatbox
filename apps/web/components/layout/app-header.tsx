@@ -27,29 +27,20 @@ const subscribe = () => () => {};
 const getSnapshot = () => true;
 const getServerSnapshot = () => false;
 
-/** Theme as a menu row. The label says what the click will do, not what is on. */
 function ThemeMenuItem() {
   const { resolvedTheme, setTheme } = useTheme();
 
-  // `next-themes` cannot know the theme until it has run in the browser, so the
-  // first render must match the server's or React complains about the mismatch.
   const mounted = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const isDark = mounted && resolvedTheme === 'dark';
 
   return (
-    <DropdownMenuItem
-      // Keeps the menu open: switching theme is something people try twice, and
-      // having the menu vanish under the pointer each time is its own annoyance.
-      closeOnClick={false}
-      onClick={() => setTheme(isDark ? 'light' : 'dark')}
-    >
+    <DropdownMenuItem closeOnClick={false} onClick={() => setTheme(isDark ? 'light' : 'dark')}>
       {isDark ? <SunIcon /> : <MoonIcon />}
       {isDark ? 'نمایش روشن' : 'نمایش تیره'}
     </DropdownMenuItem>
   );
 }
 
-/** Only rendered for admins, so the count is only ever fetched by one. */
 function AdminMenuItem() {
   const pending = usePendingCount();
 
@@ -73,7 +64,6 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-4">
-        {/* The mark is the way home, as it is on most sites. */}
         <Link
           href={ROUTES.chats}
           className="flex items-center gap-3 rounded-md outline-ring/50 focus-visible:outline-2"

@@ -150,8 +150,6 @@ jobs:
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          # Pinned, not StrictHostKeyChecking=no. Without this the first
-          # connection would trust whatever answers, which is the whole attack.
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
@@ -179,8 +177,6 @@ jobs:
           PREFIX="ghcr.io/${GITHUB_REPOSITORY,,}"
           SSH="ssh -i $HOME/.ssh/deploy_key -p $SSH_PORT $SSH_USER@$SSH_HOST"
 
-          # The registry credential is this run's token: it expires when the job
-          # ends, so nothing long-lived is left sitting on the server.
           echo "$GHCR_TOKEN" | $SSH \
             "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
 

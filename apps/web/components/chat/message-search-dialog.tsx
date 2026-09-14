@@ -20,7 +20,6 @@ import { useMessageSearch } from '@/hooks/use-search';
 import { CHAT_TYPE_LABELS } from '@/lib/chat';
 import { ROUTES } from '@/lib/routes';
 
-/** Wraps every occurrence of the term in <mark>, case-insensitively. */
 function highlight(text: string, term: string) {
   if (!term) return text;
 
@@ -116,8 +115,6 @@ export function MessageSearchDialog() {
                 <li key={message.id}>
                   <Link
                     href={ROUTES.chat(chatId)}
-                    // Navigating is the end of searching. Without this the
-                    // dialog stays open over the conversation it just opened.
                     onClick={() => setOpen(false)}
                     className="block rounded-sm px-2 py-2 transition-colors hover:bg-accent"
                   >

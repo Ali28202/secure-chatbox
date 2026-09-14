@@ -18,7 +18,6 @@ log() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 DOMAIN=$(grep -E '^DOMAIN=' .env | head -1 | cut -d= -f2- | tr -d '"'"'"' ')
 : "${DOMAIN:?DOMAIN is not set in .env}"
 
-# ---------------------------------------------------------------- health ----
 site_answers() {
   curl -fsSk -o /dev/null --max-time 5 \
     --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/api/health"
@@ -38,9 +37,6 @@ wait_until_healthy() {
 }
 
 bring_up() {
-  # Skipped when the images were loaded straight into this machine's daemon
-  # rather than pushed to a registry — see infra/deploy-local.sh. A pull would
-  # then look for a repository that does not exist and fail the deploy.
   if [ "${SKIP_PULL:-0}" != 1 ]; then
     API_IMAGE="$1" WEB_IMAGE="$2" compose pull --quiet api web migrate
   fi
@@ -48,7 +44,6 @@ bring_up() {
   API_IMAGE="$1" WEB_IMAGE="$2" compose up -d --no-build --remove-orphans
 }
 
-# ---------------------------------------------------------------- deploy ----
 PREV_API=''; PREV_WEB=''; PREV_NGINX_HASH=''
 # shellcheck source=/dev/null
 [ -f "$STATE_FILE" ] && . "$STATE_FILE"
@@ -64,10 +59,6 @@ if [ "$MIGRATE_CODE" != 0 ] && [ "$MIGRATE_CODE" != unknown ]; then
   compose logs --no-color --tail 40 migrate
 fi
 
-# nginx renders its templates through envsubst at container start and never
-# again, so a deploy that ships a changed nginx config leaves the old one
-# running. Recreate it only when the config actually differs — a restart is a
-# second of downtime, and most deploys do not touch it.
 NGINX_HASH=$(find infra/nginx -type f -exec sha256sum {} + | sort | sha256sum | cut -d' ' -f1)
 
 if [ "$NGINX_HASH" != "${PREV_NGINX_HASH:-}" ]; then
@@ -85,7 +76,6 @@ if wait_until_healthy; then
   exit 0
 fi
 
-# ------------------------------------------------------------- rollback -----
 log "Did not become healthy — diagnostics"
 compose ps -a
 compose logs --no-color --tail 40 migrate api nginx || true

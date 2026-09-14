@@ -194,8 +194,6 @@ export function MessageList({
         const startsDay = older ? !isSameDay(message.createdAt, older.createdAt) : !hasNextPage;
         const isOwn = message.sender.id === viewerId;
 
-        // A system note is not a bubble and has no sender side: it interleaves
-        // with the transcript but is rendered as a rule across it.
         if (message.systemEvent !== null) {
           return (
             <div key={message.id} className="contents">

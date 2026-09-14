@@ -27,8 +27,6 @@ test.describe('searching messages', () => {
     const chat = await student.api.createDirectChat(peer.account.id);
     await peer.api.sendMessage(chat.id, 'کتاب‌های درسی رسیدند');
 
-    // The whole reason this is a trigram index: `to_tsvector('simple', …)` makes
-    // `کتاب` and `کتاب‌ها` unrelated tokens, so a stem search would find nothing.
     const { hits } = await student.api.search('کتاب');
 
     expect(hits).toHaveLength(1);
@@ -44,7 +42,6 @@ test.describe('searching messages', () => {
     const { hits } = await outsider.api.search('یکتا برای جست‌وجو');
     expect(hits).toHaveLength(0);
 
-    // And the professor, who is in it, does find it — so the query itself works.
     const own = await professor.api.search('یکتا برای جست‌وجو');
     expect(own.hits).toHaveLength(1);
   });

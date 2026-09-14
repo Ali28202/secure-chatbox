@@ -2,16 +2,6 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
-/**
- * A plain `<textarea>` wearing the same border, ring and invalid states as
- * `Input`. There is no Base UI primitive behind it because there is nothing for
- * one to do — a textarea has no composition, no portal and no state a browser
- * does not already manage.
- *
- * `field-sizing-content` lets it grow with what is typed, which is what the
- * message composer wants; `max-h-*` at the call site is what stops it growing
- * over the conversation.
- */
 function Textarea({ className, ...props }: React.ComponentProps<'textarea'>) {
   return (
     <textarea

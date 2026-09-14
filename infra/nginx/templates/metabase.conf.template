@@ -1,22 +1,7 @@
-# Analytics, reachable two ways that are deliberately different in kind.
-#
-#   1. https://${METABASE_DOMAIN} — public, TLS, Metabase's own login.
-#   2. An SSH tunnel to port 8080, which needs no certificate and no open port:
-#
-#        ssh -N -L 8080:127.0.0.1:8080 user@your-server
-#
-# Metabase can read every message body the app has ever stored, and (1) puts its
-# login form on the public internet. That is a real widening of the attack
-# surface next to tunnel-only: the admin password becomes the whole boundary.
-# Give it a long unique one and turn on Metabase's MFA. (2) is kept because it
-# still works on the day the certificate, DNS, or nginx itself does not.
-
 server {
     listen      80;
     server_name ${METABASE_DOMAIN};
 
-    # Same reason as the app's port 80: renewal must reach this unencrypted and
-    # unredirected, or the certificate quietly expires 90 days later.
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
@@ -31,8 +16,6 @@ server {
     http2       on;
     server_name ${METABASE_DOMAIN};
 
-    # Its own certificate, not a SAN on the app's. The two names are issued and
-    # renewed independently, so a failure on one cannot take the other down.
     ssl_certificate         /etc/letsencrypt/live/${METABASE_DOMAIN}/fullchain.pem;
     ssl_certificate_key     /etc/letsencrypt/live/${METABASE_DOMAIN}/privkey.pem;
     ssl_trusted_certificate /etc/letsencrypt/live/${METABASE_DOMAIN}/chain.pem;
@@ -47,9 +30,6 @@ server {
     ssl_stapling        on;
     ssl_stapling_verify on;
 
-    # Docker's embedded DNS, needed for the deferred `set` below so that nginx
-    # still starts when metabase is down. It forwards external names too, so
-    # OCSP stapling resolves through it — hence no second resolver here.
     resolver         127.0.0.11 valid=30s ipv6=off;
     resolver_timeout 5s;
 
@@ -60,9 +40,6 @@ server {
 
     client_max_body_size 100m;
 
-    # Metabase's login endpoint. Same reasoning as the app's auth limit in
-    # nginx.conf: a person signs in a handful of times a day, a script wants
-    # thousands. `= ` is exact, so /api/session/properties is untouched.
     location = /api/session {
         limit_req        zone=panel_zone burst=10 nodelay;
         limit_req_status 429;
@@ -90,20 +67,15 @@ server {
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # A question against a large table can legitimately run for minutes.
         proxy_read_timeout 600s;
         proxy_send_timeout 600s;
     }
 }
 
-# The tunnel, unchanged. Bound to 127.0.0.1 on the host by the compose file, so
-# the only way to reach it is from the server itself.
 server {
     listen      8080;
     server_name _;
 
-    # Traffic arrives from the compose bridge gateway, having already passed the
-    # host's 127.0.0.1 binding. This is the second lock, not the first.
     allow 172.28.0.0/16;
     allow 127.0.0.1;
     deny  all;

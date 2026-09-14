@@ -4,7 +4,6 @@ import type { ChatMemberDto } from '@repo/shared';
 import { useCurrentUser } from '@/hooks/use-auth';
 import { useTypingUserIds } from '@/stores/typing-store';
 
-/** Names, not ids — and never more than two, or the line outgrows the row. */
 function describe(names: string[]): string {
   const [first, second] = names;
 
@@ -18,8 +17,6 @@ export function TypingIndicator({ chatId, members }: { chatId: string; members: 
   const viewer = useCurrentUser();
   const typingIds = useTypingUserIds(chatId, viewer.id);
 
-  // Someone who typed and then left the group would otherwise be an id with no
-  // name. Resolving through the roster drops them instead of rendering blank.
   const names = typingIds
     .map((id) => members.find((member) => member.user.id === id)?.user.name)
     .filter((name): name is string => Boolean(name));

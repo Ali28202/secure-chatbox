@@ -67,8 +67,6 @@ export function AdminPanel() {
   const viewer = useCurrentUser();
   const router = useRouter();
 
-  // The API refuses anyone who is not an ADMIN regardless. This only avoids
-  // rendering a panel whose every request would come back 403.
   useEffect(() => {
     if (viewer.role !== 'ADMIN') router.replace(ROUTES.chats);
   }, [viewer.role, router]);
@@ -207,8 +205,6 @@ export function AdminPanel() {
                   </>
                 )}
 
-                {/* No menu on your own row: the API refuses it anyway, and
-                    offering an action that always fails is worse than none. */}
                 {!isSelf && (
                   <DropdownMenu>
                     <DropdownMenuTrigger
@@ -225,8 +221,6 @@ export function AdminPanel() {
                     </DropdownMenuTrigger>
 
                     <DropdownMenuContent align="start" className="w-52">
-                      {/* Base UI requires a label to live inside a group — used
-                          bare it throws `MenuGroupContext missing` at render. */}
                       <DropdownMenuGroup>
                         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
                           تغییر نقش

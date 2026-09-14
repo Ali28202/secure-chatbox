@@ -39,17 +39,12 @@ import { socketGateway } from '../../socket/gateway';
 const CHAT_NOT_FOUND = 'این گفت‌وگو نیست یا بهش دسترسی نداری.';
 const NOT_CHAT_ADMIN = 'فقط مدیر گفت‌وگو می‌تونه این کار رو بکنه.';
 const DIRECT_IMMUTABLE = 'اعضای گفت‌وگوی خصوصی رو نمی‌شه عوض کرد.';
-// Distinct from NOT_CHAT_ADMIN on purpose: the person reading this *is* an
-// admin of the chat, so being told they are not one would send them looking
-// for the wrong thing.
 const NOT_ROSTER_MANAGER = 'فقط استادها و سازندهٔ گفت‌وگو می‌تونن اعضا رو عوض کنن.';
 const CREATOR_PROTECTED = 'سازندهٔ گفت‌وگو رو نمی‌شه تغییر داد یا حذف کرد.';
 
 class ChatService {
   async getUserChats(userId: string, query: ListChatsQuery): Promise<ChatListItemDto[]> {
     const chats = await prisma.chat.findMany({
-      // Archived conversations are a separate view, never mixed in: a retired
-      // group would otherwise keep a place in the list for good.
       where: {
         members: { some: { userId } },
         deletedAt: null,
@@ -75,10 +70,6 @@ class ChatService {
 
   async getChat(chatId: string, user: PolicyUser): Promise<ChatListItemDto> {
     const chat = await prisma.chat.findFirst({
-      // `requireChatMember` has already decided this, but the filter stays as a
-      // second lock — so it has to admit the same people, operators included.
-      // Without the second branch the one route that loads a conversation was
-      // the one route a system administrator could not use.
       where: {
         id: chatId,
         deletedAt: null,
@@ -170,10 +161,6 @@ class ChatService {
     } else if (chat.type === 'DIRECT') {
       throw Errors.forbidden(DIRECT_IMMUTABLE);
     } else if (isChatCreator(chat, userId)) {
-      // Checked before the roster permission, and in the same order as
-      // updateMember, so that both routes give one answer for one situation.
-      // Removing the creator is otherwise a way around the demotion guard:
-      // drop them from the roster and the chat has no protected admin left.
       throw Errors.forbidden(CREATOR_PROTECTED);
     } else if (!canManageMembers(chat, actor)) {
       throw Errors.forbidden(NOT_ROSTER_MANAGER);
@@ -192,14 +179,6 @@ class ChatService {
     }
   }
 
-  /**
-   * Soft-deletes the conversation.
-   *
-   * Nothing is removed: the messages, the receipts and the S3 objects all stay,
-   * and `deletedAt` is what hides them. A hard delete would cascade through
-   * every message and orphan every attachment in the bucket, with no way back
-   * from a mistake — and a university transcript is a record, not scratch.
-   */
   async deleteChat(chat: ChatRow, actor: ChatMemberRow): Promise<void> {
     if (chat.type === 'DIRECT') {
       throw Errors.forbidden(DIRECT_IMMUTABLE);
@@ -226,8 +205,6 @@ class ChatService {
       throw Errors.forbidden(chat.type === 'DIRECT' ? DIRECT_IMMUTABLE : NOT_CHAT_ADMIN);
     }
 
-    // Archiving is not renaming. It takes the conversation away from everyone in
-    // it, so it carries the roster permission rather than the title one.
     if (input.isArchived !== undefined && !canArchiveChat(chat, actor)) {
       throw Errors.forbidden(NOT_ROSTER_MANAGER);
     }
@@ -305,9 +282,6 @@ class ChatService {
       select: { ...chatMemberSelect, chat: { select: chatSelect } },
     });
 
-    // Every chat-scoped route hangs off this, so refusing here is what makes a
-    // deleted conversation disappear from messages, members and attachments
-    // together, rather than needing the same check in each of them.
     if (row) {
       const { chat, ...member } = row;
       return chat.deletedAt !== null ? null : { member, chat };
@@ -316,15 +290,6 @@ class ChatService {
     return this.systemAdminMembership(chatId, userId);
   }
 
-  /**
-   * Lets the platform's operator into a group they were never added to.
-   *
-   * Groups only — a `DIRECT` conversation is two people's correspondence, and
-   * the difference between administering a university's groups and reading its
-   * private messages is the whole line. The membership handed back is
-   * synthetic: there is no row, so they do not appear in the roster, are not
-   * counted as a member, and receive no receipts.
-   */
   private async systemAdminMembership(
     chatId: string,
     userId: string
@@ -438,14 +403,6 @@ class ChatService {
     return toChatDto(chat);
   }
 
-  /**
-   * Writes the "X added Y" line that appears in the transcript.
-   *
-   * A real message row, not a separate table: it has to interleave with the
-   * conversation in date order, and paging already does that. No receipts are
-   * created for it — an unread badge for "someone joined" is noise, and
-   * `countUnread` counts by receipt, so leaving them out is the whole of it.
-   */
   private async recordSystemEvent(
     chatId: string,
     actorId: string,

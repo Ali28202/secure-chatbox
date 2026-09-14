@@ -28,13 +28,6 @@ function useReact(chatId: string, messageId: string) {
   };
 }
 
-/**
- * The tally, rendered inside the bubble.
- *
- * It belongs in the bubble rather than under it: a row of its own added a gap
- * below every message that carried one, which pushed the whole conversation
- * apart. Inside, the bubble simply grows to fit.
- */
 export function MessageReactionList({
   chatId,
   messageId,
@@ -54,8 +47,6 @@ export function MessageReactionList({
   return (
     <div className="mt-1.5 flex flex-wrap gap-1">
       {reactions.map(({ emoji, userIds }) => {
-        // `userIds`, not a count and not a flag — the payload is broadcast to
-        // the whole room, so both are the reader's to work out.
         const mine = userIds.includes(viewer.id);
 
         return (
@@ -68,8 +59,6 @@ export function MessageReactionList({
             aria-label={`${emoji} — ${toPersianDigits(userIds.length)} نفر`}
             className={cn(
               'flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs transition-colors disabled:opacity-50',
-              // Inside a bubble that is already coloured, so the states are
-              // drawn against the sender's background rather than the page's.
               isOwn
                 ? mine
                   ? 'bg-primary-foreground/30 ring-1 ring-primary-foreground/50'
@@ -88,7 +77,6 @@ export function MessageReactionList({
   );
 }
 
-/** The picker, which sits beside the message's own menu rather than in the bubble. */
 export function AddReactionButton({
   chatId,
   messageId,
@@ -116,9 +104,6 @@ export function AddReactionButton({
         <SmilePlusIcon />
       </DropdownMenuTrigger>
 
-      {/* Menu *items*, not bare buttons: an item dismisses the popup on select.
-          A plain button leaves it open, and its backdrop then eats the next
-          click — including the one on the pill that just appeared. */}
       <DropdownMenuContent align="start" className="flex w-auto gap-0.5 p-1">
         {REACTION_EMOJIS.map((emoji) => (
           <DropdownMenuItem

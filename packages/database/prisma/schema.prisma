@@ -16,17 +16,12 @@ enum GlobalRole {
   ADMIN
 }
 
-/// Registration is open, so an account starts as a request rather than as
-/// access. Separate from `isActive`, which is for switching off an account that
-/// was already approved — the two answer different questions and collapsing
-/// them would lose the difference between "not yet" and "no longer".
 enum AccountStatus {
   PENDING
   APPROVED
   REJECTED
 }
 
-/// What a message records when it is not something a person typed.
 enum SystemEvent {
   MEMBER_ADDED
   MEMBER_REMOVED
@@ -61,8 +56,6 @@ model User {
   isActive     Boolean    @default(true) @map("is_active")
   deviceId     String?    @map("device_id")
   lastSeen     DateTime?  @map("last_seen")
-  /// S3 object key, never sent to the browser. Avatars are served through a
-  /// redirect that signs a fresh URL, so nothing expiring is cached in a DTO.
   avatarKey    String?    @map("avatar_key")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
@@ -80,15 +73,10 @@ model User {
   @@map("users")
 }
 
-/// One row per sign-in. Its id travels in the token as `sid`, which is what
-/// makes a token revocable: without a row to look up, a stolen refresh token is
-/// valid until it expires and nothing can be done about it.
 model Session {
   id         String    @id @default(uuid(7))
   userId     String    @map("user_id")
   deviceId   String    @map("device_id")
-  /// Only to help someone recognise their own sessions in a list. Truncated,
-  /// never parsed, and never used for any decision.
   userAgent  String?   @map("user_agent") @db.VarChar(256)
   ipAddress  String?   @map("ip_address") @db.VarChar(64)
   createdAt  DateTime  @default(now()) @map("created_at")
@@ -112,13 +100,7 @@ model Chat {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
   lastMessageAt DateTime? @map("last_message_at")
-  // Soft. A term's conversation is a record: hiding it keeps the transcript,
-  // the receipts and the attachments, where a delete would orphan every S3
-  // object the messages point at.
   archivedAt    DateTime? @map("archived_at")
-  /// Soft, like everything else here. The transcript is a record: deleting the
-  /// rows would take every message and every S3 object with it, and there would
-  /// be nothing to restore if it turned out to be a mistake.
   deletedAt     DateTime? @map("deleted_at")
 
   creator  User         @relation("ChatCreator", fields: [creatorId], references: [id], onDelete: Restrict)
@@ -154,8 +136,6 @@ model Message {
   isEdited  Boolean  @default(false) @map("is_edited")
   isDeleted Boolean  @default(false) @map("is_deleted")
   isPinned  Boolean  @default(false) @map("is_pinned")
-  /// Null for anything a person wrote. When set, `senderId` is who acted and
-  /// `systemTargetId` is who it happened to.
   systemEvent    SystemEvent? @map("system_event")
   systemTargetId String?      @map("system_target_id")
   createdAt DateTime @default(now()) @map("created_at")
@@ -171,10 +151,6 @@ model Message {
   @@index([chatId, createdAt(sort: Desc)])
   @@index([senderId])
   @@index([replyToId])
-  // Trigram, not tsvector. Postgres ships no Persian text-search config, and
-  // `simple` tokenises `کتاب`, `کتاب‌ها` and `کتابهای` as three unrelated
-  // words — so a search for the stem would miss every inflected form. Trigrams
-  // are language-agnostic and turn `ILIKE '%…%'` into an index scan.
   @@index([content(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("messages")
 }
@@ -202,9 +178,6 @@ model MessageReaction {
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Emoji is part of the key, so one person may react twice with two different
-  // faces but never twice with the same one — the toggle is then a plain
-  // delete-or-create rather than a read-modify-write that can race.
   @@id([messageId, userId, emoji])
   @@index([messageId])
   @@map("message_reactions")

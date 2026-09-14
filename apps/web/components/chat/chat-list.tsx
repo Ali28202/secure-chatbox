@@ -29,8 +29,6 @@ export function ChatList({ activeChatId }: { activeChatId?: string }) {
   const [archived, setArchived] = useState(false);
   const chats = useChats(archived);
 
-  // Rendered above every branch below, so the way back out of the archive is
-  // there even when the archive is empty or failed to load.
   const tabs = (
     <div className="mb-2 flex gap-1" role="tablist" aria-label="نمای گفت‌وگوها">
       <Button

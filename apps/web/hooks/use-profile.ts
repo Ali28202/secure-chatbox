@@ -10,8 +10,6 @@ function useProfileMutation<TArgs>(request: (args: TArgs) => Promise<UserDto>) {
 
   return useMutation({
     mutationFn: request,
-    // The avatar shows up in the header, every roster and every bubble, so the
-    // session is refetched rather than patched in one place.
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionQueryKey }),
   });
 }
@@ -21,9 +19,6 @@ export function useSetAvatar() {
     const body = new FormData();
     body.append('avatar', file);
 
-    // `Content-Type: null` clears the client's JSON default so the browser sets
-    // `multipart/form-data` *with its boundary*. Without this the server gets a
-    // body it cannot split and answers "incorrect MIME type/boundary".
     return (await api.put<UserDto>('/users/me/avatar', body, { headers: { 'Content-Type': null } }))
       .data;
   });

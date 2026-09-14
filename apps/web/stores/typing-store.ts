@@ -3,7 +3,6 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 
-/** `chatId` -> the ids announcing that they are typing in it. */
 type TypingMap = ReadonlyMap<string, ReadonlySet<string>>;
 
 interface TypingState {
@@ -35,14 +34,6 @@ export const useTypingStore = create<TypingState>((set) => ({
   clear: () => set({ typing: new Map() }),
 }));
 
-/**
- * Who is typing in a chat, the viewer excluded.
- *
- * The store holds no expiry and the selector reads no clock: a selector that
- * returned a different answer for the same state would re-render forever.
- * Expiry is a timer in `RealtimeBridge`, which is also the only place that can
- * cancel it on unmount.
- */
 export function useTypingUserIds(chatId: string | undefined, viewerId: string): string[] {
   return useTypingStore(
     useShallow((state) => {

@@ -15,18 +15,14 @@ test.describe('deleting a group', () => {
     });
     expect(deleted.status()).toBe(200);
 
-    // Gone from every read path, for the member as well as the one who deleted it.
     expect((await attendee.api.raw().get(`${API_URL}/api/chats/${chat.id}`)).status()).toBe(404);
     expect(await attendee.api.listChats()).toHaveLength(0);
 
-    // …and from the archive view too: deleted is not archived.
     const archived = await attendee.api
       .raw()
       .get(`${API_URL}/api/chats`, { params: { archived: 'true' } });
     expect(await archived.json()).toHaveLength(0);
 
-    // Messages are unreachable through the API but still present in the table —
-    // that is what makes this reversible.
     expect(
       (await attendee.api.raw().get(`${API_URL}/api/chats/${chat.id}/messages`)).status()
     ).toBe(404);
@@ -94,7 +90,6 @@ test.describe('the roster notes in the transcript', () => {
 
     await professor.api.addMember(chat.id, latecomer.account.id);
 
-    // Arrives over the socket, in the conversation, without a reload.
     await expect(
       attendee.page.getByText(
         `${professor.account.name} ${latecomer.account.name} را به گروه اضافه کرد`
@@ -129,7 +124,6 @@ test.describe('the roster notes in the transcript', () => {
 
     await professor.api.addMember(chat.id, latecomer.account.id);
 
-    // "Someone joined" is not a message waiting for you.
     const [listed] = await attendee.api.listChats();
     expect(listed?.unreadCount).toBe(0);
   });

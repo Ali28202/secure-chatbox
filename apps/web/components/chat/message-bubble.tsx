@@ -106,13 +106,6 @@ export function MessageBubble({
       data-message-id={message.id}
       className={cn(
         'group flex w-full items-end gap-2',
-        // The page is `dir="rtl"`, so a plain row already starts on the right.
-        // Your own messages take that side; the other person's row is reversed
-        // onto the left, which also puts their avatar on the outside.
-        //
-        // One row, not two: `items-end` is what glues the avatar to the bottom
-        // of the bubble, and it only does that while the bubble is the tallest
-        // thing in the row. Reactions therefore live *inside* the bubble.
         isOwn ? 'justify-start' : 'flex-row-reverse justify-start'
       )}
     >

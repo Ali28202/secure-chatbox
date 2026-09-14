@@ -24,15 +24,6 @@ export interface TypingChange {
   isTyping: boolean;
 }
 
-/**
- * How long a `typing:changed` with `isTyping: true` stays true if nothing
- * follows it. The sender re-announces every {@link TYPING_HEARTBEAT_MS}; a
- * receiver that stops hearing from them clears the indicator by itself.
- *
- * This is why nothing on the server holds a timer: a browser that is closed
- * mid-sentence never sends `typing:stop`, so an authoritative server-side flag
- * would stick forever. Expiry belongs with the receiver.
- */
 export const TYPING_EXPIRY_MS = 5_000;
 export const TYPING_HEARTBEAT_MS = 2_000;
 

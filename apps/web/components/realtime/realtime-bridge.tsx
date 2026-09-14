@@ -23,7 +23,6 @@ import { ROUTES } from '@/lib/routes';
 import { usePresenceStore } from '@/stores/presence-store';
 import { useTypingStore } from '@/stores/typing-store';
 
-/** The chat a `/chats/<id>` path is showing, or null anywhere else. */
 function chatIdFromPath(pathname: string): string | null {
   const match = /^\/chats\/([^/]+)/.exec(pathname);
   return match?.[1] ?? null;
@@ -57,8 +56,6 @@ export function RealtimeBridge() {
 
     const onChatUpdated = (chatId: string) => applyChatUpdate(queryClient, chatId);
 
-    // Someone else deleted it. Drop the cached conversation and, if it is the
-    // one on screen, leave — otherwise the page sits on a chat that is gone.
     const onChatDeleted = (chatId: string) => {
       queryClient.removeQueries({ queryKey: chatQueryKey(chatId) });
       void queryClient.invalidateQueries({ queryKey: chatsQueryKey });
@@ -66,9 +63,6 @@ export function RealtimeBridge() {
       if (openChatRef.current === chatId) router.replace(ROUTES.chats);
     };
 
-    // Expiry lives here, not in the store and not on the server. A tab closed
-    // mid-word never sends `typing:stop`, so the indicator has to time itself
-    // out; the sender re-announces on a heartbeat to keep it alive.
     const typing = useTypingStore.getState();
     const typingTimers = new Map<string, ReturnType<typeof setTimeout>>();
 

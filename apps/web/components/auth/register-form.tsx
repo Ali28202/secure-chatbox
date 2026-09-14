@@ -36,9 +36,6 @@ export function RegisterForm() {
     });
   });
 
-  // Registering is now a request, not an entry. Saying so here is the whole
-  // difference between "it worked, wait" and "it failed" — which is what the
-  // 403 from an auto-login would have looked like.
   if (register.isSuccess) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-10 text-center">

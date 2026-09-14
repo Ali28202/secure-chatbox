@@ -17,7 +17,6 @@ import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 
 export const chatsQueryKey = ['chats'] as const;
-/** Active and archived are two lists, so they are two cache entries. */
 export const chatsListKey = (archived: boolean) => ['chats', { archived }] as const;
 export const chatQueryKey = (chatId: string) => ['chats', chatId] as const;
 

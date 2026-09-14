@@ -20,7 +20,6 @@ export function usePendingCount() {
     queryKey: pendingCountKey,
     queryFn: async () =>
       (await api.get<{ count: number }>('/admin/users/pending-count')).data.count,
-    // Cheap by design, so the badge can stay roughly current without polling hard.
     refetchInterval: 60_000,
   });
 }

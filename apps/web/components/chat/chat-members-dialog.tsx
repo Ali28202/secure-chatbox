@@ -67,8 +67,6 @@ export function ChatMembersDialog({
   }
 
   function add(user: UserSummaryDto) {
-    // The picker lists the whole directory, existing members included, so it
-    // marks them as selected rather than hiding them. Clicking one is a no-op.
     if (memberIds.includes(user.id)) return;
 
     addMember.mutate(
@@ -128,8 +126,6 @@ export function ChatMembersDialog({
                   </p>
                 </div>
 
-                {/* Says out loud why this row has no menu: the creator's seat is
-                    permanent, so there is nothing to offer here. */}
                 {isCreator && (
                   <Badge variant="outline" className="shrink-0">
                     سازنده

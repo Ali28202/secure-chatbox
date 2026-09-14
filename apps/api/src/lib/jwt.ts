@@ -22,7 +22,6 @@ export interface AuthTokenPayload extends JWTPayload {
   sub: string;
   role: GlobalRole;
   did: string;
-  /** Session id. The row it names is what makes this token revocable. */
   sid: string;
   typ: TokenType;
   iat: number;

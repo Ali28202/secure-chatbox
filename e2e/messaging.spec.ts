@@ -90,8 +90,6 @@ test.describe('sending', () => {
     await student.page.goto(`/chats/${chat.id}`);
     await peer.page.goto(`/chats/${chat.id}`);
 
-    // Both windows must be in the room before either relies on the other
-    // receiving anything: `goto` resolves long before the socket joins.
     await expect(student.page.getByText('سؤالی دربارهٔ فصل سوم دارید؟')).toBeVisible();
     await expect(peer.page.getByText('سؤالی دربارهٔ فصل سوم دارید؟')).toBeVisible();
 
@@ -178,7 +176,6 @@ test.describe('the typing indicator', () => {
     await student.page.goto(`/chats/${chat.id}`);
     await peer.page.goto(`/chats/${chat.id}`);
 
-    // Both sides have to be in the room before anything is announced into it.
     await expect(student.page.getByText('هنوز پیامی اینجا نیست')).toBeVisible();
     await expect(peer.page.getByText('هنوز پیامی اینجا نیست')).toBeVisible();
 
@@ -186,7 +183,6 @@ test.describe('the typing indicator', () => {
 
     await expect(peer.page.getByText(`${student.account.name} در حال نوشتن است…`)).toBeVisible();
 
-    // Your own typing is never announced back to you.
     await expect(student.page.getByRole('status').filter({ hasText: 'در حال نوشتن' })).toHaveCount(
       0
     );
@@ -213,7 +209,6 @@ test.describe('the typing indicator', () => {
     await student.page.getByLabel('متن پیام').fill('نیمه‌کاره');
     await expect(peer.page.getByText('در حال نوشتن')).toBeVisible();
 
-    // No `typing:stop` is ever sent — the receiver's own expiry has to do it.
     await student.page.close();
 
     await expect(peer.page.getByText('در حال نوشتن')).toBeHidden({ timeout: 15_000 });
@@ -239,7 +234,6 @@ test.describe('reactions', () => {
     await bubble.getByRole('button', { name: `واکنش به پیام ${peer.account.name}` }).click();
     await student.page.getByRole('menuitem', { name: '👍' }).click();
 
-    // The count is a list of ids on the wire, so both windows have to agree.
     await expect(student.page.getByRole('button', { name: '👍 — ۱ نفر' })).toBeVisible();
     await expect(peer.page.getByRole('button', { name: '👍 — ۱ نفر' })).toBeVisible();
 
@@ -247,7 +241,6 @@ test.describe('reactions', () => {
       'aria-pressed',
       'true'
     );
-    // Same tally, but it is not *their* reaction.
     await expect(peer.page.getByRole('button', { name: '👍 — ۱ نفر' })).toHaveAttribute(
       'aria-pressed',
       'false'
