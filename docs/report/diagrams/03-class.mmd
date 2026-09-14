@@ -1,0 +1,118 @@
+classDiagram
+  direction TB
+
+  class Policy {
+    <<module, @repo/shared>>
+    +isFaculty(user) bool
+    +isSystemAdmin(user) bool
+    +sendBlock(chat, member) SendBlock
+    +canDeleteMessage(member, senderId) bool
+    +canPinMessage(member) bool
+    +canUpdateChat(chat, member) bool
+    +canManageMembers(chat, member) bool
+    +canUpdateMember(chat, actor, target) bool
+    +canMuteMember(chat, actor, target) bool
+    +canArchiveChat(chat, member) bool
+    +canDeleteChat(chat, member) bool
+    +canLeaveChat(chat, member, otherAdmins) bool
+    +isChatCreator(chat, userId) bool
+  }
+
+  class AuthService {
+    +register(input) UserDto
+    +login(input, context) AuthResult
+    +refresh(token) AuthResult
+    +verifyToken(token, type) VerifiedSession
+    +listSessions(userId) SessionRow[]
+    +revokeSessions(userId, options) string[]
+    -findByIdentifier(identifier)
+    -issueSession(user, deviceId, ctx)
+  }
+
+  class ChatService {
+    +getUserChats(userId, query) ChatListItemDto[]
+    +getChat(chatId, user) ChatListItemDto
+    +createChat(creatorId, input) ChatDto
+    +updateChat(chat, actor, input) ChatDto
+    +deleteChat(chat, actor) void
+    +addMember(chat, actor, input) ChatMemberDto
+    +updateMember(chat, actor, userId, input)
+    +removeMember(chat, actor, userId) void
+    +findMembership(chatId, userId)
+    -recordSystemEvent(chatId, actor, target, event)
+  }
+
+  class MessageService {
+    +getMessages(chatId, query) MessagePageDto
+    +sendMessage(chat, member, input, files) MessageDto
+    +softDeleteMessage(chat, member, id) MessageDto
+    +setPinned(chat, member, id, isPinned) MessageDto
+    +toggleReaction(chat, member, id, emoji) MessageDto
+    +markAsRead(chat, member, input) MarkReadResultDto
+    +searchMessages(userId, query) MessageSearchHitDto[]
+    +getPinnedMessages(chatId) MessageDto[]
+    -cursorFilter(chatId, before)
+  }
+
+  class UserService {
+    +search(actorId, query) UserSummaryDto[]
+    +setAvatar(userId, file) UserDto
+    +clearAvatar(userId) UserDto
+    +readAvatar(userId)
+  }
+
+  class AdminService {
+    +listUsers(query)
+    +countPending() int
+    +updateUser(actorId, userId, input) AdminUserDto
+  }
+
+  class SocketGateway {
+    -io: Server
+    -connections: Map~string, Set~string~~
+    +attach(io) void
+    +emitToChat(chatId, event, payload) void
+    +joinChat(chatId, userId) void
+    +leaveChat(chatId, userId) void
+    +disconnectDevice(userId, deviceId) void
+    -authenticate(socket) void
+  }
+
+  class S3StorageService {
+    -client: Bun.S3Client
+    +bucket() string
+    +uploadFile(bytes, mimeType, fileName) string
+    +getSignedUrl(key, fileType) string
+    +readFile(key)
+    +deleteFile(key) bool
+  }
+
+  class Storage {
+    <<module>>
+    +storeUploads(files) StoredFile[]
+    +storeAvatar(file) string
+    +removeStored(keys) void
+    -signatureMatches(type, head) bool
+    -safeDisplayName(name, ext) string
+  }
+
+  class Middleware {
+    <<module>>
+    +ipRestriction()
+    +requireAuth()
+    +requireAdmin()
+    +requireChatMember()
+  }
+
+  AuthService ..> Policy : uses
+  ChatService ..> Policy : evaluates
+  MessageService ..> Policy : evaluates
+  Middleware ..> AuthService : verifies token
+  ChatService --> SocketGateway : emits
+  MessageService --> SocketGateway : emits
+  AdminService --> SocketGateway : evicts
+  AuthService --> SocketGateway : evicts device
+  SocketGateway ..> AuthService : handshake auth
+  MessageService --> Storage : validates and stores
+  UserService --> Storage : avatar
+  Storage --> S3StorageService : writes objects

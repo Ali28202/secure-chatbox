@@ -1,0 +1,50 @@
+graph TB
+  classDef edge fill:#fee2e2,stroke:#991b1b,stroke-width:2px,color:#0f172a
+  classDef app fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#0f172a
+  classDef data fill:#dcfce7,stroke:#166534,stroke-width:2px,color:#0f172a
+  classDef ext fill:#fef3c7,stroke:#92400e,stroke-width:2px,color:#0f172a
+  classDef job fill:#f1f5f9,stroke:#64748b,stroke-width:1px,color:#0f172a
+
+  USER([Browser]):::ext
+  ADMIN([Operator via SSH tunnel]):::ext
+
+  subgraph HOST["Docker host - compose network 172.28.0.0/16"]
+    direction TB
+
+    NGINX["<b>nginx 1.29</b><br/>the only published service<br/>TLS 1.2/1.3, HSTS, WebSocket upgrade<br/>limit_req 30/min on login and register"]:::edge
+
+    subgraph INTERNAL["internal network - nothing published"]
+      WEB["<b>web</b><br/>Next.js 16 App Router<br/>RTL, Vazirmatn, React 19"]:::app
+      API["<b>api</b><br/>Hono 4 on Bun 1.3<br/>REST + Socket.IO<br/>ALLOWED_IP_RANGES re-checked here"]:::app
+      DB[("<b>db</b><br/>PostgreSQL 18<br/>pg_trgm")]:::data
+      MB["<b>metabase</b><br/>reads through metabase_ro"]:::app
+      MIG["migrate<br/>prisma migrate deploy<br/>runs once, must succeed"]:::job
+      MBI["metabase-init<br/>role + column grants"]:::job
+      CB["certbot<br/>renews every 12h"]:::job
+    end
+  end
+
+  S3[("<b>S3 bucket</b><br/>private, off-network<br/>attachments and avatars")]:::ext
+  LE[("Let's Encrypt")]:::ext
+
+  USER -->|"443 - https://DOMAIN"| NGINX
+  USER -->|"443 - https://METABASE_DOMAIN"| NGINX
+  USER -->|"80 - ACME challenge only, else 301"| NGINX
+  ADMIN -.->|"127.0.0.1:8080"| NGINX
+
+  NGINX -->|"/ and /_next/static"| WEB
+  NGINX -->|"/api and /socket.io"| API
+  NGINX --> MB
+
+  API --> DB
+  WEB -.->|"same origin, through nginx"| API
+  MIG --> DB
+  MBI --> DB
+  MB --> DB
+  API -->|"write object / presign GET"| S3
+  USER -.->|"302 to a signed URL, TTL 300s"| S3
+  CB --> LE
+
+  MIG -.->|"must exit 0 first"| API
+  MIG -.->|"tables must exist"| MBI
+  MBI -.-> MB

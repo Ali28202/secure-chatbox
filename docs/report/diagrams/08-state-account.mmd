@@ -1,0 +1,29 @@
+stateDiagram-v2
+  direction LR
+
+  [*] --> PENDING : POST /api/auth/register
+
+  PENDING --> APPROVED : admin approves
+  PENDING --> REJECTED : admin rejects
+
+  APPROVED --> REJECTED : admin revokes
+  REJECTED --> APPROVED : admin reconsiders
+
+  state APPROVED {
+    direction LR
+    [*] --> Active
+    Active --> Disabled : is_active = false
+    Disabled --> Active : is_active = true
+    Active : may sign in and use the platform
+    Disabled : 403 on the next request
+  }
+
+  PENDING : login refused<br/>"your account is not approved yet"
+  REJECTED : login refused<br/>every live session revoked
+
+  note right of PENDING
+    Registration does not sign anyone in.
+    The account exists but cannot authenticate
+    until an ADMIN reviews it; reviewed_by_id
+    and reviewed_at record who decided, and when.
+  end note

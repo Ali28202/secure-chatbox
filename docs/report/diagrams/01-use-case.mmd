@@ -1,0 +1,77 @@
+graph LR
+  classDef actor fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#0f172a
+  classDef admin fill:#fee2e2,stroke:#991b1b,stroke-width:2px,color:#0f172a
+  classDef uc fill:#f8fafc,stroke:#475569,stroke-width:1px,color:#0f172a
+  classDef sys fill:#dcfce7,stroke:#166534,stroke-width:2px,color:#0f172a
+
+  STU((Student)):::actor
+  PRF((Professor)):::actor
+  ADM((System Admin)):::admin
+
+  subgraph ACC[Account and Session]
+    U1(["Register<br/>creates a PENDING account"]):::uc
+    U2(["Sign in with university ID or phone<br/>plus device ID"]):::uc
+    U3(["List and revoke own sessions"]):::uc
+    U4(["Set or remove avatar"]):::uc
+  end
+
+  subgraph CONV[Conversations]
+    U5(["Browse conversations<br/>active or archived"]):::uc
+    U6(["Start a direct chat"]):::uc
+    U7(["Create a group"]):::uc
+    U8(["Search own messages"]):::uc
+  end
+
+  subgraph MSG[Messaging]
+    U9(["Send a message"]):::uc
+    U10(["Attach files"]):::uc
+    U11(["Reply, react, mark read"]):::uc
+    U12(["Pin or delete a message"]):::uc
+  end
+
+  subgraph MOD[Moderation]
+    U13(["Manage roster<br/>add, remove, promote, mute"]):::uc
+    U14(["Rename, flip read-only"]):::uc
+    U15(["Archive, restore, delete group"]):::uc
+  end
+
+  subgraph SYS[System Administration]
+    U16(["Approve or reject registrations"]):::uc
+    U17(["Change global role"]):::uc
+    U18(["Deactivate an account"]):::uc
+  end
+
+  S3[("S3 Bucket")]:::sys
+
+  STU --> U1
+  STU --> U2
+  STU --> U3
+  STU --> U4
+  STU --> U5
+  STU --> U6
+  STU --> U7
+  STU --> U8
+  STU --> U9
+  STU --> U11
+
+  PRF --> U2
+  PRF --> U5
+  PRF --> U7
+  PRF --> U9
+  PRF --> U12
+  PRF --> U13
+  PRF --> U14
+  PRF --> U15
+
+  ADM --> U16
+  ADM --> U17
+  ADM --> U18
+  ADM --> U12
+  ADM --> U13
+
+  U9 -. "extend: message has files" .-> U10
+  U10 -- "API validates, then writes the object" --> S3
+  U12 -. "include: policy check" .-> U13
+  U1 -. "include: admin approval required" .-> U16
+
+  linkStyle default stroke:#475569
