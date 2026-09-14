@@ -78,12 +78,12 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
         </Button>
 
         <p className="text-center text-sm text-muted-foreground">
-          حساب کاربری ندارید؟{' '}
+          حساب نداری؟{' '}
           <Link
             href={ROUTES.register}
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
-            ثبت‌نام کنید
+            ثبت‌نام کن
           </Link>
         </p>
       </FieldGroup>

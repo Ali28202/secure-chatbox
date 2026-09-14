@@ -56,7 +56,7 @@ function AdminMenuItem() {
   return (
     <DropdownMenuItem render={<Link href={ROUTES.admin} />}>
       <ShieldIcon />
-      <span className="flex-1">مدیریت کاربران</span>
+      <span className="flex-1">مدیریت کاربرها</span>
       {pending.data !== undefined && pending.data > 0 && (
         <Badge variant="destructive" className="px-1.5 py-0 text-[10px]">
           {toPersianDigits(pending.data)}

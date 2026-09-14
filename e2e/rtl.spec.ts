@@ -116,7 +116,7 @@ test.describe('numbers', () => {
     await student.page.getByRole('button', { name: 'گفت‌وگوی جدید' }).click();
 
     const dialog = student.page.getByRole('dialog');
-    await dialog.getByLabel('جست‌وجوی کاربران').fill(peer.universityId);
+    await dialog.getByLabel('جست‌وجوی کاربرها').fill(peer.universityId);
 
     const id = dialog.getByText(peer.universityId, { exact: true });
     await expect(id).toHaveAttribute('dir', 'ltr');

@@ -1,13 +1,3 @@
-upstream web_upstream {
-    server web:3000;
-    keepalive 32;
-}
-
-upstream api_upstream {
-    server api:3001;
-    keepalive 32;
-}
-
 # Port 80 exists for two things only: proving control of the domain to Let's
 # Encrypt, and sending everyone else to port 443. No application traffic is
 # served here — the session cookies are `Secure` and would never be sent back.
@@ -44,8 +34,17 @@ server {
 
     ssl_stapling        on;
     ssl_stapling_verify on;
-    resolver            1.1.1.1 8.8.8.8 valid=300s;
-    resolver_timeout    5s;
+
+    # Docker's embedded DNS, and it has to be this one rather than a public
+    # resolver: the `set` directives below name containers. It forwards external
+    # queries too, so OCSP stapling still resolves through it.
+    #
+    # `valid=10s` is the whole point. An `upstream` block resolves its hostname
+    # once, at startup, and keeps that address for the life of the process — so
+    # recreating `api` or `web` leaves nginx proxying to an address nothing
+    # answers on, and every request 502s until nginx is restarted by hand.
+    resolver         127.0.0.11 valid=10s ipv6=off;
+    resolver_timeout 5s;
 
     # Only meaningful over TLS, which is why it lives here and not in the
     # http block. Once a browser has seen this it will refuse plain HTTP to
@@ -57,7 +56,8 @@ server {
     add_header Referrer-Policy        same-origin always;
 
     location /socket.io/ {
-        proxy_pass http://api_upstream;
+        set $api http://api:3001;
+        proxy_pass $api;
 
         proxy_http_version 1.1;
         proxy_set_header Upgrade    $http_upgrade;
@@ -83,7 +83,8 @@ server {
         limit_req      zone=auth_zone burst=20 nodelay;
         limit_req_status 429;
 
-        proxy_pass http://api_upstream;
+        set $api http://api:3001;
+        proxy_pass $api;
 
         proxy_http_version 1.1;
         proxy_set_header Connection "";
@@ -95,7 +96,8 @@ server {
     }
 
     location /api/ {
-        proxy_pass http://api_upstream;
+        set $api http://api:3001;
+        proxy_pass $api;
 
         proxy_http_version 1.1;
         proxy_set_header Connection "";
@@ -111,7 +113,8 @@ server {
     }
 
     location /_next/static/ {
-        proxy_pass http://web_upstream;
+        set $web http://web:3000;
+        proxy_pass $web;
 
         proxy_http_version 1.1;
         proxy_set_header Connection "";
@@ -126,7 +129,8 @@ server {
     }
 
     location / {
-        proxy_pass http://web_upstream;
+        set $web http://web:3000;
+        proxy_pass $web;
 
         proxy_http_version 1.1;
         proxy_set_header Connection "";

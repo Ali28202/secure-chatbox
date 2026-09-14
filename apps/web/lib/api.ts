@@ -91,10 +91,7 @@ export function getApiError(error: unknown): ApiErrorBody['error'] | null {
 }
 
 export function getApiErrorMessage(error: unknown): string {
-  return (
-    getApiError(error)?.message ??
-    'ارتباط با سرور برقرار نشد. اتصال خود به شبکهٔ دانشگاه را بررسی کنید.'
-  );
+  return getApiError(error)?.message ?? 'به سرور وصل نشد. اتصالت به شبکهٔ دانشگاه رو چک کن.';
 }
 
 export function getApiFieldIssues(error: unknown): FieldIssue[] {

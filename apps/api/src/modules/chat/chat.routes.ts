@@ -80,7 +80,7 @@ chatRoutes.post('/', zValidator('json', createChatSchema, onValidationError), as
   const input = c.req.valid('json');
 
   if (!canCreateChat(user, input.type)) {
-    throw Errors.forbidden('تنها اساتید امکان ساخت گروه درسی را دارند.');
+    throw Errors.forbidden('فقط استادها می‌تونن گروه درسی بسازن.');
   }
 
   return c.json(await chatService.createChat(user.id, input), 201);

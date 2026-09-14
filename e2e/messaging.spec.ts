@@ -132,8 +132,8 @@ test.describe('deleting', () => {
     await bubble.getByRole('button', { name: `گزینه‌های پیام ${student.account.name}` }).click();
     await student.page.getByRole('menuitem', { name: 'حذف پیام' }).click();
 
-    await expect(student.page.getByText('این پیام حذف شده است.')).toBeVisible();
-    await expect(peer.page.getByText('این پیام حذف شده است.')).toBeVisible();
+    await expect(student.page.getByText('این پیام حذف شده.')).toBeVisible();
+    await expect(peer.page.getByText('این پیام حذف شده.')).toBeVisible();
     await expect(peer.page.getByText('این را اشتباه فرستادم')).toBeHidden();
   });
 });

@@ -5,11 +5,11 @@ import { cursorPaginationSchema, idSchema } from './common';
 
 export const sendMessageSchema = z.object({
   content: z
-    .string({ error: 'متن پیام را وارد کنید.' })
+    .string({ error: 'متن پیام رو بنویس.' })
     .trim()
-    .min(LIMITS.messageContent.min, { error: 'پیام نمی‌تواند خالی باشد.' })
+    .min(LIMITS.messageContent.min, { error: 'پیام نمی‌تونه خالی باشه.' })
     .max(LIMITS.messageContent.max, {
-      error: `پیام نمی‌تواند بیشتر از ${toPersianDigits(LIMITS.messageContent.max)} کاراکتر باشد.`,
+      error: `پیام نباید بیشتر از ${toPersianDigits(LIMITS.messageContent.max)} کاراکتر باشه.`,
     }),
   replyToId: idSchema.optional(),
 });
@@ -19,7 +19,7 @@ export const uploadMessageSchema = z.object({
     .string()
     .trim()
     .max(LIMITS.messageContent.max, {
-      error: `پیام نمی‌تواند بیشتر از ${toPersianDigits(LIMITS.messageContent.max)} کاراکتر باشد.`,
+      error: `پیام نباید بیشتر از ${toPersianDigits(LIMITS.messageContent.max)} کاراکتر باشه.`,
     })
     .optional(),
   replyToId: idSchema.optional(),
@@ -37,26 +37,26 @@ export const pinMessageSchema = z.object({
 
 export const searchMessagesQuerySchema = z.object({
   q: z
-    .string({ error: 'عبارت جست‌وجو را وارد کنید.' })
+    .string({ error: 'چیزی که دنبالشی رو بنویس.' })
     .trim()
     .min(LIMITS.search.min, {
-      error: `عبارت جست‌وجو باید دست‌کم ${toPersianDigits(LIMITS.search.min)} کاراکتر باشد.`,
+      error: `عبارت جست‌وجو باید حداقل ${toPersianDigits(LIMITS.search.min)} کاراکتر باشه.`,
     })
     .max(LIMITS.search.max, {
-      error: `عبارت جست‌وجو نمی‌تواند بیشتر از ${toPersianDigits(LIMITS.search.max)} کاراکتر باشد.`,
+      error: `عبارت جست‌وجو نباید بیشتر از ${toPersianDigits(LIMITS.search.max)} کاراکتر باشه.`,
     }),
   limit: z.coerce
-    .number({ error: 'تعداد باید یک عدد باشد.' })
-    .int({ error: 'تعداد باید عدد صحیح باشد.' })
-    .min(1, { error: 'تعداد باید دست‌کم ۱ باشد.' })
+    .number({ error: 'تعداد باید عدد باشه.' })
+    .int({ error: 'تعداد باید عدد درست باشه.' })
+    .min(1, { error: 'تعداد باید حداقل ۱ باشه.' })
     .max(LIMITS.page.max, {
-      error: `تعداد نمی‌تواند بیشتر از ${toPersianDigits(LIMITS.page.max)} باشد.`,
+      error: `تعداد نباید بیشتر از ${toPersianDigits(LIMITS.page.max)} باشه.`,
     })
     .default(LIMITS.page.default),
 });
 
 export const toggleReactionSchema = z.object({
-  emoji: z.enum(REACTION_EMOJIS, { error: 'این واکنش پشتیبانی نمی‌شود.' }),
+  emoji: z.enum(REACTION_EMOJIS, { error: 'این واکنش پشتیبانی نمی‌شه.' }),
 });
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;

@@ -39,7 +39,7 @@ import { ROUTES } from '@/lib/routes';
 type Filter = (typeof ACCOUNT_STATUSES)[number] | 'ALL';
 
 const FILTERS: { value: Filter; label: string }[] = [
-  { value: 'PENDING', label: 'در انتظار تأیید' },
+  { value: 'PENDING', label: 'منتظر تأیید' },
   { value: 'APPROVED', label: 'تأییدشده' },
   { value: 'REJECTED', label: 'ردشده' },
   { value: 'ALL', label: 'همه' },
@@ -105,8 +105,8 @@ export function AdminPanel() {
         <Button
           variant="ghost"
           size="icon"
-          aria-label="بازگشت به گفت‌وگوها"
-          title="بازگشت به گفت‌وگوها"
+          aria-label="برگرد به گفت‌وگوها"
+          title="برگرد به گفت‌وگوها"
           render={<Link href={ROUTES.chats} />}
         >
           <ArrowRightIcon />
@@ -114,9 +114,9 @@ export function AdminPanel() {
 
         <ShieldIcon className="size-5 shrink-0 text-muted-foreground" />
         <div className="flex-1">
-          <h1 className="text-lg font-semibold">مدیریت کاربران</h1>
+          <h1 className="text-lg font-semibold">مدیریت کاربرها</h1>
           <p className="text-xs text-muted-foreground">
-            تأیید ثبت‌نام، تغییر نقش و غیرفعال‌کردن حساب‌ها
+            تأیید ثبت‌نام، عوض کردن نقش و بستن حساب‌ها
           </p>
         </div>
         {users.data && <Badge variant="outline">{toPersianDigits(users.data.total)} کاربر</Badge>}
@@ -143,8 +143,8 @@ export function AdminPanel() {
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="جست‌وجو با نام یا شماره دانشجویی"
-            aria-label="جست‌وجوی کاربران"
+            placeholder="جست‌وجو با اسم یا شماره دانشجویی"
+            aria-label="جست‌وجوی کاربرها"
             className="ps-9"
           />
         </div>
@@ -153,12 +153,10 @@ export function AdminPanel() {
       {users.isPending ? (
         <div className="flex flex-1 items-center justify-center" aria-busy>
           <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
-          <span className="sr-only">در حال بارگذاری…</span>
+          <span className="sr-only">داره میاد…</span>
         </div>
       ) : users.isError ? (
-        <p className="py-12 text-center text-sm text-muted-foreground">
-          فهرست کاربران بارگذاری نشد.
-        </p>
+        <p className="py-12 text-center text-sm text-muted-foreground">لیست کاربرها نیومد!</p>
       ) : users.data.users.length === 0 ? (
         <p className="py-12 text-center text-sm text-muted-foreground">
           کاربری با این مشخصات پیدا نشد.
@@ -271,7 +269,7 @@ export function AdminPanel() {
                         }
                       >
                         <BanIcon />
-                        {user.isActive ? 'غیرفعال کردن حساب' : 'فعال کردن حساب'}
+                        {user.isActive ? 'بستن حساب' : 'باز کردن حساب'}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

@@ -4,13 +4,13 @@ import { toPersianDigits } from '../format';
 import { idSchema } from './common';
 
 const chatTitleSchema = z
-  .string({ error: 'نام گفت‌وگو را وارد کنید.' })
+  .string({ error: 'یه اسم برای گفت‌وگو بنویس.' })
   .trim()
   .min(LIMITS.chatTitle.min, {
-    error: `نام باید دست‌کم ${toPersianDigits(LIMITS.chatTitle.min)} کاراکتر باشد.`,
+    error: `نام باید حداقل ${toPersianDigits(LIMITS.chatTitle.min)} کاراکتر باشه.`,
   })
   .max(LIMITS.chatTitle.max, {
-    error: `نام نمی‌تواند بیشتر از ${toPersianDigits(LIMITS.chatTitle.max)} کاراکتر باشد.`,
+    error: `نام نباید بیشتر از ${toPersianDigits(LIMITS.chatTitle.max)} کاراکتر باشه.`,
   });
 
 export const createChatSchema = z.discriminatedUnion('type', [
@@ -32,7 +32,7 @@ export const createChatSchema = z.discriminatedUnion('type', [
 
 export const addMemberSchema = z.object({
   userId: idSchema,
-  role: z.enum(CHAT_ROLES, { error: 'نقش انتخاب‌شده معتبر نیست.' }).default('MEMBER'),
+  role: z.enum(CHAT_ROLES, { error: 'این نقش درست نیست.' }).default('MEMBER'),
 });
 
 export const updateChatSchema = z
@@ -44,7 +44,7 @@ export const updateChatSchema = z
   .refine(
     (input) =>
       input.title !== undefined || input.isReadOnly !== undefined || input.isArchived !== undefined,
-    { error: 'تغییری برای اعمال مشخص نشده است.' }
+    { error: 'چیزی برای تغییر مشخص نکردی.' }
   );
 
 export const listChatsQuerySchema = z.object({
@@ -55,11 +55,11 @@ export const listChatsQuerySchema = z.object({
 
 export const updateMemberSchema = z
   .object({
-    role: z.enum(CHAT_ROLES, { error: 'نقش انتخاب‌شده معتبر نیست.' }).optional(),
+    role: z.enum(CHAT_ROLES, { error: 'این نقش درست نیست.' }).optional(),
     isMuted: z.boolean().optional(),
   })
   .refine((input) => input.role !== undefined || input.isMuted !== undefined, {
-    error: 'تغییری برای اعمال مشخص نشده است.',
+    error: 'چیزی برای تغییر مشخص نکردی.',
   });
 
 export type CreateChatInput = z.infer<typeof createChatSchema>;

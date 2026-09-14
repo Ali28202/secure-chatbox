@@ -25,7 +25,7 @@ messageRoutes.get('/', zValidator('query', listMessagesQuerySchema, onValidation
 const sendBodyLimit = bodyLimit({
   maxSize: UPLOAD.maxRequestBytes,
   onError: () => {
-    throw Errors.payloadTooLarge('حجم پیوست‌ها بیش از حد مجاز است.');
+    throw Errors.payloadTooLarge('حجم پیوست‌ها بیشتر از حد مجازه.');
   },
 });
 
@@ -99,8 +99,8 @@ async function readJson(c: Context<ChatEnv>): Promise<unknown> {
     return await c.req.json();
   } catch {
     throw Errors.validation(
-      [{ path: 'content', message: 'بدنهٔ درخواست معتبر نیست.' }],
-      'بدنهٔ درخواست معتبر نیست.'
+      [{ path: 'content', message: 'بدنهٔ درخواست درست نیست.' }],
+      'بدنهٔ درخواست درست نیست.'
     );
   }
 }

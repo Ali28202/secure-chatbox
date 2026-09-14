@@ -36,17 +36,19 @@ function acceptFiles(queued: File[], incoming: File[]): { files: File[]; rejecte
 
   for (const file of incoming) {
     if (files.length >= UPLOAD.maxFilesPerMessage) {
-      rejected.push(`هر پیام حداکثر ${toPersianDigits(UPLOAD.maxFilesPerMessage)} پیوست می‌پذیرد.`);
+      rejected.push(
+        `هر پیام حداکثر ${toPersianDigits(UPLOAD.maxFilesPerMessage)} پیوست قبول می‌کنه.`
+      );
       break;
     }
 
     if (!isAllowedFileType(file.type)) {
-      rejected.push(`«${file.name}»: این نوع فایل پذیرفته نمی‌شود.`);
+      rejected.push(`«${file.name}»: این نوع فایل قبول نمی‌شه.`);
       continue;
     }
 
     if (file.size > UPLOAD.maxFileBytes) {
-      rejected.push(`«${file.name}»: حجم فایل بیش از ${formatFileSize(UPLOAD.maxFileBytes)} است.`);
+      rejected.push(`«${file.name}»: حجم فایل بیشتر از ${formatFileSize(UPLOAD.maxFileBytes)}ه.`);
       continue;
     }
 
@@ -218,8 +220,8 @@ export function MessageComposer({
           type="button"
           variant="ghost"
           size="icon"
-          aria-label={isFull ? 'حداکثر تعداد پیوست انتخاب شده است' : 'افزودن پیوست'}
-          title={isFull ? 'حداکثر تعداد پیوست انتخاب شده است' : 'افزودن پیوست'}
+          aria-label={isFull ? 'بیشتر از این نمی‌شه پیوست کرد' : 'افزودن پیوست'}
+          title={isFull ? 'بیشتر از این نمی‌شه پیوست کرد' : 'افزودن پیوست'}
           disabled={send.isPending || isFull}
           onClick={() => fileInputRef.current?.click()}
         >
@@ -240,7 +242,7 @@ export function MessageComposer({
           onKeyDown={handleKeyDown}
           maxLength={LIMITS.messageContent.max}
           rows={1}
-          placeholder={files.length > 0 ? 'توضیحی بنویسید… (اختیاری)' : 'پیام خود را بنویسید…'}
+          placeholder={files.length > 0 ? 'یه توضیح بنویس… (اختیاری)' : 'چی می‌خوای بگی؟'}
           aria-label="متن پیام"
           // Never disabled while a send is in flight. A disabled element loses
           // focus, so Enter would throw you out of the box you are typing in —

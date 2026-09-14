@@ -235,7 +235,7 @@ const fieldIssue = z.object({
     description: 'Dotted path into the submitted body, e.g. `memberIds.0`.',
     example: 'password',
   }),
-  message: z.string().meta({ example: 'گذرواژه باید دست‌کم ۸ کاراکتر باشد.' }),
+  message: z.string().meta({ example: 'گذرواژه باید حداقل ۸ کاراکتر باشه.' }),
 });
 
 const apiErrorBody = z.object({
@@ -243,7 +243,7 @@ const apiErrorBody = z.object({
     code: z.enum(ERROR_CODES).meta({ description: 'Stable and English — safe to branch on.' }),
     message: z.string().meta({
       description: 'Persian, ready to display as-is.',
-      example: 'این گفت‌وگو وجود ندارد یا به آن دسترسی ندارید.',
+      example: 'این گفت‌وگو نیست یا بهش دسترسی نداری.',
     }),
     details: z
       .array(fieldIssue)

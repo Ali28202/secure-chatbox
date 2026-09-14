@@ -30,8 +30,8 @@ export function getAttachmentSummary(count: number): string {
 export function getChatPreview(chat: ChatListItemDto, viewerId: string): string {
   const message = chat.lastMessage;
 
-  if (!message) return 'هنوز پیامی ارسال نشده است.';
-  if (message.isDeleted) return 'این پیام حذف شده است.';
+  if (!message) return 'هنوز پیامی فرستاده نشده.';
+  if (message.isDeleted) return 'این پیام حذف شده.';
 
   // A system note has no content, so the ordinary path would render a sender
   // name followed by nothing. Say what actually happened instead.

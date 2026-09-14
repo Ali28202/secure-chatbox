@@ -45,8 +45,8 @@ export function RegisterForm() {
         <ClockIcon className="size-8 text-muted-foreground" />
         <p className="font-medium">درخواستت ثبت شد</p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          حسابت ساخته شد ولی تا وقتی مدیر سامانه تأییدش نکنه نمی‌تونی وارد بشی. بعد از تأیید با همین
-          شماره دانشجویی و گذرواژه وارد شو.
+          حسابت ساخته شد، ولی تا مدیر سامانه تأییدش نکنه نمی‌تونی وارد شی. بعدش با همین شماره
+          دانشجویی و گذرواژه وارد شو.
         </p>
         <Button variant="outline" size="sm" render={<Link href={ROUTES.login} />}>
           رفتن به صفحهٔ ورود
@@ -82,7 +82,7 @@ export function RegisterForm() {
             aria-invalid={Boolean(errors.universityId)}
             {...form.register('universityId')}
           />
-          <FieldDescription>شمارهٔ دانشجویی خود را وارد کنید</FieldDescription>
+          <FieldDescription>شماره دانشجوییت رو بنویس</FieldDescription>
           <FieldError errors={[errors.universityId]} />
         </Field>
 
@@ -99,7 +99,7 @@ export function RegisterForm() {
             {...form.register('phoneNumber')}
           />
 
-          <FieldDescription>مانند {toPersianDigits('09123456789')}</FieldDescription>
+          <FieldDescription>مثل {toPersianDigits('09123456789')}</FieldDescription>
           <FieldError errors={[errors.phoneNumber]} />
         </Field>
 
@@ -114,22 +114,22 @@ export function RegisterForm() {
             aria-invalid={Boolean(errors.password)}
             {...form.register('password')}
           />
-          <FieldDescription>دست‌کم {toPersianDigits(LIMITS.password.min)} کاراکتر</FieldDescription>
+          <FieldDescription>حداقل {toPersianDigits(LIMITS.password.min)} کاراکتر</FieldDescription>
           <FieldError errors={[errors.password]} />
         </Field>
 
         <Button type="submit" disabled={register.isPending}>
           {register.isPending && <Loader2Icon className="animate-spin" />}
-          ساخت حساب کاربری
+          ساخت حساب
         </Button>
 
         <p className="text-center text-sm text-muted-foreground">
-          حساب کاربری دارید؟{' '}
+          حساب داری؟{' '}
           <Link
             href={ROUTES.login}
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
-            وارد شوید
+            وارد شو
           </Link>
         </p>
       </FieldGroup>

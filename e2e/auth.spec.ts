@@ -86,7 +86,7 @@ test.describe('signing in', () => {
     await page.getByLabel('گذرواژه').fill('WrongPassword@1404');
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
-    await expect(formAlert(page)).toContainText('شناسه یا گذرواژه نادرست است.');
+    await expect(formAlert(page)).toContainText('شناسه یا گذرواژه درست نیست.');
     await expect(page).toHaveURL('/login');
   });
 
@@ -96,7 +96,7 @@ test.describe('signing in', () => {
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
-    await expect(formAlert(page)).toContainText('شناسه یا گذرواژه نادرست است.');
+    await expect(formAlert(page)).toContainText('شناسه یا گذرواژه درست نیست.');
   });
 });
 
@@ -161,7 +161,7 @@ test.describe('registering', () => {
     await page.getByLabel('شماره دانشجویی').fill(universityId);
     await page.getByLabel('شمارهٔ تلفن همراه').fill(freshPhoneNumber());
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
-    await page.getByRole('button', { name: 'ساخت حساب کاربری' }).click();
+    await page.getByRole('button', { name: 'ساخت حساب' }).click();
 
     // Registration is a request now, not an entry: it no longer signs anyone in.
     await expect(page.getByText('درخواستت ثبت شد')).toBeVisible();
@@ -186,7 +186,7 @@ test.describe('registering', () => {
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
-    await expect(page.getByText('هنوز تأیید نشده است', { exact: false })).toBeVisible();
+    await expect(page.getByText('هنوز تأیید نشده', { exact: false })).toBeVisible();
     await expect(page).toHaveURL('/login');
   });
 
@@ -198,7 +198,7 @@ test.describe('registering', () => {
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'ورود به سامانه' }).click();
 
-    await expect(page.getByText('پذیرفته نشده است', { exact: false })).toBeVisible();
+    await expect(page.getByText('پذیرفته نشده', { exact: false })).toBeVisible();
   });
 
   test('reports a taken university ID under the field that caused it', async ({ page }) => {
@@ -209,9 +209,9 @@ test.describe('registering', () => {
     await page.getByLabel('شماره دانشجویی').fill(existing.universityId);
     await page.getByLabel('شمارهٔ تلفن همراه').fill(freshPhoneNumber());
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
-    await page.getByRole('button', { name: 'ساخت حساب کاربری' }).click();
+    await page.getByRole('button', { name: 'ساخت حساب' }).click();
 
-    await expect(page.getByText('این شماره دانشجویی قبلاً ثبت شده است.')).toBeVisible();
+    await expect(page.getByText('این شماره دانشجویی قبلاً ثبت شده.')).toBeVisible();
     await expect(page).toHaveURL('/register');
   });
 
@@ -223,9 +223,9 @@ test.describe('registering', () => {
     await page.getByLabel('شماره دانشجویی').fill(`40${Date.now().toString(36)}`);
     await page.getByLabel('شمارهٔ تلفن همراه').fill(existing.phoneNumber);
     await page.getByLabel('گذرواژه').fill(E2E_PASSWORD);
-    await page.getByRole('button', { name: 'ساخت حساب کاربری' }).click();
+    await page.getByRole('button', { name: 'ساخت حساب' }).click();
 
-    await expect(page.getByText('این شمارهٔ تلفن قبلاً ثبت شده است.')).toBeVisible();
+    await expect(page.getByText('این شمارهٔ تلفن قبلاً ثبت شده.')).toBeVisible();
     await expect(page).toHaveURL('/register');
   });
 });

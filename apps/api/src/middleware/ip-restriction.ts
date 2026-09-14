@@ -5,7 +5,7 @@ import { env } from '../env';
 import { Errors } from '../lib/errors';
 import type { AppEnv } from '../types';
 
-const OUTSIDE_NETWORK = 'دسترسی به این سامانه تنها از شبکهٔ داخلی دانشگاه ممکن است.';
+const OUTSIDE_NETWORK = 'این سامانه فقط از شبکهٔ داخلی دانشگاه باز می‌شه.';
 
 export const ipRestrictionMiddleware = env.ALLOWED_IP_RANGES.length
   ? ipRestriction(getConnInfo, { allowList: env.ALLOWED_IP_RANGES }, (_remote, c) =>

@@ -11,7 +11,7 @@ test.describe('starting a direct conversation', () => {
     const dialog = student.page.getByRole('dialog');
     await expect(dialog).toBeVisible();
 
-    await dialog.getByLabel('جست‌وجوی کاربران').fill(peer.universityId);
+    await dialog.getByLabel('جست‌وجوی کاربرها').fill(peer.universityId);
     await dialog.getByRole('button', { name: peer.name }).click();
 
     await expect(student.page).toHaveURL(/\/chats\/[0-9a-f-]{36}$/);
@@ -23,7 +23,7 @@ test.describe('starting a direct conversation', () => {
     await student.page.getByRole('button', { name: 'گفت‌وگوی جدید' }).click();
 
     const dialog = student.page.getByRole('dialog');
-    await dialog.getByLabel('جست‌وجوی کاربران').fill('کسی‌که‌وجود‌ندارد');
+    await dialog.getByLabel('جست‌وجوی کاربرها').fill('کسی‌که‌وجود‌ندارد');
 
     await expect(dialog.getByText('کسی با این مشخصات پیدا نشد.')).toBeVisible();
   });
@@ -55,11 +55,11 @@ test.describe('creating a group', () => {
 
     const dialog = professor.page.getByRole('dialog');
     await dialog.getByRole('tab', { name: 'گروه' }).click();
-    await dialog.getByLabel('نام گروه').fill('مهندسی نرم‌افزار — گروه ۱');
+    await dialog.getByLabel('اسم گروه').fill('مهندسی نرم‌افزار — گروه ۱');
 
     await dialog.getByRole('button', { name: 'گروه درسی' }).click();
 
-    await dialog.getByLabel('جست‌وجوی کاربران').fill(attendee.universityId);
+    await dialog.getByLabel('جست‌وجوی کاربرها').fill(attendee.universityId);
     await dialog.getByRole('button', { name: attendee.name }).click();
 
     await dialog.getByRole('button', { name: 'ساخت گروه' }).click();
@@ -127,7 +127,7 @@ test.describe('membership', () => {
 
     await expect(muted.page.getByLabel('متن پیام')).toBeHidden();
     await expect(
-      muted.page.getByText('شما در این گفت‌وگو بی‌صدا شده‌اید و نمی‌توانید پیام بفرستید.')
+      muted.page.getByText('تو این گفت‌وگو بی‌صدا شدی و نمی‌تونی پیام بدی.')
     ).toBeVisible();
   });
 });

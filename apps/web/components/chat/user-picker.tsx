@@ -37,9 +37,9 @@ export function UserPicker({
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="جست‌وجو با نام یا شماره دانشجویی/کارمندی"
+          placeholder="جست‌وجو با اسم یا شماره دانشجویی/کارمندی"
           className="ps-9"
-          aria-label="جست‌وجوی کاربران"
+          aria-label="جست‌وجوی کاربرها"
         />
         {isCatchingUp && (
           <Loader2Icon className="pointer-events-none absolute inset-y-0 inset-e-3 my-auto size-4 animate-spin text-muted-foreground" />
@@ -50,11 +50,11 @@ export function UserPicker({
         {directory.isPending ? (
           <div className="flex h-64 items-center justify-center">
             <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
-            <span className="sr-only">در حال بارگذاری…</span>
+            <span className="sr-only">داره میاد…</span>
           </div>
         ) : directory.isError ? (
           <p className="flex h-64 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-            فهرست کاربران بارگذاری نشد.
+            لیست کاربرها نیومد!
           </p>
         ) : directory.data.length === 0 ? (
           <p className="flex h-64 flex-col items-center justify-center gap-2 px-4 text-center text-sm text-muted-foreground">

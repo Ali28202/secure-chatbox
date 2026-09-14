@@ -76,8 +76,8 @@ function DeleteChatDialog({
         <DialogHeader>
           <DialogTitle>حذف «{title}»؟</DialogTitle>
           <DialogDescription>
-            گفت‌وگو برای همهٔ اعضا ناپدید می‌شود و دیگر نمی‌توانند پیام‌هایش را ببینند. هیچ پیامی از
-            پایگاه داده پاک نمی‌شود، ولی از داخل برنامه راهی برای برگرداندنش نیست.
+            گفت‌وگو برای همهٔ اعضا ناپدید می‌شه و دیگه نمی‌تونن پیام‌هاش رو ببینن. هیچ پیامی از
+            دیتابیس پاک نمی‌شه، ولی از داخل برنامه راهی برای برگردوندنش نیست.
           </DialogDescription>
         </DialogHeader>
 
@@ -96,7 +96,7 @@ function DeleteChatDialog({
             }
           >
             {deleteChat.isPending && <Loader2Icon className="animate-spin" />}
-            بله، حذف کن
+            آره، حذفش کن
           </Button>
 
           <DialogClose render={<Button variant="outline" />}>انصراف</DialogClose>
@@ -223,7 +223,7 @@ export function ChatDetail({ chatId }: { chatId: string }) {
     return (
       <div className="flex flex-1 items-center justify-center" aria-busy>
         <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
-        <span className="sr-only">در حال بارگذاری…</span>
+        <span className="sr-only">داره میاد…</span>
       </div>
     );
   }
@@ -237,7 +237,7 @@ export function ChatDetail({ chatId }: { chatId: string }) {
           این گروه یا کلاً پاک شده، یا تو عضوش نیستی.
         </p>
         <Button variant="outline" size="sm" render={<Link href={ROUTES.chats} />}>
-          بازگشت به فهرست گفت‌وگوها
+          برگرد به فهرست گفت‌وگوها
         </Button>
       </div>
     );

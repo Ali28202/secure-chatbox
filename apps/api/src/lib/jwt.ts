@@ -67,7 +67,7 @@ export async function verifyToken(type: TokenType, token: string): Promise<AuthT
   try {
     payload = await verify(token, SECRETS[type], { alg: ALGORITHM });
   } catch {
-    throw Errors.unauthorized('نشست شما معتبر نیست یا منقضی شده است. دوباره وارد شوید.');
+    throw Errors.unauthorized('نشستت معتبر نیست یا تموم شده. دوباره وارد شو.');
   }
 
   if (
@@ -77,7 +77,7 @@ export async function verifyToken(type: TokenType, token: string): Promise<AuthT
     typeof payload.did !== 'string' ||
     typeof payload.sid !== 'string'
   ) {
-    throw Errors.unauthorized('نشست شما معتبر نیست یا منقضی شده است. دوباره وارد شوید.');
+    throw Errors.unauthorized('نشستت معتبر نیست یا تموم شده. دوباره وارد شو.');
   }
 
   return payload as AuthTokenPayload;

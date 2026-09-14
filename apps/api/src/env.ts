@@ -74,7 +74,7 @@ if (!parsed.success) {
     const name = issue.path.length > 0 ? issue.path.map(String).join('.') : '(root)';
     console.error(`  • ${name}: ${issue.message}`);
   }
-  console.error('\n  فایل .env در ریشهٔ پروژه را با .env.example مقایسه کنید.\n');
+  console.error('\n  فایل .env ریشهٔ پروژه رو با .env.example مقایسه کن.\n');
   process.exit(1);
 }
 

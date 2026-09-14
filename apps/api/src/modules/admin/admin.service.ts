@@ -50,13 +50,13 @@ class AdminService {
     input: AdminUpdateUserInput
   ): Promise<AdminUserDto> {
     if (actorId === userId) {
-      throw Errors.forbidden('نمی‌توانید حساب خودتان را از این بخش تغییر دهید.');
+      throw Errors.forbidden('حساب خودت رو از اینجا نمی‌تونی عوض کنی.');
     }
 
     const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
 
     if (!target) {
-      throw Errors.notFound('این کاربر وجود ندارد.');
+      throw Errors.notFound('همچین کاربری نیست.');
     }
 
     const reviewed = input.status !== undefined;

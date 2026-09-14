@@ -11,7 +11,7 @@ import type { AppEnv } from '../types';
  */
 export const requireAdmin = createMiddleware<AppEnv>(async (c, next) => {
   if (c.get('user').role !== 'ADMIN') {
-    throw Errors.forbidden('این بخش تنها در دسترس مدیران سامانه است.');
+    throw Errors.forbidden('این بخش فقط مال مدیرهای سامانه‌ست.');
   }
 
   await next();

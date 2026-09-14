@@ -20,7 +20,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     return (
       <div className="flex flex-1 items-center justify-center" aria-busy>
         <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
-        <span className="sr-only">در حال بارگذاری…</span>
+        <span className="sr-only">داره میاد…</span>
       </div>
     );
   }

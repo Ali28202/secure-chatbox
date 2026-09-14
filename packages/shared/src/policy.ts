@@ -47,9 +47,9 @@ export function canCreateChat(user: PolicyUser, type: ChatType): boolean {
 export type SendBlock = 'MUTED' | 'READ_ONLY' | 'ARCHIVED';
 
 export const SEND_BLOCK_MESSAGES: Record<SendBlock, string> = {
-  MUTED: 'شما در این گفت‌وگو بی‌صدا شده‌اید و نمی‌توانید پیام بفرستید.',
-  READ_ONLY: 'این گفت‌وگو فقط‌خواندنی است.',
-  ARCHIVED: 'این گفت‌وگو آرشیو شده است. برای فرستادن پیام باید از آرشیو خارج شود.',
+  MUTED: 'تو این گفت‌وگو بی‌صدا شدی و نمی‌تونی پیام بدی.',
+  READ_ONLY: 'این گفت‌وگو فقط‌خواندنیه.',
+  ARCHIVED: 'این گفت‌وگو آرشیو شده. برای پیام دادن باید از آرشیو درش بیاری.',
 };
 
 export function sendBlock(chat: PolicyChat, member: PolicyMember): SendBlock | null {

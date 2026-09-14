@@ -19,7 +19,7 @@ userRoutes.get('/', zValidator('query', userSearchSchema, onValidationError), as
 const avatarBodyLimit = bodyLimit({
   maxSize: AVATAR.maxBytes + 64 * 1024,
   onError: () => {
-    throw Errors.payloadTooLarge('حجم تصویر بیش از حد مجاز است.');
+    throw Errors.payloadTooLarge('حجم عکس بیشتر از حد مجازه.');
   },
 });
 
@@ -29,8 +29,8 @@ userRoutes.put('/me/avatar', avatarBodyLimit, async (c) => {
 
   if (!(file instanceof File)) {
     throw Errors.validation(
-      [{ path: 'avatar', message: 'تصویری انتخاب نشده است.' }],
-      'تصویری انتخاب نشده است.'
+      [{ path: 'avatar', message: 'عکسی انتخاب نکردی.' }],
+      'عکسی انتخاب نکردی.'
     );
   }
 
@@ -52,7 +52,7 @@ userRoutes.get('/:userId/avatar', async (c) => {
   const avatar = await userService.readAvatar(c.req.param('userId'));
 
   if (!avatar) {
-    throw Errors.notFound('این کاربر تصویری ندارد.');
+    throw Errors.notFound('این کاربر عکسی نداره.');
   }
 
   return new Response(avatar.bytes, {

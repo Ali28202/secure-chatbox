@@ -43,7 +43,7 @@ authRoutes.post('/refresh', async (c) => {
 
   try {
     if (!token) {
-      throw Errors.unauthorized('نشست شما به پایان رسیده است. دوباره وارد شوید.');
+      throw Errors.unauthorized('نشستت تموم شده. دوباره وارد شو.');
     }
 
     const { user, tokens } = await authService.refresh(token);
@@ -98,7 +98,7 @@ authRoutes.delete('/sessions/:sessionId', requireAuth, async (c) => {
   const deviceIds = await authService.revokeSessions(c.get('user').id, { sessionId });
 
   if (deviceIds.length === 0) {
-    throw Errors.notFound('این نشست وجود ندارد یا از قبل پایان یافته است.');
+    throw Errors.notFound('این نشست نیست یا از قبل تموم شده.');
   }
 
   await disconnectAll(c.get('user').id, deviceIds);

@@ -3,56 +3,56 @@ import { GLOBAL_ROLES, LIMITS } from '../constants';
 import { normalizePhoneNumber, toPersianDigits } from '../format';
 
 export const universityIdSchema = z
-  .string({ error: 'شماره دانشجویی خود را وارد کنید.' })
+  .string({ error: 'شماره دانشجوییت رو بنویس.' })
   .trim()
   .min(LIMITS.universityId.min, {
-    error: `شماره دانشجویی باید دست‌کم ${toPersianDigits(LIMITS.universityId.min)} کاراکتر باشد.`,
+    error: `شماره دانشجویی باید حداقل ${toPersianDigits(LIMITS.universityId.min)} کاراکتر باشه.`,
   })
   .max(LIMITS.universityId.max, {
-    error: `شماره دانشجویی نمی‌تواند بیشتر از ${toPersianDigits(LIMITS.universityId.max)} کاراکتر باشد.`,
+    error: `شماره دانشجویی نباید بیشتر از ${toPersianDigits(LIMITS.universityId.max)} کاراکتر باشه.`,
   });
 
 export const phoneNumberSchema = z
-  .string({ error: 'شمارهٔ تلفن همراه خود را وارد کنید.' })
+  .string({ error: 'شمارهٔ موبایلت رو بنویس.' })
   .transform(normalizePhoneNumber)
   .refine((value) => /^09\d{9}$/.test(value), {
-    error: 'شمارهٔ تلفن همراه باید ۱۱ رقم و به شکل ۰۹۱۲۳۴۵۶۷۸۹ باشد.',
+    error: 'شمارهٔ موبایل باید ۱۱ رقم باشه، مثل ۰۹۱۲۳۴۵۶۷۸۹.',
   });
 
 export const identifierSchema = z
-  .string({ error: 'شماره دانشجویی یا شمارهٔ تلفن را وارد کنید.' })
+  .string({ error: 'شماره دانشجویی یا شمارهٔ تلفنت رو بنویس.' })
   .trim()
   .min(LIMITS.universityId.min, {
-    error: `شماره باید دست‌کم ${toPersianDigits(LIMITS.universityId.min)} کاراکتر باشد.`,
+    error: `شماره باید حداقل ${toPersianDigits(LIMITS.universityId.min)} کاراکتر باشه.`,
   })
   .max(LIMITS.universityId.max, {
-    error: `شماره نمی‌تواند بیشتر از ${toPersianDigits(LIMITS.universityId.max)} کاراکتر باشد.`,
+    error: `شماره نباید بیشتر از ${toPersianDigits(LIMITS.universityId.max)} کاراکتر باشه.`,
   });
 
 export const deviceIdSchema = z
-  .string({ error: 'شناسهٔ دستگاه ارسال نشده است.' })
+  .string({ error: 'شناسهٔ دستگاه فرستاده نشده.' })
   .trim()
-  .min(LIMITS.deviceId.min, { error: 'شناسهٔ دستگاه معتبر نیست.' })
-  .max(LIMITS.deviceId.max, { error: 'شناسهٔ دستگاه معتبر نیست.' })
-  .regex(/^[A-Za-z0-9_-]+$/, { error: 'شناسهٔ دستگاه معتبر نیست.' });
+  .min(LIMITS.deviceId.min, { error: 'شناسهٔ دستگاه درست نیست.' })
+  .max(LIMITS.deviceId.max, { error: 'شناسهٔ دستگاه درست نیست.' })
+  .regex(/^[A-Za-z0-9_-]+$/, { error: 'شناسهٔ دستگاه درست نیست.' });
 
 export const passwordSchema = z
-  .string({ error: 'گذرواژه را وارد کنید.' })
+  .string({ error: 'گذرواژه‌ات رو بنویس.' })
   .min(LIMITS.password.min, {
-    error: `گذرواژه باید دست‌کم ${toPersianDigits(LIMITS.password.min)} کاراکتر باشد.`,
+    error: `گذرواژه باید حداقل ${toPersianDigits(LIMITS.password.min)} کاراکتر باشه.`,
   })
   .max(LIMITS.password.max, {
-    error: `گذرواژه نمی‌تواند بیشتر از ${toPersianDigits(LIMITS.password.max)} کاراکتر باشد.`,
+    error: `گذرواژه نباید بیشتر از ${toPersianDigits(LIMITS.password.max)} کاراکتر باشه.`,
   });
 
 export const nameSchema = z
-  .string({ error: 'نام و نام خانوادگی را وارد کنید.' })
+  .string({ error: 'اسم و فامیلت رو بنویس.' })
   .trim()
   .min(LIMITS.name.min, {
-    error: `نام باید دست‌کم ${toPersianDigits(LIMITS.name.min)} کاراکتر باشد.`,
+    error: `نام باید حداقل ${toPersianDigits(LIMITS.name.min)} کاراکتر باشه.`,
   })
   .max(LIMITS.name.max, {
-    error: `نام نمی‌تواند بیشتر از ${toPersianDigits(LIMITS.name.max)} کاراکتر باشد.`,
+    error: `نام نباید بیشتر از ${toPersianDigits(LIMITS.name.max)} کاراکتر باشه.`,
   });
 
 export const loginFormSchema = z.object({
@@ -72,7 +72,7 @@ export const registerSchema = z.object({
 });
 
 export const createUserSchema = registerSchema.extend({
-  role: z.enum(GLOBAL_ROLES, { error: 'نقش انتخاب‌شده معتبر نیست.' }).default('STUDENT'),
+  role: z.enum(GLOBAL_ROLES, { error: 'این نقش درست نیست.' }).default('STUDENT'),
 });
 
 export type LoginFormValues = z.infer<typeof loginFormSchema>;

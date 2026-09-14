@@ -52,7 +52,7 @@ test.describe('the admin panel', () => {
     await admin.page.keyboard.press('Escape');
 
     // `Button render={<Link/>}` is an anchor that keeps `role="button"`.
-    await admin.page.getByRole('button', { name: 'بازگشت به گفت‌وگوها' }).click();
+    await admin.page.getByRole('button', { name: 'برگرد به گفت‌وگوها' }).click();
     await expect(admin.page).toHaveURL('/chats');
   });
 

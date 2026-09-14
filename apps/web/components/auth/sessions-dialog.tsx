@@ -1,6 +1,6 @@
 'use client';
 
-import { formatMessageTime } from '@repo/shared';
+import { formatMessageTime, toPersianDigits } from '@repo/shared';
 import { Loader2Icon, MonitorSmartphoneIcon, XIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +18,7 @@ import { getApiErrorMessage } from '@/lib/api';
 
 /** A user agent is unreadable; this turns it into something a person recognises. */
 function describeAgent(userAgent: string | null): string {
-  if (!userAgent) return 'دستگاه ناشناس';
+  if (!userAgent) return 'یه دستگاه ناشناس';
 
   const browser = /Firefox\/|FxiOS/.test(userAgent)
     ? 'Firefox'
@@ -56,27 +56,25 @@ export function SessionsDialog() {
     <Dialog>
       <DialogTrigger render={<Button variant="ghost" className="h-9 w-full justify-start gap-2" />}>
         <MonitorSmartphoneIcon />
-        دستگاه‌های واردشده
+        دستگاه‌هایی که وارد شدن
       </DialogTrigger>
 
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>دستگاه‌های واردشده</DialogTitle>
+          <DialogTitle>دستگاه‌هایی که وارد شدن</DialogTitle>
           <DialogDescription>
-            هر ورود یک نشست است. پایان‌دادن به یک نشست همان لحظه اثر می‌کند — نه وقتی توکنش منقضی
-            شود.
+            هر جایی که با حسابت وارد شدی اینجاست. اگه یکیشون رو نمی‌شناسی، همین‌جا بیرونش کن — همون
+            لحظه قطع می‌شه.
           </DialogDescription>
         </DialogHeader>
 
         {sessions.isPending ? (
           <div className="flex justify-center py-8" aria-busy>
             <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
-            <span className="sr-only">در حال بارگذاری…</span>
+            <span className="sr-only">داره میاد…</span>
           </div>
         ) : sessions.isError ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            فهرست نشست‌ها بارگذاری نشد.
-          </p>
+          <p className="py-8 text-center text-sm text-muted-foreground">لیست دستگاه‌ها لود نشد!</p>
         ) : (
           <ul className="max-h-72 space-y-1 overflow-y-auto">
             {sessions.data.map((session) => (
@@ -88,12 +86,12 @@ export function SessionsDialog() {
                     {describeAgent(session.userAgent)}
                     {session.isCurrent && (
                       <Badge variant="secondary" className="ms-2">
-                        همین دستگاه
+                        همینی که توشی
                       </Badge>
                     )}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
-                    آخرین استفاده: {formatMessageTime(session.lastUsedAt)}
+                    آخرین بار {formatMessageTime(session.lastUsedAt)}
                     {session.ipAddress && (
                       <>
                         {' · '}
@@ -108,11 +106,11 @@ export function SessionsDialog() {
                     variant="ghost"
                     size="icon-sm"
                     disabled={revoke.isPending}
-                    aria-label={`پایان‌دادن به نشست ${describeAgent(session.userAgent)}`}
+                    aria-label={`بیرون کردن ${describeAgent(session.userAgent)}`}
                     onClick={() =>
                       revoke.mutate(session.id, {
                         onError: (error) => toast.error(getApiErrorMessage(error)),
-                        onSuccess: () => toast.success('نشست پایان یافت.'),
+                        onSuccess: () => toast.success('اون دستگاه بیرون رفت.'),
                       })
                     }
                   >
@@ -131,11 +129,12 @@ export function SessionsDialog() {
             onClick={() =>
               revokeOthers.mutate(undefined, {
                 onError: (error) => toast.error(getApiErrorMessage(error)),
-                onSuccess: ({ revoked }) => toast.success(`${revoked} نشست پایان یافت.`),
+                onSuccess: ({ revoked }) =>
+                  toast.success(`${toPersianDigits(revoked)} دستگاه بیرون رفت.`),
               })
             }
           >
-            خروج از همهٔ دستگاه‌های دیگر
+            بقیه رو بیرون کن
           </Button>
         )}
       </DialogContent>

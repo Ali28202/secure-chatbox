@@ -98,8 +98,8 @@ export function ChatMembersDialog({
         <DialogHeader>
           <DialogTitle>اعضای گفت‌وگو</DialogTitle>
           <DialogDescription>
-            همه کسایی که تو این لیستن، می‌تونن پیام‌های این چت رو بخونن — از جمله اون‌هایی که قبل از
-            اضافه‌شدنشون فرستاده شده.
+            هر کی تو این لیسته می‌تونه پیام‌های این چت رو بخونه — حتی اون‌هایی که قبل از اومدنش
+            فرستاده شده.
           </DialogDescription>
         </DialogHeader>
 
@@ -197,7 +197,7 @@ export function ChatMembersDialog({
                 emptyHint="کسی با این مشخصات پیدا نشد."
               />
               <Button variant="ghost" size="sm" onClick={() => setIsPicking(false)}>
-                بستن فهرست
+                بستن لیست
               </Button>
             </div>
           ) : (

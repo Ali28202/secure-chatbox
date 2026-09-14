@@ -36,14 +36,14 @@ import {
 import { countUnread, readWatermarks } from '../../lib/receipts';
 import { socketGateway } from '../../socket/gateway';
 
-const CHAT_NOT_FOUND = 'این گفت‌وگو وجود ندارد یا به آن دسترسی ندارید.';
-const NOT_CHAT_ADMIN = 'فقط مدیر گفت‌وگو می‌تواند این کار را انجام دهد.';
-const DIRECT_IMMUTABLE = 'اعضای گفت‌وگوی خصوصی قابل تغییر نیستند.';
+const CHAT_NOT_FOUND = 'این گفت‌وگو نیست یا بهش دسترسی نداری.';
+const NOT_CHAT_ADMIN = 'فقط مدیر گفت‌وگو می‌تونه این کار رو بکنه.';
+const DIRECT_IMMUTABLE = 'اعضای گفت‌وگوی خصوصی رو نمی‌شه عوض کرد.';
 // Distinct from NOT_CHAT_ADMIN on purpose: the person reading this *is* an
 // admin of the chat, so being told they are not one would send them looking
 // for the wrong thing.
-const NOT_ROSTER_MANAGER = 'تغییر اعضا تنها از عهدهٔ استادان و سازندهٔ گفت‌وگو برمی‌آید.';
-const CREATOR_PROTECTED = 'سازندهٔ گفت‌وگو را نمی‌توان تغییر داد یا حذف کرد.';
+const NOT_ROSTER_MANAGER = 'فقط استادها و سازندهٔ گفت‌وگو می‌تونن اعضا رو عوض کنن.';
+const CREATOR_PROTECTED = 'سازندهٔ گفت‌وگو رو نمی‌شه تغییر داد یا حذف کرد.';
 
 class ChatService {
   async getUserChats(userId: string, query: ListChatsQuery): Promise<ChatListItemDto[]> {
@@ -126,7 +126,7 @@ class ChatService {
     });
 
     if (!user?.isActive) {
-      throw Errors.notFound('این کاربر وجود ندارد.');
+      throw Errors.notFound('همچین کاربری نیست.');
     }
 
     const existing = await prisma.chatMember.findUnique({
@@ -135,7 +135,7 @@ class ChatService {
     });
 
     if (existing) {
-      throw Errors.conflict('این کاربر از قبل عضو گفت‌وگو است.');
+      throw Errors.conflict('این کاربر از قبل عضوه.');
     }
 
     const member = await prisma.chatMember.create({
@@ -164,7 +164,7 @@ class ChatService {
         throw Errors.forbidden(
           chat.type === 'DIRECT'
             ? DIRECT_IMMUTABLE
-            : 'پیش از ترک گفت‌وگو باید مدیریت آن را به عضو دیگری بسپارید.'
+            : 'قبل از رفتن باید مدیریت گفت‌وگو رو به یکی دیگه بسپاری.'
         );
       }
     } else if (chat.type === 'DIRECT') {
@@ -269,7 +269,7 @@ class ChatService {
         chat.type === 'DIRECT'
           ? DIRECT_IMMUTABLE
           : actor.user.id === userId
-            ? 'نمی‌توانید عضویت خودتان را تغییر دهید.'
+            ? 'عضویت خودت رو نمی‌تونی عوض کنی.'
             : isChatCreator(chat, userId)
               ? CREATOR_PROTECTED
               : NOT_ROSTER_MANAGER
@@ -277,7 +277,7 @@ class ChatService {
     }
 
     if (input.isMuted === true && !canMuteMember(chat, actor, target)) {
-      throw Errors.forbidden('مدیر گفت‌وگو را نمی‌توان بی‌صدا کرد.');
+      throw Errors.forbidden('مدیر گفت‌وگو رو نمی‌شه بی‌صدا کرد.');
     }
 
     const updated = await prisma.chatMember.update({
@@ -352,8 +352,8 @@ class ChatService {
   private async createDirectChat(creatorId: string, otherUserId: string): Promise<ChatDto> {
     if (creatorId === otherUserId) {
       throw Errors.validation(
-        [{ path: 'memberId', message: 'نمی‌توانید با خودتان گفت‌وگو کنید.' }],
-        'نمی‌توانید با خودتان گفت‌وگو کنید.'
+        [{ path: 'memberId', message: 'با خودت که نمی‌تونی چت کنی.' }],
+        'با خودت که نمی‌تونی چت کنی.'
       );
     }
 
@@ -363,7 +363,7 @@ class ChatService {
     });
 
     if (!other?.isActive) {
-      throw Errors.notFound('این کاربر وجود ندارد.');
+      throw Errors.notFound('همچین کاربری نیست.');
     }
 
     const pair = [creatorId, otherUserId];
@@ -412,8 +412,8 @@ class ChatService {
 
       if (found !== memberIds.length) {
         throw Errors.validation(
-          [{ path: 'memberIds', message: 'یکی از کاربران انتخاب‌شده وجود ندارد.' }],
-          'یکی از کاربران انتخاب‌شده وجود ندارد.'
+          [{ path: 'memberIds', message: 'یکی از کسایی که انتخاب کردی وجود نداره.' }],
+          'یکی از کسایی که انتخاب کردی وجود نداره.'
         );
       }
     }

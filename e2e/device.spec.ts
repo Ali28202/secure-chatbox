@@ -66,7 +66,7 @@ test.describe('a second device', () => {
 
     await expect(student.page).toHaveURL(/\/login/);
     await expect(
-      student.page.getByText('حساب شما روی دستگاه دیگری وارد شده است.', { exact: false })
+      student.page.getByText('حسابت روی یه دستگاه دیگه وارد شده', { exact: false })
     ).toBeVisible();
   });
 

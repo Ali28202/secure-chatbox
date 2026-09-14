@@ -20,7 +20,7 @@ import { advanceReceipts, countUnread, createDeliveredReceipts } from '../../lib
 import { removeStored, storeUploads } from '../../lib/storage';
 import { socketGateway } from '../../socket/gateway';
 
-const MESSAGE_NOT_FOUND = 'این پیام وجود ندارد.';
+const MESSAGE_NOT_FOUND = 'همچین پیامی نیست.';
 
 const PINNED_LIMIT = 50;
 
@@ -53,8 +53,8 @@ class MessageService {
     const content = input.content?.trim() || null;
     if (content === null && files.length === 0) {
       throw Errors.validation(
-        [{ path: 'content', message: 'پیام نمی‌تواند خالی باشد.' }],
-        'پیام نمی‌تواند خالی باشد.'
+        [{ path: 'content', message: 'پیام نمی‌تونه خالی باشه.' }],
+        'پیام نمی‌تونه خالی باشه.'
       );
     }
 
@@ -66,8 +66,8 @@ class MessageService {
 
       if (!target) {
         throw Errors.validation(
-          [{ path: 'replyToId', message: 'پیامی که به آن پاسخ می‌دهید در این گفت‌وگو نیست.' }],
-          'پیامی که به آن پاسخ می‌دهید در این گفت‌وگو نیست.'
+          [{ path: 'replyToId', message: 'پیامی که بهش جواب می‌دی تو این گفت‌وگو نیست.' }],
+          'پیامی که بهش جواب می‌دی تو این گفت‌وگو نیست.'
         );
       }
     }
@@ -133,7 +133,7 @@ class MessageService {
     }
 
     if (!canDeleteMessage(member, message.senderId)) {
-      throw Errors.forbidden('تنها فرستندهٔ پیام یا مدیر گفت‌وگو می‌تواند آن را حذف کند.');
+      throw Errors.forbidden('فقط فرستندهٔ پیام یا مدیر گفت‌وگو می‌تونه حذفش کنه.');
     }
 
     if (message.isDeleted) {
@@ -189,7 +189,7 @@ class MessageService {
     isPinned: boolean
   ): Promise<MessageDto> {
     if (!canPinMessage(member)) {
-      throw Errors.forbidden('فقط مدیر گفت‌وگو می‌تواند پیام‌ها را سنجاق کند.');
+      throw Errors.forbidden('فقط مدیر گفت‌وگو می‌تونه پیام پین کنه.');
     }
 
     const message = await prisma.message.findFirst({
@@ -203,8 +203,8 @@ class MessageService {
 
     if (message.isDeleted) {
       throw Errors.validation(
-        [{ path: 'isPinned', message: 'پیام حذف‌شده را نمی‌توان سنجاق کرد.' }],
-        'پیام حذف‌شده را نمی‌توان سنجاق کرد.'
+        [{ path: 'isPinned', message: 'پیام حذف‌شده رو نمی‌شه پین کرد.' }],
+        'پیام حذف‌شده رو نمی‌شه پین کرد.'
       );
     }
 
@@ -250,8 +250,8 @@ class MessageService {
 
     if (message.isDeleted) {
       throw Errors.validation(
-        [{ path: 'emoji', message: 'به پیام حذف‌شده نمی‌توان واکنش داد.' }],
-        'به پیام حذف‌شده نمی‌توان واکنش داد.'
+        [{ path: 'emoji', message: 'به پیام حذف‌شده نمی‌شه واکنش داد.' }],
+        'به پیام حذف‌شده نمی‌شه واکنش داد.'
       );
     }
 

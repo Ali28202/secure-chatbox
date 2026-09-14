@@ -76,7 +76,7 @@ export function MessageSearchDialog() {
         <DialogHeader>
           <DialogTitle>جست‌وجوی پیام‌ها</DialogTitle>
           <DialogDescription>
-            فقط در گفت‌وگوهایی می‌گرده که عضوشی. پیام‌های حذف‌شده پیدا نمی‌شن.
+            فقط تو گفت‌وگوهایی می‌گرده که عضوشی. پیام‌های حذف‌شده پیدا نمی‌شن.
           </DialogDescription>
         </DialogHeader>
 
@@ -87,7 +87,7 @@ export function MessageSearchDialog() {
             value={term}
             onChange={(event) => setTerm(event.target.value)}
             maxLength={LIMITS.search.max}
-            placeholder="دنبال چه می‌گردی؟"
+            placeholder="دنبال چی می‌گردی؟"
             aria-label="عبارت جست‌وجو"
             className="ps-9"
           />
@@ -99,7 +99,7 @@ export function MessageSearchDialog() {
         <ScrollArea className="h-80 rounded-md border">
           {tooShort ? (
             <p className="flex h-80 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-              دست‌کم {toPersianDigits(LIMITS.search.min)} کاراکتر بنویس.
+              حداقل {toPersianDigits(LIMITS.search.min)} کاراکتر بنویس.
             </p>
           ) : !results.data ? (
             <p className="flex h-80 items-center justify-center px-4 text-center text-sm text-muted-foreground">

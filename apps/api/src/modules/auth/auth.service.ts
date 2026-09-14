@@ -23,14 +23,12 @@ import {
   verifyPassword,
 } from '../../lib/password';
 
-const INVALID_CREDENTIALS = 'شناسه یا گذرواژه نادرست است.';
-const ACCOUNT_DISABLED = 'حساب کاربری شما غیرفعال شده است. با مدیر سامانه تماس بگیرید.';
-const ACCOUNT_PENDING =
-  'حساب شما هنوز تأیید نشده است. پس از تأیید مدیر سامانه می‌توانید وارد شوید.';
-const ACCOUNT_REJECTED = 'درخواست حساب شما پذیرفته نشده است. با مدیر سامانه تماس بگیرید.';
-const SESSION_INVALID = 'نشست شما معتبر نیست یا منقضی شده است. دوباره وارد شوید.';
-const DEVICE_MISMATCH =
-  'حساب شما روی دستگاه دیگری وارد شده است. برای ادامه، دوباره از همین دستگاه وارد شوید.';
+const INVALID_CREDENTIALS = 'شناسه یا گذرواژه درست نیست.';
+const ACCOUNT_DISABLED = 'حسابت غیرفعال شده. با مدیر سامانه تماس بگیر.';
+const ACCOUNT_PENDING = 'حسابت هنوز تأیید نشده. وقتی مدیر سامانه تأییدش کرد می‌تونی وارد شی.';
+const ACCOUNT_REJECTED = 'درخواست حسابت پذیرفته نشده. با مدیر سامانه تماس بگیر.';
+const SESSION_INVALID = 'نشستت معتبر نیست یا تموم شده. دوباره وارد شو.';
+const DEVICE_MISMATCH = 'حسابت روی یه دستگاه دیگه وارد شده. برای ادامه، دوباره از همین‌جا وارد شو.';
 
 /** Approval is a gate on *using* the account, so it is enforced on every call. */
 function assertApproved(status: AccountStatus): void {
@@ -67,8 +65,8 @@ class AuthService {
     if (existing) {
       throw Errors.conflict(
         existing.universityId === input.universityId
-          ? 'این شماره دانشجویی قبلاً ثبت شده است.'
-          : 'این شمارهٔ تلفن قبلاً ثبت شده است.'
+          ? 'این شماره دانشجویی قبلاً ثبت شده.'
+          : 'این شمارهٔ تلفن قبلاً ثبت شده.'
       );
     }
 

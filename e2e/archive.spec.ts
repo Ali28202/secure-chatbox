@@ -18,7 +18,9 @@ test.describe('archiving a group', () => {
     // Closed to the admin who archived it too — archiving says the conversation
     // is over, which read-only does not.
     await expect(professor.page.getByLabel('متن پیام')).toBeHidden();
-    await expect(professor.page.getByText('این گفت‌وگو آرشیو شده است.')).toBeVisible();
+    await expect(
+      professor.page.getByText('این گفت‌وگو آرشیو شده.', { exact: false })
+    ).toBeVisible();
 
     const refused = await attendee.api
       .raw()

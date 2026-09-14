@@ -73,7 +73,7 @@ export function ChatList({ activeChatId }: { activeChatId?: string }) {
         {tabs}
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
           <AlertCircleIcon className="size-8 text-muted-foreground" />
-          <p className="font-medium">گفت‌وگوهات لود نشدن!</p>
+          <p className="font-medium">گفت‌وگوهات نیومدن!</p>
           <p className="max-w-sm text-sm text-muted-foreground">
             انگار به شبکه دانشگاه وصل نیستی! اتصالت رو چک کن و دوباره امتحان کن.
           </p>

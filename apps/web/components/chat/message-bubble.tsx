@@ -42,7 +42,7 @@ function ReplyQuote({
       <p className="font-medium">{reply.senderName}</p>
       <p className={cn('line-clamp-2', (reply.isDeleted || !reply.content) && 'italic')}>
         {reply.isDeleted
-          ? 'این پیام حذف شده است.'
+          ? 'این پیام حذف شده.'
           : (reply.content ?? getAttachmentSummary(reply.attachmentCount))}
       </p>
     </div>
@@ -142,7 +142,7 @@ export function MessageBubble({
           {message.isDeleted ? (
             <p className="flex items-center gap-1.5 italic">
               <Trash2Icon className="size-3.5 shrink-0" />
-              این پیام حذف شده است.
+              این پیام حذف شده.
             </p>
           ) : (
             <>

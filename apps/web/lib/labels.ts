@@ -1,7 +1,7 @@
 import type { AccountStatus, GlobalRole } from '@repo/shared';
 
 export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
-  PENDING: 'در انتظار تأیید',
+  PENDING: 'منتظر تأیید',
   APPROVED: 'تأییدشده',
   REJECTED: 'ردشده',
 };

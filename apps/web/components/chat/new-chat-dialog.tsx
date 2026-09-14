@@ -114,7 +114,7 @@ export function NewChatDialog() {
 
           <TabsContent value="group" className="flex flex-col gap-3 pt-3">
             <Field>
-              <FieldLabel htmlFor="chat-title">نام گروه</FieldLabel>
+              <FieldLabel htmlFor="chat-title">اسم گروه</FieldLabel>
               <Input
                 id="chat-title"
                 value={title}

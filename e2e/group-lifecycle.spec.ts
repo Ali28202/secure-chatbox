@@ -55,7 +55,7 @@ test.describe('deleting a group', () => {
 
     await professor.page.getByRole('button', { name: 'تنظیمات گفت‌وگو' }).click();
     await professor.page.getByRole('menuitem', { name: 'حذف گروه' }).click();
-    await professor.page.getByRole('dialog').getByRole('button', { name: 'بله، حذف کن' }).click();
+    await professor.page.getByRole('dialog').getByRole('button', { name: 'آره، حذفش کن' }).click();
 
     await expect(professor.page).toHaveURL('/chats');
     expect((await attendee.api.raw().get(`${API_URL}/api/chats/${chat.id}`)).status()).toBe(404);

@@ -152,7 +152,7 @@ export function MessageList({
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
         <AlertCircleIcon className="size-8 text-muted-foreground" />
-        <p className="font-medium">پیام‌ها بارگذاری نشد</p>
+        <p className="font-medium">پیام‌ها نیومدن!</p>
         <Button variant="outline" size="sm" onClick={() => void query.refetch()}>
           تلاش دوباره
         </Button>

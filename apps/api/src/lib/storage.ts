@@ -75,21 +75,21 @@ function signatureMatches(type: AllowedFileType, head: Uint8Array): boolean {
 export async function storeAvatar(file: File): Promise<string> {
   const reject = (message: string) => Errors.validation([{ path: 'avatar', message }], message);
 
-  if (file.size === 0) throw reject('فایل خالی است.');
-  if (file.size > AVATAR.maxBytes) throw reject('حجم تصویر بیش از حد مجاز است.');
+  if (file.size === 0) throw reject('فایل خالیه.');
+  if (file.size > AVATAR.maxBytes) throw reject('حجم عکس بیشتر از حد مجازه.');
 
   const type = file.type.split(';')[0]?.trim() ?? '';
 
   if (!(AVATAR.types as readonly string[]).includes(type)) {
-    throw reject('تصویر باید PNG، JPEG یا WebP باشد.');
+    throw reject('عکس باید PNG، JPEG یا WebP باشه.');
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
 
-  if (bytes.byteLength > AVATAR.maxBytes) throw reject('حجم تصویر بیش از حد مجاز است.');
+  if (bytes.byteLength > AVATAR.maxBytes) throw reject('حجم عکس بیشتر از حد مجازه.');
 
   if (!signatureMatches(type as AllowedFileType, bytes.subarray(0, 8))) {
-    throw reject('محتوای فایل با نوع اعلام‌شدهٔ آن هم‌خوانی ندارد.');
+    throw reject('محتوای فایل با نوعی که گفته شده نمی‌خونه.');
   }
 
   return s3Storage.uploadFile(bytes, type, `avatar${ALLOWED_FILE_TYPES[type as AllowedFileType]}`);
@@ -98,15 +98,20 @@ export async function storeAvatar(file: File): Promise<string> {
 export async function storeUploads(files: File[]): Promise<StoredFile[]> {
   if (files.length === 0) {
     throw Errors.validation(
-      [{ path: 'files', message: 'فایلی برای ارسال انتخاب نشده است.' }],
-      'فایلی برای ارسال انتخاب نشده است.'
+      [{ path: 'files', message: 'فایلی برای فرستادن انتخاب نکردی.' }],
+      'فایلی برای فرستادن انتخاب نکردی.'
     );
   }
 
   if (files.length > UPLOAD.maxFilesPerMessage) {
     throw Errors.validation(
-      [{ path: 'files', message: `هر پیام حداکثر ${UPLOAD.maxFilesPerMessage} پیوست می‌پذیرد.` }],
-      `هر پیام حداکثر ${UPLOAD.maxFilesPerMessage} پیوست می‌پذیرد.`
+      [
+        {
+          path: 'files',
+          message: `هر پیام حداکثر ${UPLOAD.maxFilesPerMessage} پیوست قبول می‌کنه.`,
+        },
+      ],
+      `هر پیام حداکثر ${UPLOAD.maxFilesPerMessage} پیوست قبول می‌کنه.`
     );
   }
 
@@ -116,18 +121,18 @@ export async function storeUploads(files: File[]): Promise<StoredFile[]> {
     const reject = (message: string) =>
       Errors.validation([{ path: 'files', message }], `«${file.name}»: ${message}`);
 
-    if (file.size === 0) throw reject('فایل خالی است.');
-    if (file.size > UPLOAD.maxFileBytes) throw reject('حجم فایل بیش از حد مجاز است.');
+    if (file.size === 0) throw reject('فایل خالیه.');
+    if (file.size > UPLOAD.maxFileBytes) throw reject('حجم فایل بیشتر از حد مجازه.');
 
     const type = file.type.split(';')[0]?.trim() ?? '';
-    if (!isAllowedFileType(type)) throw reject('این نوع فایل پذیرفته نمی‌شود.');
+    if (!isAllowedFileType(type)) throw reject('این نوع فایل قبول نمی‌شه.');
 
     const bytes = new Uint8Array(await file.arrayBuffer());
 
-    if (bytes.byteLength > UPLOAD.maxFileBytes) throw reject('حجم فایل بیش از حد مجاز است.');
+    if (bytes.byteLength > UPLOAD.maxFileBytes) throw reject('حجم فایل بیشتر از حد مجازه.');
 
     if (!signatureMatches(type, bytes.subarray(0, 8))) {
-      throw reject('محتوای فایل با نوع اعلام‌شدهٔ آن هم‌خوانی ندارد.');
+      throw reject('محتوای فایل با نوعی که گفته شده نمی‌خونه.');
     }
 
     prepared.push({

@@ -5,13 +5,13 @@ import { toPersianDigits } from '../format';
 const MAX_RESULTS = 30;
 
 export const userSearchSchema = z.object({
-  search: z.string().trim().max(64, { error: 'عبارت جست‌وجو بیش از حد طولانی است.' }).optional(),
+  search: z.string().trim().max(64, { error: 'عبارت جست‌وجو خیلی طولانیه.' }).optional(),
   limit: z.coerce
-    .number({ error: 'تعداد باید یک عدد باشد.' })
-    .int({ error: 'تعداد باید عدد صحیح باشد.' })
-    .min(1, { error: 'تعداد باید دست‌کم ۱ باشد.' })
+    .number({ error: 'تعداد باید عدد باشه.' })
+    .int({ error: 'تعداد باید عدد درست باشه.' })
+    .min(1, { error: 'تعداد باید حداقل ۱ باشه.' })
     .max(MAX_RESULTS, {
-      error: `تعداد نمی‌تواند بیشتر از ${toPersianDigits(MAX_RESULTS)} باشد.`,
+      error: `تعداد نباید بیشتر از ${toPersianDigits(MAX_RESULTS)} باشه.`,
     })
     .default(MAX_RESULTS),
 });
@@ -27,14 +27,14 @@ export const adminUserQuerySchema = z.object({
 
 export const adminUpdateUserSchema = z
   .object({
-    role: z.enum(GLOBAL_ROLES, { error: 'نقش انتخاب‌شده معتبر نیست.' }).optional(),
-    status: z.enum(ACCOUNT_STATUSES, { error: 'وضعیت انتخاب‌شده معتبر نیست.' }).optional(),
+    role: z.enum(GLOBAL_ROLES, { error: 'این نقش درست نیست.' }).optional(),
+    status: z.enum(ACCOUNT_STATUSES, { error: 'این وضعیت درست نیست.' }).optional(),
     isActive: z.boolean().optional(),
   })
   .refine(
     (input) =>
       input.role !== undefined || input.status !== undefined || input.isActive !== undefined,
-    { error: 'تغییری برای اعمال مشخص نشده است.' }
+    { error: 'چیزی برای تغییر مشخص نکردی.' }
   );
 
 export type AdminUserQuery = z.infer<typeof adminUserQuerySchema>;

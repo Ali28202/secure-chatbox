@@ -8,7 +8,7 @@ export default function RegisterPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">ساخت حساب کاربری</CardTitle>
+        <CardTitle className="text-xl">ساخت حساب</CardTitle>
         <CardDescription>اینجا مخصوص ثبت‌نام شما دانشجوهاست </CardDescription>
       </CardHeader>
       <CardContent>

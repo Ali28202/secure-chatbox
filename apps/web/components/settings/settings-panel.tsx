@@ -29,15 +29,13 @@ export function SettingsPanel() {
     // Checked again on the server, magic bytes and all. This is only so the
     // obvious mistakes fail instantly instead of after an upload.
     if (file.size > AVATAR.maxBytes) {
-      toast.error(
-        `حجم تصویر باید کمتر از ${toPersianDigits(AVATAR.maxBytes / MEGABYTE)} مگابایت باشد.`
-      );
+      toast.error(`عکس باید کمتر از ${toPersianDigits(AVATAR.maxBytes / MEGABYTE)} مگابایت باشه.`);
     } else if (!(AVATAR.types as readonly string[]).includes(file.type)) {
-      toast.error('تصویر باید PNG، JPEG یا WebP باشد.');
+      toast.error('فقط PNG، JPEG یا WebP قبوله.');
     } else {
       setAvatar.mutate(file, {
         onError: (error) => toast.error(getApiErrorMessage(error)),
-        onSuccess: () => toast.success('تصویر پروفایل به‌روز شد.'),
+        onSuccess: () => toast.success('عکست عوض شد.'),
       });
     }
 
@@ -57,13 +55,13 @@ export function SettingsPanel() {
       <div className="flex flex-col gap-6">
         <header>
           <h1 className="text-lg font-semibold">تنظیمات</h1>
-          <p className="text-xs text-muted-foreground">تصویر پروفایل و دستگاه‌های واردشده</p>
+          <p className="text-xs text-muted-foreground">عکس پروفایلت و دستگاه‌هایی که وارد شدن</p>
         </header>
 
         <section className="flex flex-col gap-4 rounded-lg border p-4">
           <h2 className="flex items-center gap-2 text-sm font-medium">
             <UserRoundIcon className="size-4 text-muted-foreground" />
-            تصویر پروفایل
+            عکس پروفایل
           </h2>
 
           <div className="flex items-center gap-4">
@@ -75,7 +73,7 @@ export function SettingsPanel() {
                 {ROLE_LABELS[user.role]} · <span dir="ltr">{user.universityId}</span>
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                PNG، JPEG یا WebP — حداکثر {toPersianDigits(AVATAR.maxBytes / MEGABYTE)} مگابایت
+                PNG، JPEG یا WebP — تا {toPersianDigits(AVATAR.maxBytes / MEGABYTE)} مگابایت
               </p>
             </div>
           </div>
@@ -86,7 +84,7 @@ export function SettingsPanel() {
               type="file"
               accept={AVATAR.types.join(',')}
               className="sr-only"
-              aria-label="انتخاب تصویر پروفایل"
+              aria-label="انتخاب عکس پروفایل"
               onChange={(event) => pick(event.target.files)}
             />
 
@@ -98,7 +96,7 @@ export function SettingsPanel() {
               onClick={() => fileInputRef.current?.click()}
             >
               {setAvatar.isPending ? <Loader2Icon className="animate-spin" /> : <UploadIcon />}
-              {user.hasAvatar ? 'تغییر تصویر' : 'انتخاب تصویر'}
+              {user.hasAvatar ? 'عوض کردن عکس' : 'انتخاب عکس'}
             </Button>
 
             {user.hasAvatar && (
@@ -110,12 +108,12 @@ export function SettingsPanel() {
                 onClick={() =>
                   clearAvatar.mutate(undefined, {
                     onError: (error) => toast.error(getApiErrorMessage(error)),
-                    onSuccess: () => toast.success('تصویر پروفایل حذف شد.'),
+                    onSuccess: () => toast.success('عکست برداشته شد.'),
                   })
                 }
               >
                 <Trash2Icon />
-                حذف تصویر
+                برداشتن عکس
               </Button>
             )}
           </div>
@@ -124,7 +122,7 @@ export function SettingsPanel() {
         <section className="flex flex-col gap-2 rounded-lg border p-4">
           <h2 className="text-sm font-medium">امنیت</h2>
           <p className="text-xs text-muted-foreground">
-            هر ورود یک نشست است. پایان‌دادن به یک نشست همان لحظه اثر می‌کند.
+            ببین با حسابت از کجاها وارد شدی. هر کدوم رو نمی‌شناسی، بیرونش کن.
           </p>
           <SessionsDialog />
         </section>

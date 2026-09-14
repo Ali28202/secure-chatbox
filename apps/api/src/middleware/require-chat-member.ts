@@ -7,13 +7,13 @@ export const requireChatMember = createMiddleware<ChatEnv>(async (c, next) => {
   const chatId = c.req.param('chatId');
 
   if (!chatId) {
-    throw Errors.notFound('این گفت‌وگو وجود ندارد یا به آن دسترسی ندارید.');
+    throw Errors.notFound('این گفت‌وگو نیست یا بهش دسترسی نداری.');
   }
 
   const membership = await chatService.findMembership(chatId, c.get('user').id);
 
   if (!membership) {
-    throw Errors.notFound('این گفت‌وگو وجود ندارد یا به آن دسترسی ندارید.');
+    throw Errors.notFound('این گفت‌وگو نیست یا بهش دسترسی نداری.');
   }
 
   c.set('chatId', chatId);

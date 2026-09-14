@@ -26,7 +26,7 @@ test.describe('what a student may create', () => {
     await expect(dialog.getByRole('group', { name: 'نوع گروه' })).toBeHidden();
     await expect(dialog.getByRole('button', { name: 'گروه درسی' })).toBeHidden();
 
-    await dialog.getByLabel('نام گروه').fill('گروه مطالعاتی ترم');
+    await dialog.getByLabel('اسم گروه').fill('گروه مطالعاتی ترم');
     await dialog.getByRole('button', { name: 'ساخت گروه' }).click();
     await expect(student.page).toHaveURL(/\/chats\/[0-9a-f-]{36}$/);
 
@@ -42,7 +42,7 @@ test.describe('what a student may create', () => {
     expect(await refusal(response)).toEqual({
       status: 403,
       code: 'FORBIDDEN',
-      message: 'تنها اساتید امکان ساخت گروه درسی را دارند.',
+      message: 'فقط استادها می‌تونن گروه درسی بسازن.',
     });
 
     expect(await student.api.listChats()).toHaveLength(0);
@@ -75,7 +75,7 @@ test.describe('conversations you are not part of', () => {
       outsider.page.getByText('این گروه یا کلاً پاک شده، یا تو عضوش نیستی.')
     ).toBeVisible();
     await expect(
-      outsider.page.getByRole('button', { name: 'بازگشت به فهرست گفت‌وگوها' })
+      outsider.page.getByRole('button', { name: 'برگرد به فهرست گفت‌وگوها' })
     ).toBeVisible();
   });
 
@@ -109,7 +109,7 @@ test.describe('a read-only chat', () => {
     await attendee.page.goto(`/chats/${chat.id}`);
 
     await expect(attendee.page.getByLabel('متن پیام')).toBeHidden();
-    await expect(attendee.page.getByText('این گفت‌وگو فقط‌خواندنی است.')).toBeVisible();
+    await expect(attendee.page.getByText('این گفت‌وگو فقط‌خواندنیه.')).toBeVisible();
 
     const response = await attendee.api
       .raw()
@@ -117,7 +117,7 @@ test.describe('a read-only chat', () => {
     expect(await refusal(response)).toEqual({
       status: 403,
       code: 'FORBIDDEN',
-      message: 'این گفت‌وگو فقط‌خواندنی است.',
+      message: 'این گفت‌وگو فقط‌خواندنیه.',
     });
 
     await professor.page.getByLabel('متن پیام').fill('کلاس فردا برگزار نمی‌شود.');
@@ -173,7 +173,7 @@ test.describe('moderating a course group', () => {
     expect(await refusal(deleted)).toEqual({
       status: 403,
       code: 'FORBIDDEN',
-      message: 'تنها فرستندهٔ پیام یا مدیر گفت‌وگو می‌تواند آن را حذف کند.',
+      message: 'فقط فرستندهٔ پیام یا مدیر گفت‌وگو می‌تونه حذفش کنه.',
     });
 
     const pinned = await attendee.api
@@ -184,7 +184,7 @@ test.describe('moderating a course group', () => {
     expect(await refusal(pinned)).toEqual({
       status: 403,
       code: 'FORBIDDEN',
-      message: 'فقط مدیر گفت‌وگو می‌تواند پیام‌ها را سنجاق کند.',
+      message: 'فقط مدیر گفت‌وگو می‌تونه پیام پین کنه.',
     });
   });
 
@@ -201,7 +201,7 @@ test.describe('moderating a course group', () => {
     await bubble.getByRole('button', { name: `گزینه‌های پیام ${attendee.account.name}` }).click();
     await professor.page.getByRole('menuitem', { name: 'حذف پیام' }).click();
 
-    await expect(professor.page.getByText('این پیام حذف شده است.')).toBeVisible();
+    await expect(professor.page.getByText('این پیام حذف شده.')).toBeVisible();
   });
 });
 
@@ -294,7 +294,7 @@ test.describe('who may change the roster', () => {
 
     const dialog = student.page.getByRole('dialog');
     await dialog.getByRole('button', { name: 'افزودن عضو' }).click();
-    await dialog.getByLabel('جست‌وجوی کاربران').fill(latecomer.account.universityId);
+    await dialog.getByLabel('جست‌وجوی کاربرها').fill(latecomer.account.universityId);
     await dialog.getByRole('button', { name: latecomer.account.name }).click();
 
     // Assert inside the dialog: it is modal, so while it is open the trigger
@@ -331,7 +331,7 @@ test.describe('who may change the roster', () => {
     expect(await refusal(added)).toEqual({
       status: 403,
       code: 'FORBIDDEN',
-      message: 'تغییر اعضا تنها از عهدهٔ استادان و سازندهٔ گفت‌وگو برمی‌آید.',
+      message: 'فقط استادها و سازندهٔ گفت‌وگو می‌تونن اعضا رو عوض کنن.',
     });
   });
 
@@ -371,7 +371,7 @@ test.describe('the creator’s seat', () => {
     expect(await refusal(demoted)).toEqual({
       status: 403,
       code: 'FORBIDDEN',
-      message: 'سازندهٔ گفت‌وگو را نمی‌توان تغییر داد یا حذف کرد.',
+      message: 'سازندهٔ گفت‌وگو رو نمی‌شه تغییر داد یا حذف کرد.',
     });
 
     // Nor by the back door: removing them would strip the protected admin too.
@@ -381,7 +381,7 @@ test.describe('the creator’s seat', () => {
     expect(await refusal(removed)).toEqual({
       status: 403,
       code: 'FORBIDDEN',
-      message: 'سازندهٔ گفت‌وگو را نمی‌توان تغییر داد یا حذف کرد.',
+      message: 'سازندهٔ گفت‌وگو رو نمی‌شه تغییر داد یا حذف کرد.',
     });
 
     await expect

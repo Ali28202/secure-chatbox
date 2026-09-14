@@ -31,12 +31,12 @@ export default function HomePage() {
       <header className="space-y-3">
         <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">چت‌باکس</h1>
         <p className="text-lg text-pretty text-muted-foreground">
-          سامانهٔ گفت‌وگو و کنترل دسترسی درون‌شبکه‌ای برای استادان و دانشجویان.
+          جای گفت‌وگوی استادها و دانشجوها، داخل شبکهٔ خود دانشگاه.
         </p>
         <div className="flex flex-wrap gap-3 pt-2">
           <Button render={<Link href={ROUTES.login} />}>ورود به سامانه</Button>
           <Button variant="outline" render={<Link href={ROUTES.register} />}>
-            ساخت حساب کاربری
+            ساخت حساب
           </Button>
         </div>
       </header>

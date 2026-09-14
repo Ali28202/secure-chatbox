@@ -49,7 +49,7 @@ bring_up() {
 }
 
 # ---------------------------------------------------------------- deploy ----
-PREV_API=''; PREV_WEB=''
+PREV_API=''; PREV_WEB=''; PREV_NGINX_HASH=''
 # shellcheck source=/dev/null
 [ -f "$STATE_FILE" ] && . "$STATE_FILE"
 
@@ -64,10 +64,22 @@ if [ "$MIGRATE_CODE" != 0 ] && [ "$MIGRATE_CODE" != unknown ]; then
   compose logs --no-color --tail 40 migrate
 fi
 
+# nginx renders its templates through envsubst at container start and never
+# again, so a deploy that ships a changed nginx config leaves the old one
+# running. Recreate it only when the config actually differs — a restart is a
+# second of downtime, and most deploys do not touch it.
+NGINX_HASH=$(find infra/nginx -type f -exec sha256sum {} + | sort | sha256sum | cut -d' ' -f1)
+
+if [ "$NGINX_HASH" != "${PREV_NGINX_HASH:-}" ]; then
+  log "nginx config changed — recreating it"
+  compose up -d --force-recreate nginx
+fi
+
 log "Waiting for the site to answer (up to ${HEALTH_TIMEOUT}s)"
 if wait_until_healthy; then
   log "Healthy"
-  printf "PREV_API=%q\nPREV_WEB=%q\n" "$API_IMAGE" "$WEB_IMAGE" > "$STATE_FILE"
+  printf "PREV_API=%q\nPREV_WEB=%q\nPREV_NGINX_HASH=%q\n" \
+    "$API_IMAGE" "$WEB_IMAGE" "$NGINX_HASH" > "$STATE_FILE"
   docker image prune -f >/dev/null 2>&1 || true
   compose ps
   exit 0
